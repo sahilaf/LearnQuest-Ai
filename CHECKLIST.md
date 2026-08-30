@@ -12,6 +12,27 @@
 
 ---
 
+## Scaffold status (commit `2f6065c`, 2026-08-30)
+
+The repo skeleton is pushed. Boxes ticked below with `scaffold` were delivered by that
+commit and **verified running**, not just written. Everything else is still yours to build.
+
+What actually works today:
+
+- Backend boots and serves **44 routes**; `/api/health` responds
+- Event bus verified: a deliberately raising handler was logged and swallowed, and the
+  other handler still ran
+- Admin gate verified: **403** for a student role, **200** for admin
+- XP level curve verified: L2=282, L5=1118, L10=3162
+- Frontend builds clean and renders with **zero console errors**
+- `DEV_ALLOW_ANONYMOUS=true` + `LLM_PROVIDER=mock` mean the whole app runs with
+  **no Supabase, no Firebase and no API key** - start building today
+
+What is deliberately NOT done: every endpoint body is a stub returning placeholder data,
+no models are defined, and no migrations exist yet.
+
+---
+
 ## How to update
 
 1. Find your section (Member 1–4) and the current week.
@@ -23,17 +44,17 @@
 
 ## Week 0 — Shared setup (all four, together, day 1)
 
-- [ ] GitHub repo created and everyone has push access — @
+- [~] GitHub repo created, scaffold pushed — scaffold, 2026-08-30 · TODO: grant push access to M2/M3/M4
 - [ ] Supabase project created, `DATABASE_URL` shared with the team — @
 - [ ] Firebase project created, web config + service account shared — @
 - [ ] LLM provider account + API key obtained — @
 - [ ] Vercel account connected to the repo — @
 - [ ] Render account connected to the repo — @
-- [ ] Everyone can run the backend locally (`uvicorn app.main:app --reload`) — @
-- [ ] Everyone can run the frontend locally (`npm run dev`) — @
-- [ ] All four routers registered in `main.py` in ONE shared commit — @
-- [ ] All four route groups added to `App.jsx` in ONE shared commit — @
-- [ ] Topic-tag vocabulary agreed and written down (e.g. `python.loops`) — @
+- [~] Backend verified booting locally, 44 routes served — scaffold, 2026-08-30 · each member still to confirm on their own machine
+- [~] Frontend verified building and rendering — scaffold, 2026-08-30 · each member still to confirm on their own machine
+- [x] All four routers registered in `main.py` in ONE shared commit — scaffold, 2026-08-30
+- [x] All four route groups added to `App.jsx` in ONE shared commit — scaffold, 2026-08-30
+- [~] Starter vocabulary in `backend/app/seed/seed_data.py` (`TOPIC_VOCABULARY`) — scaffold, 2026-08-30 · **team still has to agree it, before M3 writes seed data**
 - [ ] Everyone has read plan.md §0–§4 — @
 
 ---
@@ -41,10 +62,10 @@
 ## Member 1 — AI Avatar Tutor & Intelligent Learning (Lead)
 
 ### Week 1 — foundations
-- [ ] Decide the LLM provider and record it in `backend/.env.example` — @
-- [ ] `services/llm_client.py`: `complete()` + `stream()` with retry, timeout, token logging — @
-- [ ] `MockLLMClient` working under `LLM_PROVIDER=mock` (unblocks the whole team) — @
-- [ ] `services/prompts.py`: tutor system prompt v1 — @
+- [~] Provider options documented in `backend/.env.example`, defaults to `mock`; Groq recommended, decision pending — scaffold, 2026-08-30
+- [x] `services/llm_client.py`: `complete()` + `stream()` with retry, timeout, token logging — scaffold, 2026-08-30 · works against Groq/OpenAI unchanged
+- [x] `MockLLMClient` working under `LLM_PROVIDER=mock` — scaffold, 2026-08-30 · verified for both text and JSON-mode quiz output
+- [~] `services/prompts.py`: prompt constants scaffolded; `build_tutor_context()` still raises NotImplementedError — scaffold, 2026-08-30
 - [ ] `models/ai.py`: `conversations`, `messages`, `topic_mastery`, `recommendations` + migration — @
 - [ ] `POST /api/tutor/conversations` and message CRUD working — @
 - [ ] Non-streaming chat endpoint returns a real LLM answer — @
@@ -93,9 +114,9 @@
 ## Member 2 — Learning Management
 
 ### Week 1 — UI kit + course browsing
-- [ ] UI kit shipped Monday: `Button`, `Card`, `Input`, `Select`, `Modal`, `Spinner` — @
-- [ ] UI kit part 2: `ProgressBar`, `Badge`, `Tabs`, `EmptyState`, `Toast` — @
-- [ ] Tailwind theme tokens agreed and applied (plan.md §4.5) — @
+- [x] UI kit part 1: `Button`, `Card`, `Input`, `Select`, `Modal`, `Spinner` — scaffold, 2026-08-30
+- [~] UI kit part 2: `ProgressBar`, `Badge`, `EmptyState`, `Toast`, `Skeleton` done — scaffold, 2026-08-30 · **`Tabs` still missing**
+- [~] Tailwind tokens applied in `tailwind.config.js` + `index.css` — scaffold, 2026-08-30 · team sign-off pending
 - [ ] `/courses` catalog: grid, search, subject + difficulty filters — @
 - [ ] `/courses/:slug` detail: lesson list, completion ticks, progress ring — @
 - [ ] `POST /api/courses/{id}/enroll` + enrolled state in the UI — @
@@ -144,15 +165,15 @@
 - [ ] **Day 1:** `users`, `courses`, `lessons`, `enrollments` migrated — @
 - [ ] **Day 2:** Firebase project + web config shared — @
 - [ ] **Day 2:** `AuthContext` with email/password + Google sign-in — @
-- [ ] **Day 2:** `api/client.js` axios instance with the Bearer token interceptor — @
+- [x] **Day 2:** `api/client.js` axios instance with the Bearer token interceptor — scaffold, 2026-08-30 · includes 401 refresh-and-retry and the standard error shape
 - [ ] **Day 3:** `firebase-admin` token verification in `deps.py` — @
 - [ ] **Day 3:** `get_current_user` auto-creates the `users` row on first login — @
-- [ ] **Day 3:** `require_admin` returning 403 for students — @
+- [x] **Day 3:** `require_admin` returning 403 for students — scaffold, 2026-08-30 · verified; currently gates the dev stub user, works unchanged once Firebase lands
 - [ ] **Day 4:** **Seed data: 3 courses × 5 lessons, real markdown, real `topic_tags`** — @
 - [ ] **Day 5:** Course + lesson CRUD endpoints — @
 - [ ] **Day 5:** Hello-world deploy proven on Render + Vercel — @
 - [ ] Login / Register / Forgot-password pages — @
-- [ ] `PrivateRoute` and `AdminRoute` wrappers — @
+- [x] `PrivateRoute` and `AdminRoute` wrappers — scaffold, 2026-08-30
 
 ### Week 2 — admin panel & profile
 - [ ] Admin shell with sidebar navigation — @
@@ -194,13 +215,13 @@
 ## Member 4 — Gamification & Analytics
 
 ### Week 1 — the event bus (the team is blocked on this too)
-- [ ] **Day 1–2:** `services/events.py` with `on()` + `emit()` — @
-- [ ] **Every handler wrapped in try/except — a failing handler must never 500 the caller** — @
+- [x] **Day 1–2:** `services/events.py` with `on()` + `emit()` — scaffold, 2026-08-30 · all 7 event types declared
+- [x] **Every handler wrapped in try/except — a failing handler must never 500 the caller** — scaffold, 2026-08-30 · verified with a deliberately raising handler
 - [ ] `models/gamification.py`: all 7 tables + migration — @
-- [ ] `services/xp_engine.py` with the award table from plan.md §9.2 — @
+- [~] `services/xp_engine.py`: `XP_AWARDS` table + caps defined; `award_xp()` and `update_streak()` still raise NotImplementedError — scaffold, 2026-08-30
 - [ ] Every XP award writes an `xp_events` row — @
-- [ ] Level curve `100 * n^1.5` implemented — @
-- [ ] `GET /api/me/stats` returning xp, level, next_level_xp, coins, streak — @
+- [x] Level curve `100 * n^1.5` implemented — scaffold, 2026-08-30 · verified L2=282, L5=1118, L10=3162
+- [~] `GET /api/me/stats` route exists but returns hardcoded zeros; needs a real `user_stats` read — scaffold, 2026-08-30
 - [ ] `XPBar` + `StreakFlame` components exported for M2's dashboard — @
 
 ### Week 2 — badges, streaks, leaderboard
