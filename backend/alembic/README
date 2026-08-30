@@ -1,0 +1,8 @@
+Alembic migrations for LearnQuest AI.
+
+One migration per PR. Never edit a migration someone else wrote.
+If two migrations collide on down_revision, the LATER merger regenerates theirs.
+
+  alembic revision --autogenerate -m "m3: users"
+  alembic upgrade head
+  alembic downgrade -1
