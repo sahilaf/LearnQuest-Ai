@@ -42,6 +42,31 @@ no models are defined, and no migrations exist yet.
 
 ---
 
+## Tier 1 — the features the project is judged on
+
+> If only these ship, the project still works. See plan.md §0.1.
+> **Everything in this block is more important than anything below it.**
+
+- [ ] `topic_mastery.misconception` + `misconception_updated_at` in the schema — @
+- [ ] Wrong answer → LLM writes what the learner believes that is untrue — @
+- [ ] Nothing written when no specific belief can be identified (an invented one is harmful) — @
+- [ ] Misconception cleared after two consecutive correct answers — @
+- [ ] Tutor/avatar explains **that belief**, not the topic in general — @
+- [ ] Free-response answers with written feedback (not just MCQ) — @
+- [ ] Grading is lenient: 10 awkward-but-correct answers all pass — @
+- [ ] Answer & feedback screen built and designed properly (M2) — @
+
+## Tier 2 — the learning engine
+
+- [ ] `review_items` table + SM-2-lite scheduling — @
+- [ ] `GET /api/review/today` returns due items with freshly generated questions — @
+- [ ] Topics interleaved within a session, not blocked — @
+- [ ] Daily queue capped (~15 items) — @
+- [ ] `/review` is the app's front door, not `/dashboard` — @
+- [ ] Upload a PDF → becomes a private course with tagged lessons — @
+
+---
+
 ## Week 0 — Shared setup (all four, together, day 1)
 
 - [~] GitHub repo created, scaffold pushed — scaffold, 2026-08-30 · TODO: grant push access to M2/M3/M4
@@ -53,6 +78,8 @@ no models are defined, and no migrations exist yet.
 - [x] All four routers registered in `main.py` in ONE shared commit — scaffold, 2026-08-30
 - [x] All four route groups added to `App.jsx` in ONE shared commit — scaffold, 2026-08-30
 - [~] Starter vocabulary in `backend/app/seed/seed_data.py` (`TOPIC_VOCABULARY`) — scaffold, 2026-08-30 · **team still has to agree it, before M3 writes seed data**
+- [x] Content language: **English** — decided 2026-08-31
+- [ ] Test the SyncTalk model on English audio (it was trained on Bangla speech) — @
 - [ ] Everyone has read plan.md §0–§4 — @
 
 ---
@@ -136,7 +163,8 @@ no models are defined, and no migrations exist yet.
 - [ ] `POST /api/lessons/{id}/progress` + 30s heartbeat time tracking — @
 - [ ] Auto "mark complete" at 90% scroll + manual button — @
 - [ ] `emit("lesson.completed", ...)` fired — @
-- [ ] `/dashboard` v1 with progress cards — @
+- [ ] **`/review` queue screen — the app's front door** — @
+- [ ] `/dashboard`: today's focus + what's due + then-vs-now (not a wall of charts) — @
 
 ### Week 3 — history, revision, mobile
 - [ ] `/history` timeline of lessons + attempts, filterable by course — @
@@ -173,7 +201,9 @@ no models are defined, and no migrations exist yet.
 - [ ] **Day 3:** Supabase JWT verification in `deps.py` (`pyjwt` + `SUPABASE_JWT_SECRET`) — @
 - [ ] **Day 3:** `get_current_user` auto-creates the `public.users` row on first login — @
 - [x] **Day 3:** `require_admin` returning 403 for students — scaffold, 2026-08-30 · verified; currently gates the dev stub user, works unchanged once Supabase Auth lands
-- [ ] **Day 4:** **Seed data: 3 courses × 5 lessons, real markdown, real `topic_tags`** — @
+- [ ] **Day 4:** **ONE course done properly — 6–8 real lessons, fully tagged, English.** SQL/DBMS recommended — @
+- [ ] Week 2: two thin courses (2–3 lessons each) so the catalogue is not a single item — @
+- [ ] `POST /api/uploads` — file handling for upload-your-own-notes (M1 does the splitting) — @
 - [ ] **Day 5:** Course + lesson CRUD endpoints — @
 - [ ] Login / Register / Forgot-password pages — @
 - [x] `PrivateRoute` and `AdminRoute` wrappers — scaffold, 2026-08-30
@@ -226,18 +256,20 @@ no models are defined, and no migrations exist yet.
 ### Week 2 — badges, streaks, leaderboard
 - [ ] Streak logic using the **user's local date**, not server UTC — @
 - [ ] `longest_streak` maintained — @
-- [ ] ~15 badges seeded with JSONB `criteria` — @
+- [ ] **Two** badges seeded (`first_lesson`, `streak_7`) — not fifteen — @
 - [ ] Data-driven badge checker running on every event — @
 - [ ] Celebration modal + confetti on badge earned (Framer Motion) — @
 - [ ] `/achievements` page: earned + locked with progress — @
-- [ ] `GET /api/leaderboard` with `scope` + `period`, user's rank pinned — @
-- [ ] `leaderboard_opt_out` preference respected — @
+- [-] Leaderboard — **descoped** (demotivates everyone outside the top few). Build only if everything else is done — @
 
 ### Week 3 — challenges, charts, notifications
-- [ ] Daily challenge template pool seeded — @
+- [-] Daily challenges — **descoped**, the review queue already does this job — @
+- [ ] (If kept) daily challenge template pool seeded — @
 - [ ] 3 challenges generated per day + progress via event handlers — @
 - [ ] `POST /api/challenges/{id}/claim` — @
 - [ ] "Practice a weak topic" challenge calling M1's `/api/recommendations` — @
+- [ ] **Then vs now** — their answer 3 weeks ago beside today's. Build this first — @
+- [ ] **Misconceptions resolved** count (from M1's `GET /api/me/misconceptions`) — @
 - [ ] `/stats`: weekly activity, XP over time, quiz accuracy trend — @
 - [ ] Topic mastery chart fed by M1's `/api/analytics/mastery/me` — @
 - [ ] Time-of-day pattern + course completion donuts — @
@@ -263,8 +295,8 @@ no models are defined, and no migrations exist yet.
 ## Weekly checkpoints (plan.md §5)
 
 - [ ] **End W1:** login works · a real course renders from the DB · the tutor answers one question — @
-- [ ] **End W2:** enroll → read a lesson → take an AI-generated quiz → XP goes up — @
-- [ ] **End W3:** avatar speaks with lipsync · dashboard shows recommendations, streaks, charts — @
+- [ ] **End W2:** **the core loop** — a wrong free-response answer produces a correct misconception sentence, and the tutor explains it. The week that matters — @
+- [ ] **End W3:** app opens to the review queue · missed topics return on schedule · upload works · avatar delivers the feedback — @
 - [ ] **End W4:** seeded, demoed, handed to the lead for deployment — @
 
 ---

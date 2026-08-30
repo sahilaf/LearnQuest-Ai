@@ -26,6 +26,48 @@ Each member owns a **vertical slice**: the DB tables, the FastAPI routers, and t
 | **Member 3** | User & Administration | auth, users, course/lesson **CRUD**, admin panel, seed data |
 | **Member 4** | Gamification & Analytics | XP, badges, streaks, challenges, leaderboard, analytics |
 
+
+---
+
+## 0.1 What we are actually building
+
+Read this before your own section. It reorders what matters.
+
+The app is **one repeating loop**: practise → get something wrong → find out *why* → see it
+again later. Courses, the avatar and XP hang off that loop; they are not the point.
+
+**The one idea:** a normal quiz app records *that* you were wrong. This one records **what
+you believe that isn't true**, in plain English, and teaches that. Two students both scoring
+40% get different help.
+
+### Priority order
+
+Build top-down. Cut bottom-up.
+
+| Tier | Feature | Why |
+| --- | --- | --- |
+| **1** | Capture the misconception after a wrong answer (`topic_mastery.misconception`) | Everything below depends on it |
+| **1** | Tutor/avatar explains *that specific error*, not the topic | Turns a chatbot into a tutor |
+| **1** | Free-response answers with written feedback | Typing beats picking A/B/C/D for memory |
+| **2** | Daily review queue on a spacing schedule (`review_items`) | Spacing is the best-evidenced learning method there is |
+| **2** | Upload your own notes/PDF → generated practice | Students revise *their* material, not a generic course |
+| **2** | Mix topics within a session rather than one topic at a time | Half a day's work, real gain |
+| **3** | XP + streak, progress, courses, lessons, admin | Promised in the proposal. Build the simple version |
+| **4** | Badges, leaderboard, daily challenges | Minimise — see §12 |
+
+### Decisions already made
+
+- **The app opens to a queue, not a catalogue.** The catalogue exists; nobody lives there.
+- **Seed one course properly** (6–8 lessons) plus two thin ones. Depth demos better than breadth.
+- **Content is English.** The avatar model was trained on Bangla speech — see §6.6.
+- **An uploaded PDF becomes a course.** Same tables, same pipeline, nothing downstream
+  knows the difference. That is what makes upload cheap.
+
+### The demo line
+
+> "Two students both scored 40%. The app knows they're wrong for different reasons,
+> and teaches them differently."
+
 ---
 
 ## 1. Repository structure
@@ -195,6 +237,8 @@ courses (
   subject TEXT, difficulty TEXT,          -- beginner | intermediate | advanced
   thumbnail_url TEXT, estimated_hours INT,
   is_published BOOLEAN DEFAULT false,
+  source TEXT DEFAULT 'seeded',           -- seeded | uploaded
+  is_private BOOLEAN DEFAULT false,       -- uploaded courses are private to created_by
   created_by UUID FK->users, created_at TIMESTAMPTZ
 )
 
@@ -271,9 +315,23 @@ messages (
 topic_mastery (
   id UUID PK, user_id UUID FK, topic_tag TEXT,
   mastery_score NUMERIC(4,3) DEFAULT 0.5, -- 0.0 .. 1.0
+  misconception TEXT,                     -- THE KEY FIELD. Plain English, e.g.
+                                          -- "thinks a JOIN combines both tables
+                                          --  rather than keeping matching rows"
+  misconception_updated_at TIMESTAMPTZ,
   attempts INT DEFAULT 0, correct INT DEFAULT 0,
   last_practiced_at TIMESTAMPTZ,
   UNIQUE(user_id, topic_tag)
+)
+
+review_items (                            -- the daily queue. M1 writes, M2 renders
+  id UUID PK, user_id UUID FK, topic_tag TEXT,
+  source_lesson_id UUID FK->lessons NULL,
+  due_at TIMESTAMPTZ NOT NULL,
+  interval_days INT DEFAULT 1,
+  streak INT DEFAULT 0,                   -- consecutive correct
+  last_reviewed_at TIMESTAMPTZ,
+  UNIQUE(user_id, topic_tag, source_lesson_id)
 )
 
 recommendations (
@@ -325,10 +383,28 @@ notifications (
 )
 ```
 
-### 3.1 The two fields everything depends on
+### 3.1 The three fields everything depends on
 
 1. **`lessons.topic_tags`** — recommendations, mastery, and adaptive quizzes all key off this. M3 must enforce that every lesson has at least one tag; M1's engine is blind without it. Agree a controlled vocabulary in Week 1 (e.g. `python.loops`, `dbms.normalization`).
 2. **`attempt_answers.topic_tag`** — copied from `questions.topic_tag` at submit time so mastery can be recomputed without a four-table join.
+3. **`topic_mastery.misconception`** — the plain-English sentence describing what the learner believes that is wrong. The tutor explains *this*, the queue reschedules around it, and the demo turns on it. A mastery score alone cannot tell two failing students apart.
+
+### 3.3 The review queue
+
+The queue is what the app opens to. It schedules **topics**, not stored questions — the
+question itself is generated fresh each time, so a learner cannot memorise the item instead
+of the idea.
+
+Scheduling rule (simple, and defensible in a viva as SM-2-lite):
+
+```
+correct  ->  interval_days = min(interval_days * 2.5, 60);  streak += 1
+wrong    ->  interval_days = 2;  streak = 0
+due_at   =  now + interval_days
+```
+
+A topic enters the queue the first time a learner answers anything tagged with it — from a
+lesson quiz, the diagnostic, or an upload. Nothing is studied once.
 
 ### 3.2 Migration etiquette
 
@@ -411,16 +487,16 @@ Tailwind tokens: primary `indigo-600`, success `emerald-500`, warning `amber-500
 
 | Week | M1 (AI/Avatar) | M2 (Learning) | M3 (User/Admin) | M4 (Game/Analytics) |
 | --- | --- | --- | --- | --- |
-| **1** | LLM client, prompts, chat API, avatar spike | Course list/detail, lesson viewer, UI kit | Supabase auth, users, course+lesson CRUD, DB setup | Schema, `events.py`, XP engine, dashboard widgets |
-| **2** | Streaming chat + memory, quiz generator | Quiz taking UI, progress tracking, dashboard | Admin panel, profile, roles | Badges, streaks, leaderboard |
-| **3** | Avatar lipsync live, mastery + recommendations | Learning history, revision flow, mobile pass | Analytics feed for admin, security pass | Daily challenges, charts, notifications |
-| **4** | Integration, latency tuning, fallbacks | Bug fixing, empty states, polish | Final seed data, docs, handover | Full test pass, bug triage, presentation |
+| **1** | LLM client + mock, prompts, chat API | UI kit, lesson viewer, course pages | Supabase auth, DB setup, **one deep seeded course** | Schema, `events.py`, XP engine |
+| **2** | **Misconception capture, free-response grading, tutor explains the error** | **Answer + feedback screen**, quiz UI | Admin panel, profile, roles, 2 thin courses | Streaks, XP, then-vs-now progress |
+| **3** | Review queue generation, recommendations, avatar wired up | **Queue-first dashboard**, upload UI, mobile pass | Upload → course pipeline, security pass | Queue analytics, charts, 2 badges |
+| **4** | Integration, latency, fallbacks | Bug fixing, empty states, polish | Final seed, docs, handover | Full test pass, bug triage, presentation |
 
 **Hard checkpoints**
 
-- **End of W1:** login works, a real course renders from the DB, the tutor answers one question (even in the terminal).
-- **End of W2:** a student can enroll → read a lesson → take an AI-generated quiz → see XP go up.
-- **End of W3:** the avatar speaks with lipsync; the dashboard shows recommendations, streaks, and charts.
+- **End of W1:** login works, a real lesson renders from the seeded course, the tutor answers one question (even in the terminal).
+- **End of W2:** **the core loop works** — answer a free-response question wrong, and the app states what you misunderstood and explains it. This is the week that matters.
+- **End of W3:** the app opens to a review queue; wrong answers come back on schedule; upload-your-notes works; avatar delivers the feedback.
 - **End of W4:** seeded, demoed, handed over to the lead for deployment.
 
 ---
@@ -661,11 +737,75 @@ and measured. `agent_bangla.py` is the current file; `agent_english.py` is older
 - `components/tutor/ChatPanel.jsx` — SSE streaming, typing indicator, light markdown rendering, an "Explain this" entry point from a lesson selection, and a mic button (Web Speech recognition) as a stretch goal.
 - `components/tutor/RecommendationCard.jsx` — used by M2's dashboard, so export it cleanly and keep the props stable.
 
+### 6.10 Misconception capture — your Tier 1 deliverable
+
+This is the feature the project is judged on. See §0.1.
+
+When an answer is wrong, a second LLM call asks **what the learner believes that isn't true** —
+not what the right answer is. One or two plain sentences, written about the learner:
+
+```
+"Reads a JOIN as 'combine both tables'. Does not realise unmatched rows are dropped."
+```
+
+Store it in `topic_mastery.misconception`, stamp `misconception_updated_at`, and use it in
+three places:
+
+1. **The feedback shown immediately** — the tutor (and the avatar) explains *this belief*, not
+   the topic in general.
+2. **The next question generated** for that topic — target the specific gap.
+3. **The system prompt** — replace the generic "weak topics" line in `build_tutor_context()`
+   with the actual misconception sentences.
+
+Rules that keep it useful:
+
+- Overwrite rather than append; a stale misconception is worse than none.
+- Clear it after two consecutive correct answers on that topic.
+- If the model cannot identify a specific belief, write nothing. An invented misconception is
+  actively harmful — the learner gets told they think something they don't.
+- Keep it under ~200 characters. It goes into every prompt for that topic.
+
+**Endpoints:** `GET /api/me/misconceptions` (M4 renders these), and the capture runs inside the
+existing `quiz.submitted` handler alongside the mastery update.
+
+### 6.11 Free-response grading — now Tier 1, not optional
+
+Earlier drafts had short-answer grading as a stretch goal. It is now core: you cannot diagnose a
+misconception from a multiple-choice click, and producing an answer teaches far more than
+recognising one.
+
+`POST /api/quizzes/attempts/{id}/grade-open` returns
+`{is_correct, score_0_1, feedback, misconception?}`.
+
+**Grade leniently.** A false "wrong" on a right answer is the fastest way to lose a user. When
+the answer is arguable, mark it correct and note the nuance in `feedback`. When you genuinely
+cannot tell, ask a follow-up question instead of failing them.
+
+### 6.12 The review queue
+
+`services/scheduler.py`. Owns `review_items` (schema §3.3).
+
+- `GET /api/review/today` → the due items, each with a **freshly generated** question, topics
+  interleaved rather than blocked.
+- `POST /api/review/{item_id}/answer` → grade, update mastery + misconception, reschedule.
+
+A topic enters the queue the first time the learner answers anything tagged with it. Cap the
+daily queue (~15 items) so it never becomes a wall of work someone abandons.
+
+### 6.13 Upload your own notes
+
+`POST /api/uploads` → text extraction → split into sections → create a `courses` row with
+`source='uploaded'`, `is_private=true` → `lessons` rows → tag each → seed `review_items`.
+
+The point: **an uploaded PDF becomes an ordinary course.** Nothing downstream — recommender,
+quiz generator, queue — knows the difference. M3 owns the file handling; you own the splitting,
+tagging and generation.
+
 ### 6.8 Your week by week
 
 - **W1:** LLM client + mock, prompt v1, `conversations`/`messages` tables and CRUD, non-streaming chat endpoint, minimal chat UI, Tier A avatar spike (mouth moves to `speechSynthesis`).
-- **W2:** SSE streaming, memory + summarisation, quiz generator with validation and M2 integration, adaptive difficulty, TTS endpoint.
-- **W3:** Accurate lipsync + expressions, mastery engine wired to `quiz.submitted`, recommender + daily plan, wire up the SyncTalk service (Tier B) — the model is already trained.
+- **W2:** **The core loop — misconception capture (§6.10), free-response grading (§6.11), tutor explains the specific error.** Plus SSE streaming, memory, quiz generator. This is your most important week.
+- **W3:** Review queue (§6.12), upload pipeline (§6.13), recommender, then the avatar — accurate lipsync, expressions, and Tier B wired up if time allows.
 - **W4:** Latency tuning (target: under 2s to first token), quota/error fallbacks, prompt tuning against real usage, demo script, and integration support for everyone.
 
 ### 6.9 Definition of done
@@ -673,7 +813,10 @@ and measured. `agent_bangla.py` is the current file; `agent_english.py` is older
 - [ ] The tutor answers in the context of the current lesson and remembers earlier turns in the session
 - [ ] The avatar's mouth is visibly in sync with the speech, and idle animation runs
 - [ ] Quiz generation produces valid, non-duplicate questions that M2's player renders unmodified
-- [ ] Weak topics update after a quiz and visibly change the recommendations
+- [ ] A wrong answer produces a **specific, correct misconception sentence** — and no sentence at all when the model cannot identify one
+- [ ] The tutor explains that misconception rather than the topic in general
+- [ ] Free-response grading does not fail a correct answer (test with 10 deliberately awkward but right answers)
+- [ ] A missed topic reappears in the queue two days later
 - [ ] Every AI call has a timeout, a retry, and a user-visible fallback message
 - [ ] `LLM_PROVIDER=mock` lets teammates run the whole app with no API key
 
@@ -693,12 +836,23 @@ Everyone else imports these. Ship them on the Monday of Week 1 or the app ends u
 
 ### 7.2 Pages
 
-1. **Course catalog** `/courses` — grid, search, filter by subject and difficulty, enroll button, "enrolled" badge.
-2. **Course detail** `/courses/:slug` — description, lesson list with completion ticks, "Continue where you left off", progress ring.
-3. **Lesson viewer** `/lessons/:id` — markdown rendering (`react-markdown`), video embed, prev/next navigation, sticky outline sidebar, an **"Ask the tutor about this"** button (text selection → M1's `POST /api/tutor/explain`), auto "mark complete" at 90% scroll plus a manual button, and time-on-page tracking (heartbeat every 30s).
-4. **Quiz player** `/quiz/:id` — one question per screen, timer, answer persistence across refresh, submit, a result screen with per-question explanations, and retake.
-5. **Student dashboard** `/dashboard` — assembles widgets from all four modules: your progress cards, M4's XP/streak/challenges, M1's recommendations, and a recent activity feed.
-6. **Learning history** `/history` — timeline of completed lessons and quiz attempts, filterable by course.
+Ordered by importance. The first two are the app; the rest support them.
+
+1. **Review queue** `/review` — **the front door.** "9 items due." One item at a time, no
+   navigation chrome, no course list. This is where a returning student lands, not `/dashboard`.
+2. **Answer & feedback** — a textarea, not four radio buttons. On submit, show M1's written
+   feedback and, when there is one, the misconception sentence: *"You're reading the join as
+   'combine both tables'."* Give this screen the most design attention of anything you build.
+3. **Dashboard** `/dashboard` — today's focus, what's due, and **then vs now** (their answer
+   three weeks ago beside today's). Not a wall of charts.
+4. **Lesson viewer** `/lessons/:id` — markdown (`react-markdown`), video embed, prev/next, sticky
+   outline, an **"Ask the tutor about this"** button (selection → M1's `POST /api/tutor/explain`),
+   auto-complete at 90% scroll, 30s heartbeat.
+5. **Upload notes** `/upload` — drag a PDF, show progress, land on the generated course.
+6. **Course catalog + detail** `/courses`, `/courses/:slug` — the catalogue exists so the app is
+   never empty. Nobody lives here; build it, don't polish it.
+7. **Quiz player** `/quiz/:id` — for lesson-end quizzes. Free-response first, MCQ where it fits.
+8. **Learning history** `/history` — timeline of what was answered and what changed.
 
 ### 7.3 Endpoints you own
 
@@ -749,7 +903,7 @@ You own the foundation the other three stand on. Your Week 1 is the most time-cr
 1. **Day 1:** Supabase project, connection string in `.env.example`, `database.py`, Alembic initialised, and the `users` / `courses` / `lessons` / `enrollments` tables migrated. Post the DB URL to the team.
 2. **Day 2:** Enable Supabase Auth providers (email + Google), wire `AuthContext`, and `client.js` with the token interceptor.
 3. **Day 3:** Backend JWT verification with `pyjwt` + `SUPABASE_JWT_SECRET`, `get_current_user`, auto-create the `public.users` row on first login, and `require_admin`.
-4. **Day 4:** **Seed data — 3 courses × 5 lessons with real markdown content and `topic_tags`.** M1 cannot test the tutor and M2 cannot test the viewer without this. It is your highest-leverage deliverable of the week.
+4. **Day 4:** **Seed data — ONE course done properly: 6–8 real lessons, fully tagged.** Two thin courses (2–3 lessons) can wait until week 2. Depth beats breadth: the demo goes deep on one subject, and the misconception loop only looks good with real content behind it. **SQL/DBMS is the recommended subject** — joins, normalization and NULL behaviour produce specific, interesting wrong answers. Content is in English.
 5. **Day 5:** Course and lesson CRUD endpoints, so the admin can create content the other members can immediately read.
 
 ### 8.2 Auth flow
@@ -869,7 +1023,14 @@ On any activity: if `last_active_date == today`, do nothing; if it equals yester
 
 Compute this in the **user's local date** — take a timezone from `users.preferences` or send the client's date. Server-UTC silently breaks streaks for anyone east of London, and it is a bug that only surfaces during the demo.
 
-### 9.4 Badges (seed about 15)
+### 9.4 Badges (seed two, not fifteen)
+
+> **Descoped.** Extrinsic rewards crowd out the real motivator, which is visible
+> competence. Ship `first_lesson` and `streak_7`, then spend the time on **then vs now**
+> (§9.7) — showing a learner their answer from three weeks ago beside today's is worth
+> more than thirteen badges.
+
+#### Original spec
 
 `first_lesson`, `first_quiz`, `perfect_score`, `quiz_master_10`, `course_complete`, `streak_3` / `streak_7` / `streak_30`, `night_owl`, `early_bird`, `curious_mind_50_msgs`, `comeback` (returned after 7 idle days), `topic_master` (mastery > 0.9), `level_5`, `level_10`.
 
@@ -879,7 +1040,13 @@ Compute this in the **user's local date** — take a timezone from `users.prefer
 
 Seed a pool of templates; a job (or lazy generation on the first request of the day) picks 3 for today: *"Complete 2 lessons"*, *"Score 80%+ on any quiz"*, *"Ask the tutor 5 questions"*, *"Study for 20 minutes"*, *"Practice a weak topic"* (that last one calls M1's `/api/recommendations`). Progress updates flow through the same event handlers.
 
-### 9.6 Leaderboard
+### 9.6 Leaderboard — descoped
+
+> **Cut unless everything else is done.** Leaderboards demotivate everyone outside the top
+> few, which is most of a class. If you build one, keep it opt-in and never show a rank
+> below the top 10. The original spec is kept below for reference.
+
+#### Original spec
 
 `GET /api/leaderboard?scope=global|course&period=weekly|alltime` — ranked by XP, top 50 plus the current user's own rank pinned even when they are outside the top 50. Weekly leaderboards sum `xp_events` over the window, which is exactly why every award needs an event row. Respect a `preferences.leaderboard_opt_out` flag.
 
@@ -887,6 +1054,10 @@ Seed a pool of templates; a job (or lazy generation on the first request of the 
 
 **Student** (`/stats`, plus widgets embedded in M2's dashboard) — all with Recharts:
 
+- **Then vs now** — the learner's answer to a topic three weeks ago beside today's. This is
+  the single most motivating thing on the page; build it first
+- **Misconceptions resolved** — how many wrong beliefs have been cleared (data from M1's
+  `GET /api/me/misconceptions`)
 - Weekly activity chart (minutes per day, last 8 weeks)
 - XP over time (line)
 - Topic mastery radar or horizontal bars (data from M1's `/api/analytics/mastery/me`)
@@ -983,14 +1154,21 @@ That "the recommendation changed because I got it wrong" beat is the strongest t
 
 Cut in this order, from the top:
 
-1. Tier B / SyncTalk integration — the trained model keeps for later, Tier A carries the demo
-2. Voice mode / the LiveKit agent (§6.6b) — text tutor is the committed scope
-3. Coins and any shop economy — keep XP and badges
-4. Course-scoped leaderboards — keep global only
-5. Notifications — fold them into toasts
-6. Short-answer AI grading — keep MCQ / true-false / fill-blank
+1. Leaderboard — drop it. It demotivates everyone outside the top few
+2. Badges beyond two, and coins entirely
+3. Daily challenges — the review queue already does this job
+4. Notifications — fold them into toasts
+5. Voice mode / the LiveKit agent (§6.6b)
+6. Tier B / SyncTalk — the trained model keeps; Tier A carries the demo
+7. Upload-your-own-notes (§2 priority, but it is the first Tier 2 item that can wait)
 
-**Never cut:** auth, the course → lesson → quiz flow, tutor chat, the Tier A avatar, XP + streaks, and recommendations. That set *is* the project.
+**Never cut:** auth, lessons, **misconception capture, free-response grading, the tutor
+explaining the specific error**, the review queue, and XP + streaks. The first three of those
+are the project; everything else is packaging.
+
+**Note the reversal from earlier drafts:** short-answer/free-response grading used to be an
+optional extra. It is now Tier 1 — recognising an answer teaches far less than producing one,
+and it is the only way to diagnose a misconception.
 
 ---
 
