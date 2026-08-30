@@ -281,7 +281,7 @@ Administrator can
 
 ## Authentication
 
-- Firebase Authentication
+- Supabase Auth
 
 ---
 

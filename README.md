@@ -11,7 +11,7 @@ XP / badge / streak system.
 | **Frontend** | React 18 + Vite + Tailwind CSS + React Router + Framer Motion |
 | **Backend** | FastAPI + SQLAlchemy + Alembic |
 | **Database** | PostgreSQL (Supabase free tier) |
-| **Auth** | Firebase Authentication |
+| **Auth** | Supabase Auth |
 | **AI** | LLM API (Groq / Gemini / OpenAI, pluggable) |
 | **Avatar** | Browser TTS + viseme lipsync (Tier A) → SyncTalk (Tier B) |
 | **Deploy** | Vercel (frontend) · Render (backend) |
@@ -84,9 +84,9 @@ uvicorn app.main:app --reload
 
 API docs: <http://localhost:8000/docs> · Health check: <http://localhost:8000/api/health>
 
-> **No credentials yet?** The backend boots without a database or Firebase key.
+> **No credentials yet?** The backend boots without a database or Supabase key.
 > Auth falls back to a dev user and the LLM falls back to `MockLLMClient`, so you can
-> build UI on day 1 while Member 3 sets up Supabase and Firebase.
+> build UI on day 1 while Member 3 sets up Supabase.
 
 ### 3. Frontend
 
@@ -117,20 +117,23 @@ App: <http://localhost:5173>
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `DATABASE_URL` | for real data | Supabase Postgres connection string |
-| `FIREBASE_CREDENTIALS_JSON` | for real auth | path to the service-account JSON (never commit it) |
+| `SUPABASE_URL` | for real auth | project URL |
+| `SUPABASE_JWT_SECRET` | for real auth | verifies access tokens locally |
+| `SUPABASE_SERVICE_ROLE_KEY` | server only | bypasses RLS - never expose to the frontend |
 | `LLM_PROVIDER` | yes | `groq` \| `gemini` \| `openai` \| `mock` |
 | `LLM_API_KEY` | unless `mock` | provider API key |
 | `LLM_MODEL` | yes | e.g. `llama-3.3-70b-versatile` |
 | `AVATAR_SERVICE_URL` | no | empty = Tier A browser avatar only |
 | `CORS_ORIGINS` | yes | comma-separated allowed origins |
-| `DEV_ALLOW_ANONYMOUS` | dev only | `true` lets requests through without a Firebase token |
+| `DEV_ALLOW_ANONYMOUS` | dev only | `true` lets requests through without a Supabase token |
 
 ### `frontend/.env`
 
 | Variable | Notes |
 | --- | --- |
 | `VITE_API_URL` | backend base URL, e.g. `http://localhost:8000` |
-| `VITE_FIREBASE_*` | Firebase web config from the Firebase console |
+| `VITE_SUPABASE_URL` | project URL |
+| `VITE_SUPABASE_ANON_KEY` | anon/public key - safe in the bundle |
 
 ---
 

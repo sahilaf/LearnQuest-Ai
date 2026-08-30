@@ -5,7 +5,7 @@
 
 - **Duration:** 4 weeks (Agile, weekly sprints)
 - **Team:** 4 members, each owning an end-to-end vertical slice (DB → API → UI)
-- **Stack:** React + Tailwind (frontend) · FastAPI + SQLAlchemy (backend) · PostgreSQL (Supabase) · Firebase Auth · LLM API + SyncTalk (AI)
+- **Stack:** React + Tailwind (frontend) · FastAPI + SQLAlchemy (backend) · PostgreSQL + Auth (Supabase) · LLM API + SyncTalk (AI)
 
 ---
 
@@ -109,8 +109,7 @@ LearnQuest/
 | Service | Who | Purpose |
 | --- | --- | --- |
 | GitHub repo | M3 | source control |
-| Supabase | M3 | PostgreSQL |
-| Firebase | M3 | authentication |
+| Supabase | M3 | PostgreSQL **and** authentication |
 | LLM provider key | M1 | tutor + quiz generation (see §6.2) |
 | Vercel | M3 | frontend deploy |
 | Render | M3 | backend deploy |
@@ -132,7 +131,7 @@ alembic upgrade head && uvicorn app.main:app --reload
 ```
 fastapi uvicorn[standard] sqlalchemy alembic psycopg2-binary
 pydantic pydantic-settings python-dotenv
-firebase-admin httpx python-multipart
+pyjwt httpx python-multipart
 ```
 
 ### 2.3 Frontend bootstrap
@@ -141,7 +140,7 @@ firebase-admin httpx python-multipart
 cd frontend && npm install && npm run dev
 ```
 
-Baseline deps: `react react-router-dom axios tailwindcss framer-motion firebase recharts lucide-react react-markdown`
+Baseline deps: `react react-router-dom axios tailwindcss framer-motion @supabase/supabase-js recharts lucide-react react-markdown`
 
 ### 2.4 Shared files — change only by agreement
 
@@ -171,8 +170,7 @@ Migrations are **additive only** after Week 1. If you must change a column anoth
 ```sql
 -- ============ M3: identity & catalog ============
 users (
-  id UUID PK,
-  firebase_uid TEXT UNIQUE NOT NULL,
+  id UUID PK REFERENCES auth.users(id) ON DELETE CASCADE,   -- IS the Supabase auth id
   email TEXT UNIQUE NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
@@ -335,7 +333,7 @@ One migration per PR. If two migrations collide on `down_revision`, the **later 
 
 ### 4.1 Auth (M3 provides, everyone consumes)
 
-The frontend sends the Firebase ID token on every request as `Authorization: Bearer <firebase_id_token>`. The backend exposes two dependencies in `deps.py`:
+The frontend signs in with `@supabase/supabase-js` and sends the returned access token on every request as `Authorization: Bearer <supabase_access_token>`. The backend verifies that JWT locally with `SUPABASE_JWT_SECRET` - no network round trip per request - and exposes two dependencies in `deps.py`:
 
 ```python
 def get_current_user(...) -> User   # 401 if the token is invalid
@@ -402,7 +400,7 @@ Tailwind tokens: primary `indigo-600`, success `emerald-500`, warning `amber-500
 
 | Week | M1 (AI/Avatar) | M2 (Learning) | M3 (User/Admin) | M4 (Game/Analytics) |
 | --- | --- | --- | --- | --- |
-| **1** | LLM client, prompts, chat API, avatar spike | Course list/detail, lesson viewer, UI kit | Firebase auth, users, course+lesson CRUD, DB setup | Schema, `events.py`, XP engine, dashboard widgets |
+| **1** | LLM client, prompts, chat API, avatar spike | Course list/detail, lesson viewer, UI kit | Supabase auth, users, course+lesson CRUD, DB setup | Schema, `events.py`, XP engine, dashboard widgets |
 | **2** | Streaming chat + memory, quiz generator | Quiz taking UI, progress tracking, dashboard | Admin panel, profile, roles, deploy pipeline | Badges, streaks, leaderboard |
 | **3** | Avatar lipsync live, mastery + recommendations | Learning history, revision flow, mobile pass | Analytics feed for admin, security pass | Daily challenges, charts, notifications |
 | **4** | Integration, latency tuning, fallbacks | Bug fixing, empty states, polish | Production deploy, seed data, docs | Full test pass, bug triage, presentation |
@@ -684,25 +682,36 @@ You own the foundation the other three stand on. Your Week 1 is the most time-cr
 ### 8.1 Week 1 is a sprint — deliver in this order
 
 1. **Day 1:** Supabase project, connection string in `.env.example`, `database.py`, Alembic initialised, and the `users` / `courses` / `lessons` / `enrollments` tables migrated. Post the DB URL to the team.
-2. **Day 2:** Firebase project, frontend `AuthContext` (email/password + Google), and `client.js` with the token interceptor.
-3. **Day 3:** Backend token verification with `firebase-admin`, `get_current_user`, auto-create the `users` row on first login, and `require_admin`.
+2. **Day 2:** Enable Supabase Auth providers (email + Google), wire `AuthContext`, and `client.js` with the token interceptor.
+3. **Day 3:** Backend JWT verification with `pyjwt` + `SUPABASE_JWT_SECRET`, `get_current_user`, auto-create the `public.users` row on first login, and `require_admin`.
 4. **Day 4:** **Seed data — 3 courses × 5 lessons with real markdown content and `topic_tags`.** M1 cannot test the tutor and M2 cannot test the viewer without this. It is your highest-leverage deliverable of the week.
 5. **Day 5:** Course and lesson CRUD endpoints, and deploy a hello-world backend to Render and frontend to Vercel so the pipeline is proven early rather than on the last day.
 
 ### 8.2 Auth flow
 
 ```
-Browser --Firebase SDK--> Firebase --idToken--> AuthContext
-AuthContext --Bearer idToken--> FastAPI --verify_id_token--> firebase-admin
-  -> look up users.firebase_uid -> create if absent -> return User
+Browser --supabase-js--> Supabase Auth --access token (JWT)--> AuthContext
+AuthContext --Bearer token--> FastAPI --jwt.decode(SUPABASE_JWT_SECRET)--> claims
+  -> claims["sub"] IS public.users.id -> create row if absent -> return User
 ```
 
-Handle: token refresh on a 401 (retry once), logout clearing state, `<PrivateRoute>` and `<AdminRoute>` wrappers, password reset via Firebase, and `emit(db, user, "daily.login", {})` on the first request of each day.
+Because `public.users.id` references `auth.users(id)`, there is no mirror column to keep in sync and `enrollments.user_id` can be a real foreign key.
+
+**Migration gotcha:** Alembic autogenerate cannot see the `auth` schema, so write that foreign key by hand in the migration:
+
+```python
+op.create_foreign_key(
+    "fk_users_auth", "users", "users", ["id"], ["id"],
+    referent_schema="auth", ondelete="CASCADE",
+)
+```
+
+Handle: token refresh on a 401 (retry once - supabase-js refreshes automatically), logout clearing state, `<PrivateRoute>` and `<AdminRoute>` wrappers, password reset via `resetPasswordForEmail`, and `emit(db, user, "daily.login", {})` on the first request of each day.
 
 ### 8.3 Endpoints
 
 ```
-POST   /api/auth/sync             -> upsert the user from the token, return the profile
+POST   /api/auth/sync             -> upsert public.users from the token claims, return the profile
 GET    /api/me                    -> profile + stats
 PATCH  /api/me                    -> full_name, avatar_url, preferences
 GET    /api/admin/users           ?search=&role=&page=
@@ -723,7 +732,7 @@ Login, Register, Forgot password, Profile (edit details + preferences: tutor ton
 ### 8.5 Deployment (yours — start in Week 1, finish in Week 4)
 
 - **Backend → Render:** start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, env vars set in the dashboard, and `alembic upgrade head` in the build command. Note the free tier sleeps after 15 minutes — add a keep-alive ping before the demo.
-- **Frontend → Vercel:** set `VITE_API_URL` and `VITE_FIREBASE_*`. Add the SPA rewrite to `/index.html`.
+- **Frontend → Vercel:** set `VITE_API_URL`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Add the SPA rewrite to `/index.html`.
 - **CORS** in `main.py`: allow the Vercel domain and `http://localhost:5173`.
 - Document every env var in both `.env.example` files.
 
@@ -917,7 +926,9 @@ Cut in this order, from the top:
 
 ```
 DATABASE_URL=postgresql://...
-FIREBASE_CREDENTIALS_JSON=./firebase-admin.json
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_JWT_SECRET=...      # Project Settings -> API Keys -> JWT Secret
+SUPABASE_SERVICE_ROLE_KEY=...# server-side only, never ships to the browser
 LLM_PROVIDER=groq            # groq | gemini | openai | mock
 LLM_API_KEY=...
 LLM_MODEL=llama-3.3-70b-versatile
@@ -929,9 +940,8 @@ CORS_ORIGINS=http://localhost:5173,https://learnquest.vercel.app
 
 ```
 VITE_API_URL=http://localhost:8000
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
+VITE_SUPABASE_URL=https://<project>.supabase.co
+VITE_SUPABASE_ANON_KEY=...   # public by design, safe in the bundle
 ```
 
 **Commands**

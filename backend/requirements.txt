@@ -14,8 +14,8 @@ pydantic-settings==2.7.0
 python-dotenv==1.0.1
 email-validator==2.2.0
 
-# --- auth ---
-firebase-admin==6.6.0
+# --- auth (Supabase Auth: verify the JWT locally) ---
+pyjwt==2.10.1
 
 # --- http / ai ---
 httpx==0.28.1

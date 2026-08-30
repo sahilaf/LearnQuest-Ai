@@ -15,6 +15,6 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/sync")
 def sync_user(user: CurrentUser) -> dict:
-    """Upsert the user from the verified Firebase token and return the profile."""
+    """Upsert the user from the verified Supabase token and return the profile."""
     # TODO(M3): upsert into users, set last_login_at, emit("daily.login") once per day.
     return {"user": user, "created": False}

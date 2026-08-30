@@ -26,7 +26,7 @@ What actually works today:
 - XP level curve verified: L2=282, L5=1118, L10=3162
 - Frontend builds clean and renders with **zero console errors**
 - `DEV_ALLOW_ANONYMOUS=true` + `LLM_PROVIDER=mock` mean the whole app runs with
-  **no Supabase, no Firebase and no API key** - start building today
+  **no Supabase project and no API key** - start building today
 
 What is deliberately NOT done: every endpoint body is a stub returning placeholder data,
 no models are defined, and no migrations exist yet.
@@ -45,8 +45,7 @@ no models are defined, and no migrations exist yet.
 ## Week 0 — Shared setup (all four, together, day 1)
 
 - [~] GitHub repo created, scaffold pushed — scaffold, 2026-08-30 · TODO: grant push access to M2/M3/M4
-- [ ] Supabase project created, `DATABASE_URL` shared with the team — @
-- [ ] Firebase project created, web config + service account shared — @
+- [ ] Supabase project created; `DATABASE_URL`, project URL, anon key and JWT secret shared — @
 - [ ] LLM provider account + API key obtained — @
 - [ ] Vercel account connected to the repo — @
 - [ ] Render account connected to the repo — @
@@ -162,13 +161,13 @@ no models are defined, and no migrations exist yet.
 ### Week 1 — THE critical sprint (everyone is blocked on this)
 - [ ] **Day 1:** Supabase project + `DATABASE_URL` posted to the team — @
 - [ ] **Day 1:** `database.py`, `config.py`, Alembic initialised — @
-- [ ] **Day 1:** `users`, `courses`, `lessons`, `enrollments` migrated — @
-- [ ] **Day 2:** Firebase project + web config shared — @
+- [ ] **Day 1:** `users`, `courses`, `lessons`, `enrollments` migrated (hand-write the `auth.users` FK) — @
+- [ ] **Day 2:** Supabase Auth providers enabled (email + Google), keys shared — @
 - [ ] **Day 2:** `AuthContext` with email/password + Google sign-in — @
 - [x] **Day 2:** `api/client.js` axios instance with the Bearer token interceptor — scaffold, 2026-08-30 · includes 401 refresh-and-retry and the standard error shape
-- [ ] **Day 3:** `firebase-admin` token verification in `deps.py` — @
-- [ ] **Day 3:** `get_current_user` auto-creates the `users` row on first login — @
-- [x] **Day 3:** `require_admin` returning 403 for students — scaffold, 2026-08-30 · verified; currently gates the dev stub user, works unchanged once Firebase lands
+- [ ] **Day 3:** Supabase JWT verification in `deps.py` (`pyjwt` + `SUPABASE_JWT_SECRET`) — @
+- [ ] **Day 3:** `get_current_user` auto-creates the `public.users` row on first login — @
+- [x] **Day 3:** `require_admin` returning 403 for students — scaffold, 2026-08-30 · verified; currently gates the dev stub user, works unchanged once Supabase Auth lands
 - [ ] **Day 4:** **Seed data: 3 courses × 5 lessons, real markdown, real `topic_tags`** — @
 - [ ] **Day 5:** Course + lesson CRUD endpoints — @
 - [ ] **Day 5:** Hello-world deploy proven on Render + Vercel — @

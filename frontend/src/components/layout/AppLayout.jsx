@@ -20,7 +20,7 @@ export default function AppLayout() {
     <div className="min-h-full">
       {devMode && (
         <div className="bg-amber-500 px-4 py-1.5 text-center text-xs font-medium text-amber-950">
-          Dev mode - Firebase is not configured. Auth is stubbed (plan.md 8.2).
+          Dev mode - Supabase is not configured. Auth is stubbed (plan.md 8.2).
         </div>
       )}
 

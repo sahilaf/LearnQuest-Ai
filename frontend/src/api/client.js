@@ -15,9 +15,9 @@ const client = axios.create({
 });
 
 /**
- * Supplies the current Firebase ID token.
+ * Supplies the current Supabase access token.
  * AuthContext calls setTokenProvider() once on mount so this module never has to
- * import Firebase itself.
+ * import Supabase itself. supabase-js refreshes the token, so this stays live.
  */
 let tokenProvider = async () => null;
 

@@ -17,8 +17,10 @@ class Settings(BaseSettings):
     # --- database (M3) ---
     database_url: str = ""
 
-    # --- auth (M3) ---
-    firebase_credentials_json: str = ""
+    # --- auth: Supabase Auth (M3) ---
+    supabase_url: str = ""
+    supabase_jwt_secret: str = ""
+    supabase_service_role_key: str = ""
     dev_allow_anonymous: bool = True
 
     # --- llm (M1) ---

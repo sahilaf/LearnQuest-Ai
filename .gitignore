@@ -13,7 +13,6 @@ __pycache__/
 .env
 .env.local
 .env.*.local
-firebase-admin.json
 *-service-account.json
 *.pem
 

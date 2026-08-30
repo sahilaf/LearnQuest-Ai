@@ -1,7 +1,7 @@
 /**
  * Login - OWNER: Member 3. See plan.md 8.4.
  *
- * Email/password + Google sign-in.
+ * Email/password + Google sign-in via Supabase Auth.
  */
 import PageHeader from '../../components/layout/PageHeader';
 import { EmptyState } from '../../components/ui';
