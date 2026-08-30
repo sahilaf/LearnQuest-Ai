@@ -47,8 +47,6 @@ no models are defined, and no migrations exist yet.
 - [~] GitHub repo created, scaffold pushed — scaffold, 2026-08-30 · TODO: grant push access to M2/M3/M4
 - [ ] Supabase project created; `DATABASE_URL`, project URL, anon key and JWT secret shared — @
 - [ ] LLM provider account + API key obtained — @
-- [ ] Vercel account connected to the repo — @
-- [ ] Render account connected to the repo — @
 - [~] Backend verified booting locally, 44 routes served — scaffold, 2026-08-30 · each member still to confirm on their own machine
 - [~] Frontend verified building and rendering — scaffold, 2026-08-30 · each member still to confirm on their own machine
 - [x] All four routers registered in `main.py` in ONE shared commit — scaffold, 2026-08-30
@@ -94,7 +92,7 @@ no models are defined, and no migrations exist yet.
 - [ ] Short-answer AI grading endpoint (optional) — @
 
 ### Week 4 — polish & integration
-- [ ] Time to first token under 2s on the deployed backend — @
+- [ ] Time to first token under 2s on the running backend — @
 - [ ] Every AI call has a timeout, a retry, and a user-visible fallback message — @
 - [ ] App fully usable with the LLM key removed (no white screen) — @
 - [ ] Prompt tuning pass against real logged conversations — @
@@ -170,7 +168,6 @@ no models are defined, and no migrations exist yet.
 - [x] **Day 3:** `require_admin` returning 403 for students — scaffold, 2026-08-30 · verified; currently gates the dev stub user, works unchanged once Supabase Auth lands
 - [ ] **Day 4:** **Seed data: 3 courses × 5 lessons, real markdown, real `topic_tags`** — @
 - [ ] **Day 5:** Course + lesson CRUD endpoints — @
-- [ ] **Day 5:** Hello-world deploy proven on Render + Vercel — @
 - [ ] Login / Register / Forgot-password pages — @
 - [x] `PrivateRoute` and `AdminRoute` wrappers — scaffold, 2026-08-30
 
@@ -183,7 +180,6 @@ no models are defined, and no migrations exist yet.
 - [ ] **Server-side rule: a lesson cannot be saved without a `topic_tag`** — @
 - [ ] `/profile` page: name, avatar, preferences (tone, daily goal, difficulty, timezone) — @
 - [ ] `emit("daily.login", ...)` on the first request of each day — @
-- [ ] Staging deploy live and shared with the team — @
 
 ### Week 3 — security & analytics wiring
 - [ ] Rate limiting on write endpoints — @
@@ -194,11 +190,8 @@ no models are defined, and no migrations exist yet.
 - [ ] `GET /api/admin/overview` counts wired to M4's charts — @
 - [ ] Token refresh on 401 with a single retry — @
 
-### Week 4 — ship it
-- [ ] Production deploy: backend on Render, frontend on Vercel — @
-- [ ] CORS correct for the production domain — @
+### Week 4 — wrap up
 - [ ] Final seed: 5+ courses with full content — @
-- [ ] Keep-alive ping configured for the Render cold start — @
 - [ ] README + setup docs finalised — @
 - [ ] FastAPI `/docs` curated (tags, summaries, descriptions) — @
 
@@ -207,7 +200,7 @@ no models are defined, and no migrations exist yet.
 - [ ] Student on an admin route gets 403 and sees no admin nav — @
 - [ ] Admin-created courses appear immediately in M2's catalog — @
 - [ ] Seed script rebuilds a full demo DB from empty in one command — @
-- [ ] Deployed URLs work from another machine and from a phone — @
+- [ ] Runs from a clean clone on another machine, and is usable on a phone — @
 
 ---
 
@@ -265,7 +258,7 @@ no models are defined, and no migrations exist yet.
 - [ ] **End W1:** login works · a real course renders from the DB · the tutor answers one question — @
 - [ ] **End W2:** enroll → read a lesson → take an AI-generated quiz → XP goes up — @
 - [ ] **End W3:** avatar speaks with lipsync · dashboard shows recommendations, streaks, charts — @
-- [ ] **End W4:** deployed, seeded, demoed — @
+- [ ] **End W4:** seeded, demoed, handed to the lead for deployment — @
 
 ---
 
@@ -274,7 +267,7 @@ no models are defined, and no migrations exist yet.
 - [ ] **Mon:** full happy-path walkthrough on staging, every break listed — @
 - [ ] **Tue:** P0 fixes (auth edge cases, event double-fires, quiz payload mismatches) — @
 - [ ] **Wed:** performance (N+1 queries, indexes, lazy-load avatar bundle, image sizes) — @
-- [ ] **Thu:** final deploy, production seed, mobile pass, backup demo video recorded — @
+- [ ] **Thu:** final seed, mobile pass, backup demo video recorded — @
 - [ ] **Fri:** documentation, report, presentation dry run — @
 
 ---

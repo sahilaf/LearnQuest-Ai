@@ -14,7 +14,6 @@ XP / badge / streak system.
 | **Auth** | Supabase Auth |
 | **AI** | LLM API (Groq / Gemini / OpenAI, pluggable) |
 | **Avatar** | Browser TTS + viseme lipsync (Tier A) → SyncTalk (Tier B) |
-| **Deploy** | Vercel (frontend) · Render (backend) |
 
 ---
 

@@ -23,7 +23,7 @@ Each member owns a **vertical slice**: the DB tables, the FastAPI routers, and t
 | --- | --- | --- |
 | **Member 1 (Lead)** | AI Avatar Tutor & Intelligent Learning | `ai/`, `avatar/`, tutor chat, quiz generation, recommendations |
 | **Member 2** | Learning Management | courses/lessons/quiz **consumption** UI, learner dashboard, learning history |
-| **Member 3** | User & Administration | auth, users, course/lesson **CRUD**, admin panel, deployment |
+| **Member 3** | User & Administration | auth, users, course/lesson **CRUD**, admin panel, seed data |
 | **Member 4** | Gamification & Analytics | XP, badges, streaks, challenges, leaderboard, analytics |
 
 ---
@@ -111,8 +111,6 @@ LearnQuest/
 | GitHub repo | M3 | source control |
 | Supabase | M3 | PostgreSQL **and** authentication |
 | LLM provider key | M1 | tutor + quiz generation (see §6.2) |
-| Vercel | M3 | frontend deploy |
-| Render | M3 | backend deploy |
 
 ### 2.2 Backend bootstrap
 
@@ -401,16 +399,16 @@ Tailwind tokens: primary `indigo-600`, success `emerald-500`, warning `amber-500
 | Week | M1 (AI/Avatar) | M2 (Learning) | M3 (User/Admin) | M4 (Game/Analytics) |
 | --- | --- | --- | --- | --- |
 | **1** | LLM client, prompts, chat API, avatar spike | Course list/detail, lesson viewer, UI kit | Supabase auth, users, course+lesson CRUD, DB setup | Schema, `events.py`, XP engine, dashboard widgets |
-| **2** | Streaming chat + memory, quiz generator | Quiz taking UI, progress tracking, dashboard | Admin panel, profile, roles, deploy pipeline | Badges, streaks, leaderboard |
+| **2** | Streaming chat + memory, quiz generator | Quiz taking UI, progress tracking, dashboard | Admin panel, profile, roles | Badges, streaks, leaderboard |
 | **3** | Avatar lipsync live, mastery + recommendations | Learning history, revision flow, mobile pass | Analytics feed for admin, security pass | Daily challenges, charts, notifications |
-| **4** | Integration, latency tuning, fallbacks | Bug fixing, empty states, polish | Production deploy, seed data, docs | Full test pass, bug triage, presentation |
+| **4** | Integration, latency tuning, fallbacks | Bug fixing, empty states, polish | Final seed data, docs, handover | Full test pass, bug triage, presentation |
 
 **Hard checkpoints**
 
 - **End of W1:** login works, a real course renders from the DB, the tutor answers one question (even in the terminal).
 - **End of W2:** a student can enroll → read a lesson → take an AI-generated quiz → see XP go up.
 - **End of W3:** the avatar speaks with lipsync; the dashboard shows recommendations, streaks, and charts.
-- **End of W4:** deployed, seeded, demoed.
+- **End of W4:** seeded, demoed, handed over to the lead for deployment.
 
 ---
 
@@ -493,7 +491,7 @@ DELETE /api/tutor/conversations/{id}
 POST   /api/tutor/explain                       -> {lesson_id, selection} -> explanation
 ```
 
-Use **SSE** (`text/event-stream`), not WebSockets — simpler, works on Render's free tier, and `EventSource` is native in the browser.
+Use **SSE** (`text/event-stream`), not WebSockets — simpler, survives basic hosting, and `EventSource` is native in the browser.
 
 ### 6.4 AI quiz generator
 
@@ -563,7 +561,7 @@ GET  /api/analytics/mastery/me         -> [{topic_tag, mastery_score, attempts}]
 
 ### 6.6 Avatar pipeline — two tiers, ship Tier A first
 
-> **Risk, read before planning Week 1.** SyncTalk requires a CUDA GPU and per-identity training, and cannot run on the Render/Vercel free tier. Treat it as an enhancement running on a separate GPU box, not as the thing the demo depends on.
+> **Risk, read before planning Week 1.** SyncTalk requires a CUDA GPU and per-identity training, and will not run on ordinary free web hosting. Treat it as an enhancement running on a separate GPU box, not as the thing the demo depends on.
 
 **Tier A — browser avatar (must ship, Weeks 1–2).** Zero infrastructure cost, works on any laptop.
 
@@ -677,7 +675,7 @@ GET  /api/quizzes/attempts/{id}         -> result + explanations
 
 You own the foundation the other three stand on. Your Week 1 is the most time-critical work in the project: **nobody can build anything real until auth and seeded courses exist.**
 
-**Files:** `deps.py`; `routers/auth.py`, `users.py`, `admin.py`, `courses.py` (writes); `models/user.py`, `course.py`; `seed/seed_data.py`; `api/client.js`, `context/AuthContext.jsx`; `pages/Auth/*`, `pages/Profile/*`, `pages/Admin/*`; plus all deployment config.
+**Files:** `deps.py`; `routers/auth.py`, `users.py`, `admin.py`, `courses.py` (writes); `models/user.py`, `course.py`; `seed/seed_data.py`; `api/client.js`, `context/AuthContext.jsx`; `pages/Auth/*`, `pages/Profile/*`, `pages/Admin/*`.
 
 ### 8.1 Week 1 is a sprint — deliver in this order
 
@@ -685,7 +683,7 @@ You own the foundation the other three stand on. Your Week 1 is the most time-cr
 2. **Day 2:** Enable Supabase Auth providers (email + Google), wire `AuthContext`, and `client.js` with the token interceptor.
 3. **Day 3:** Backend JWT verification with `pyjwt` + `SUPABASE_JWT_SECRET`, `get_current_user`, auto-create the `public.users` row on first login, and `require_admin`.
 4. **Day 4:** **Seed data — 3 courses × 5 lessons with real markdown content and `topic_tags`.** M1 cannot test the tutor and M2 cannot test the viewer without this. It is your highest-leverage deliverable of the week.
-5. **Day 5:** Course and lesson CRUD endpoints, and deploy a hello-world backend to Render and frontend to Vercel so the pipeline is proven early rather than on the last day.
+5. **Day 5:** Course and lesson CRUD endpoints, so the admin can create content the other members can immediately read.
 
 ### 8.2 Auth flow
 
@@ -729,19 +727,29 @@ GET    /api/admin/overview        -> counts: users, courses, enrollments, active
 
 Login, Register, Forgot password, Profile (edit details + preferences: tutor tone, daily goal minutes, difficulty, timezone), and an Admin shell with a sidebar leading to: Users table, Courses table, Course editor (markdown editor with preview, drag-to-reorder lessons, tag picker), and an Overview page (M4 supplies the charts).
 
-### 8.5 Deployment (yours — start in Week 1, finish in Week 4)
+### 8.5 Deployment — deferred, not your task
 
-- **Backend → Render:** start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, env vars set in the dashboard, and `alembic upgrade head` in the build command. Note the free tier sleeps after 15 minutes — add a keep-alive ping before the demo.
-- **Frontend → Vercel:** set `VITE_API_URL`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Add the SPA rewrite to `/index.html`.
-- **CORS** in `main.py`: allow the Vercel domain and `http://localhost:5173`.
-- Document every env var in both `.env.example` files.
+Deployment is **out of scope for the four-week build**. The team lead deploys the app
+themselves once everything else is complete, so no hosting config lives in this repo
+and no member owns deployment tasks.
+
+What that means while you build:
+
+- Everything runs locally — `uvicorn app.main:app --reload` and `npm run dev`.
+- `CORS_ORIGINS` only needs the local origins.
+- Demos run from a local machine. Record a backup video anyway (§10).
+- Still document every env var in both `.env.example` files — the lead needs them at deploy time.
+
+Keep the app *deployable* without doing the deploying: read the API base URL from
+`VITE_API_URL` rather than hard-coding a host, keep secrets in `.env`, and never commit
+them. That is all the deployment readiness this phase needs.
 
 ### 8.6 Week by week
 
 - **W1:** the sprint above.
-- **W2:** admin panel CRUD complete, profile and settings, role management, staging deploy live.
+- **W2:** admin panel CRUD complete, profile and settings, role management.
 - **W3:** security pass (rate limiting, input validation, no secrets committed, least-privilege on Supabase), admin analytics wiring, file upload.
-- **W4:** production deploy, final seed (5+ courses), README + setup docs + API docs (FastAPI's `/docs` is free — curate the tags and descriptions so it reads well).
+- **W4:** final seed (5+ courses), README + setup docs + API docs (FastAPI's `/docs` is free — curate the tags and descriptions so it reads well).
 
 ### 8.7 Definition of done
 
@@ -749,7 +757,7 @@ Login, Register, Forgot password, Profile (edit details + preferences: tutor ton
 - [ ] A student hitting an admin route gets a 403, and the admin nav is not rendered for them
 - [ ] An admin can create a course and lessons that immediately appear in M2's catalog
 - [ ] The seed script rebuilds a full demo database from empty in one command
-- [ ] The deployed URLs work from another person's machine and from a phone
+- [ ] The app runs from a clean clone on another person's machine, and is usable on a phone
 
 ---
 
@@ -865,7 +873,7 @@ Integration is not really a Week 4 activity if you have followed the contracts �
 | Mon | Full happy-path walkthrough on staging; list every break | All |
 | Tue | Fix P0s: auth edge cases, event double-fires, quiz payload mismatches | All |
 | Wed | Performance: N+1 queries, add indexes, lazy-load the avatar bundle, image sizes | M3 + M1 |
-| Thu | Final deploy, seed production, mobile pass, record a backup demo video | All |
+| Thu | Final seed, mobile pass, record a backup demo video | All |
 | Fri | Documentation, report, presentation dry run | All |
 
 ### 10.1 Test matrix (M4 runs this)
@@ -893,15 +901,14 @@ That "the recommendation changed because I got it wrong" beat is the strongest t
 
 | # | Risk | Owner | Mitigation |
 | --- | --- | --- | --- |
-| 1 | **SyncTalk needs a GPU and cannot deploy on a free tier** | M1 | Tier A browser avatar ships first and always works; SyncTalk is an upgrade behind the same API, never demo-critical |
+| 1 | **SyncTalk needs a GPU and will not run on ordinary free hosting** | M1 | Tier A browser avatar ships first and always works; SyncTalk is an upgrade behind the same API, never demo-critical |
 | 2 | LLM rate limits or an exhausted key mid-demo | M1 | Two providers configured; response cache for repeated prompts; `MockLLMClient`; a pre-generated quiz in the seed data |
-| 3 | Render free-tier cold start (~50s) | M3 | Keep-alive ping 10 minutes before the demo; loading states everywhere |
-| 4 | Lessons shipped without `topic_tags` → recommender dead | M3 | Server-side validation plus an admin form requirement; seed data fully tagged |
-| 5 | Merge conflicts in shared files | All | Shared files finalised on day 1; one line each; small PRs |
-| 6 | A member falls behind | Lead | Friday demos surface it at the end of week 1, not week 3; cut scope down to the DoD checklist and drop stretch goals |
-| 7 | Avatar tanks performance on weak laptops | M1 | 2D sprite fallback and a "disable avatar" toggle in preferences |
-| 8 | Timezone/streak bugs found during the demo | M4 | Explicit timezone handling plus a case in the test matrix |
-| 9 | Everyone builds their own button | M2 | UI kit shipped on the Monday of Week 1 |
+| 3 | Lessons shipped without `topic_tags` → recommender dead | M3 | Server-side validation plus an admin form requirement; seed data fully tagged |
+| 4 | Merge conflicts in shared files | All | Shared files finalised on day 1; one line each; small PRs |
+| 5 | A member falls behind | Lead | Friday demos surface it at the end of week 1, not week 3; cut scope down to the DoD checklist and drop stretch goals |
+| 6 | Avatar tanks performance on weak laptops | M1 | 2D sprite fallback and a "disable avatar" toggle in preferences |
+| 7 | Timezone/streak bugs found during the demo | M4 | Explicit timezone handling plus a case in the test matrix |
+| 8 | Everyone builds their own button | M2 | UI kit shipped on the Monday of Week 1 |
 
 ---
 
@@ -933,7 +940,7 @@ LLM_PROVIDER=groq            # groq | gemini | openai | mock
 LLM_API_KEY=...
 LLM_MODEL=llama-3.3-70b-versatile
 AVATAR_SERVICE_URL=          # empty means Tier A only
-CORS_ORIGINS=http://localhost:5173,https://learnquest.vercel.app
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
 **Env vars — `frontend/.env`**
@@ -970,7 +977,7 @@ npm run dev
 
 | Topic | Ask |
 | --- | --- |
-| Auth, DB, deployment, admin | M3 |
+| Auth, DB, seed data, admin | M3 |
 | UI kit, lesson/quiz UI, dashboard layout | M2 |
 | XP, badges, charts, events | M4 |
 | Tutor, avatar, quiz generation, recommendations, integration | M1 (Lead) |
