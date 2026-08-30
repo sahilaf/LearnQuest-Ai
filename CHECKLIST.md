@@ -47,6 +47,7 @@ no models are defined, and no migrations exist yet.
 - [~] GitHub repo created, scaffold pushed — scaffold, 2026-08-30 · TODO: grant push access to M2/M3/M4
 - [ ] Supabase project created; `DATABASE_URL`, project URL, anon key and JWT secret shared — @
 - [ ] LLM provider account + API key obtained — @
+- [ ] (Optional, voice mode) Gemini API key + LiveKit credentials — @
 - [~] Backend verified booting locally, 44 routes served — scaffold, 2026-08-30 · each member still to confirm on their own machine
 - [~] Frontend verified building and rendering — scaffold, 2026-08-30 · each member still to confirm on their own machine
 - [x] All four routers registered in `main.py` in ONE shared commit — scaffold, 2026-08-30
@@ -93,6 +94,9 @@ no models are defined, and no migrations exist yet.
 - [ ] Tier B: frontend plays the JPEG frame stream against the audio clock — @
 - [ ] Tier B: app still falls back to Tier A cleanly when `AVATAR_SERVICE_URL` is empty — @
 - [ ] Short-answer AI grading endpoint (optional) — @
+- [ ] Voice mode (§6.6b, optional — cut first if behind): `POST /api/livekit/token` in the backend, guarded by `CurrentUser` — @
+- [ ] Voice mode: port `agent/reference-client/playground.html` into a React component — @
+- [ ] Voice mode: `AGENT_INSTRUCTIONS` rewritten as the tutor persona, `INPUT_LANGUAGE=en-US` — @
 
 ### Week 4 — polish & integration
 - [ ] Time to first token under 2s on the running backend — @

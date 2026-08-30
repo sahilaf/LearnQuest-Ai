@@ -30,7 +30,7 @@ Each member owns a **vertical slice**: the DB tables, the FastAPI routers, and t
 
 ## 1. Repository structure
 
-Single repo, three top-level apps.
+Single repo, four top-level apps.
 
 ```
 LearnQuest/
@@ -80,6 +80,12 @@ LearnQuest/
 │       │   ├── xp_engine.py      # M4
 │       │   └── events.py         # SHARED event bus - see §4.3
 │       └── seed/seed_data.py     # M3 owns, everyone contributes fixtures
+│
+├── agent/                     # LiveKit voice agent (M1, optional - see §6.6b)
+│   ├── README.md              # architecture, the hard-won playback details
+│   ├── agent_bangla.py        # current agent (most up to date)
+│   ├── token_server.py        # LiveKit token minting - move into the backend
+│   └── reference-client/      # working browser client to port into React
 │
 ├── avatar-service/            # SyncTalk 2D talking-head service (M1, GPU, optional)
 │   ├── README.md              # setup, API, where the dataset lives
@@ -423,7 +429,7 @@ Tailwind tokens: primary `indigo-600`, success `emerald-500`, warning `amber-500
 
 You own the differentiator. Everything else is a competent LMS; this module is what makes it LearnQuest AI. You are also the integrator, so budget roughly 20% of your time for unblocking other people.
 
-**Files you own:** `services/llm_client.py`, `prompts.py`, `quiz_generator.py`, `recommender.py`, `mastery.py`, `tts.py`; `routers/tutor.py`, `avatar.py`, `recommendations.py`; `models/ai.py`; `frontend/src/components/avatar/*`, `pages/Tutor/*`; and `avatar-service/` (a separate GPU process — see its [README](avatar-service/README.md)).
+**Files you own:** `services/llm_client.py`, `prompts.py`, `quiz_generator.py`, `recommender.py`, `mastery.py`, `tts.py`; `routers/tutor.py`, `avatar.py`, `recommendations.py`; `models/ai.py`; `frontend/src/components/avatar/*`, `pages/Tutor/*`; and the two separate processes `avatar-service/` (GPU, see its [README](avatar-service/README.md)) and `agent/` (LiveKit voice, see its [README](agent/README.md)).
 
 ### 6.1 Architecture of your slice
 
@@ -604,6 +610,48 @@ Set `AVATAR_SERVICE_URL` to switch tiers. Leave it empty and the whole app runs 
 with no GPU — which is how Members 2, 3 and 4 should run it.
 
 **Endpoints:** `POST /api/avatar/speak`, `GET /api/avatar/status` (which tier is live), `GET /api/avatar/config`.
+
+
+### 6.6b Voice mode — the LiveKit agent (already built)
+
+A working real-time voice stack came over from `Fydp_v2` into
+[`agent/`](agent/README.md): the learner speaks, Gemini Live answers in audio, and that
+audio drives the SyncTalk avatar — all through a LiveKit room.
+
+```
+Browser ──join room──► LiveKit ◄──audio+video── agent_bangla.py ──WS──► avatar-service
+   │                                                  │
+   └── token from POST /api/livekit/token        Gemini Live (realtime)
+```
+
+**This is not what §6.3 specifies.** §6.3 is a *text* tutor over SSE, and `context.md`
+lists voice conversation under Future Enhancements. Both now exist, so the plan is:
+
+**Text-first, voice as a mode.**
+
+- Text chat stays the default — no GPU, no LiveKit, no realtime API needed. That is what
+  Members 2, 3 and 4 build against, and what the app falls back to.
+- Voice is a toggle on the Tutor page, backed by the agent.
+- Degrades cleanly: no GPU → text tutor + Tier A avatar; GPU up → voice + Tier B avatar.
+
+**To wire it in (M1, Week 3, after the text tutor works):**
+
+1. Move `agent/token_server.py` into the backend as `POST /api/livekit/token`, guarded by
+   `CurrentUser`. ~30 lines. **Do not ship the standalone Flask app** — it mints room
+   tokens with no authentication.
+2. Port `agent/reference-client/playground.html` into a React component with
+   `@livekit/components-react`. This is the bulk of the work.
+3. Rewrite `AGENT_INSTRUCTIONS` as the LearnQuest tutor persona, fed the same lesson
+   context and weak topics as `services/prompts.py`.
+4. Set `INPUT_LANGUAGE=en-US` (the current agent is pinned to `bn-BD`).
+
+Read [`agent/README.md`](agent/README.md) before touching the playback code — the
+audio-master clocking, idle/speech crossfade, VAD and model choices are all deliberate
+and measured. `agent_bangla.py` is the current file; `agent_english.py` is older.
+
+**Cut it first if Week 3 is tight.** The text tutor plus Tier A is the committed scope.
+
+---
 
 ### 6.7 Frontend you build
 
@@ -936,7 +984,7 @@ That "the recommendation changed because I got it wrong" beat is the strongest t
 Cut in this order, from the top:
 
 1. Tier B / SyncTalk integration — the trained model keeps for later, Tier A carries the demo
-2. Voice input (speech to text)
+2. Voice mode / the LiveKit agent (§6.6b) — text tutor is the committed scope
 3. Coins and any shop economy — keep XP and badges
 4. Course-scoped leaderboards — keep global only
 5. Notifications — fold them into toasts

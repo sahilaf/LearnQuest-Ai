@@ -43,6 +43,10 @@ uploads/
 media/
 coverage/
 
+# ---- agent: LiveKit voice agent ----
+agent/venv/
+agent/.env
+
 # ---- avatar-service: model weights & datasets (large, never in git) ----
 # Weights live on disk; the dataset lives outside the repo entirely.
 # See avatar-service/README.md.

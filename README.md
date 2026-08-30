@@ -14,6 +14,7 @@ XP / badge / streak system.
 | **Auth** | Supabase Auth |
 | **AI** | LLM API (Groq / Gemini / OpenAI, pluggable) |
 | **Avatar** | Browser TTS + viseme lipsync (Tier A) → SyncTalk 2D, GPU service (Tier B) |
+| **Voice** | LiveKit + Gemini Live realtime agent (optional — see `agent/`) |
 
 ---
 
@@ -179,11 +180,15 @@ LearnQuest/
 ├── context.md       # original project proposal
 ├── backend/         # FastAPI app
 ├── frontend/        # React app
-└── avatar-service/  # SyncTalk 2D talking-head service (GPU, optional - Tier B)
+├── avatar-service/  # SyncTalk 2D talking-head service (GPU, optional - Tier B)
+└── agent/           # LiveKit + Gemini Live voice agent (optional)
 ```
 
-`avatar-service/` is **optional**. Leave `AVATAR_SERVICE_URL` empty and the app runs the
-Tier A browser avatar with no GPU. See [avatar-service/README.md](avatar-service/README.md).
+`avatar-service/` and `agent/` are both **optional**. Leave `AVATAR_SERVICE_URL` empty and
+the app runs the text tutor with the Tier A browser avatar — no GPU, no LiveKit, no
+realtime API. That is how Members 2, 3 and 4 should run it.
+
+See [avatar-service/README.md](avatar-service/README.md) and [agent/README.md](agent/README.md).
 
 Detailed folder-by-folder ownership is in [plan.md](plan.md) §1.
 
