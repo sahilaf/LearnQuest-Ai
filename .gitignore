@@ -41,8 +41,28 @@ desktop.ini
 *.db
 uploads/
 media/
-avatar-service/checkpoints/
-avatar-service/data/
 coverage/
+
+# ---- avatar-service: model weights & datasets (large, never in git) ----
+# Weights live on disk; the dataset lives outside the repo entirely.
+# See avatar-service/README.md.
+*.pth
+*.pth.tar
+*.onnx
+avatar-service/checkpoint/
+avatar-service/model/checkpoints/
+avatar-service/dataset/
+avatar-service/idle_cache/
+avatar-service/result/
+avatar-service/syncnet_ckpt/
+avatar-service/evaluation/results/
+avatar-service/evaluation/runs/
+avatar-service/*.png
+*.tar
+*.tar.gz
+*.zip
+# Keep the small human-readable training artefacts
+!avatar-service/checkpoint/final_v2/train_config.json
+!avatar-service/checkpoint/final_v2/loss_log.csv
 .coverage
 htmlcov/

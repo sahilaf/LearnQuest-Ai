@@ -30,7 +30,7 @@ Each member owns a **vertical slice**: the DB tables, the FastAPI routers, and t
 
 ## 1. Repository structure
 
-Single repo, two top-level apps.
+Single repo, three top-level apps.
 
 ```
 LearnQuest/
@@ -80,6 +80,13 @@ LearnQuest/
 │       │   ├── xp_engine.py      # M4
 │       │   └── events.py         # SHARED event bus - see §4.3
 │       └── seed/seed_data.py     # M3 owns, everyone contributes fixtures
+│
+├── avatar-service/            # SyncTalk 2D talking-head service (M1, GPU, optional)
+│   ├── README.md              # setup, API, where the dataset lives
+│   ├── avatar_server_ws.py    # entrypoint: FastAPI + uvicorn WebSocket server
+│   ├── run.ps1                # reads .env, validates paths, launches
+│   ├── checkpoint/final_v2/   # trained weights - GITIGNORED
+│   └── model/, data_utils/    # audio encoder + preprocessing
 │
 └── frontend/
     ├── package.json
@@ -416,7 +423,7 @@ Tailwind tokens: primary `indigo-600`, success `emerald-500`, warning `amber-500
 
 You own the differentiator. Everything else is a competent LMS; this module is what makes it LearnQuest AI. You are also the integrator, so budget roughly 20% of your time for unblocking other people.
 
-**Files you own:** `services/llm_client.py`, `prompts.py`, `quiz_generator.py`, `recommender.py`, `mastery.py`, `tts.py`; `routers/tutor.py`, `avatar.py`, `recommendations.py`; `models/ai.py`; `frontend/src/components/avatar/*`, `pages/Tutor/*`; and `avatar-service/` (a separate process).
+**Files you own:** `services/llm_client.py`, `prompts.py`, `quiz_generator.py`, `recommender.py`, `mastery.py`, `tts.py`; `routers/tutor.py`, `avatar.py`, `recommendations.py`; `models/ai.py`; `frontend/src/components/avatar/*`, `pages/Tutor/*`; and `avatar-service/` (a separate GPU process — see its [README](avatar-service/README.md)).
 
 ### 6.1 Architecture of your slice
 
@@ -428,7 +435,7 @@ Browser
   │                                     └──► ContextBuilder (lesson content + mastery + progress)
   │
   └── AvatarStage ◄──audio + visemes── /api/avatar/speak ──► TTS ──► viseme extraction
-                   ◄──MJPEG/WebRTC───── avatar-service (SyncTalk, GPU)   [Tier B, optional]
+                   ◄──WS jpg frames──── avatar-service (SyncTalk, GPU)   [Tier B, optional]
 ```
 
 ### 6.2 LLM provider decision (do this on Day 1)
@@ -561,7 +568,7 @@ GET  /api/analytics/mastery/me         -> [{topic_tag, mastery_score, attempts}]
 
 ### 6.6 Avatar pipeline — two tiers, ship Tier A first
 
-> **Risk, read before planning Week 1.** SyncTalk requires a CUDA GPU and per-identity training, and will not run on ordinary free web hosting. Treat it as an enhancement running on a separate GPU box, not as the thing the demo depends on.
+> **Risk, read before planning Week 1.** SyncTalk needs a CUDA GPU and will not run on ordinary free web hosting, so it runs as a separate service on a GPU machine. The model itself is already trained (see Tier B below), but the demo must still survive a machine without a GPU — so Tier A ships first and stays the fallback.
 
 **Tier A — browser avatar (must ship, Weeks 1–2).** Zero infrastructure cost, works on any laptop.
 
@@ -576,13 +583,25 @@ GET  /api/analytics/mastery/me         -> [{topic_tag, mastery_score, attempts}]
 [{"t": 0.00, "v": "sil"}, {"t": 0.08, "v": "AA"}, {"t": 0.19, "v": "M"}]
 ```
 
-**Tier B — SyncTalk (Week 3, only if Tier A is stable).**
+**Tier B — SyncTalk (already trained, wire it up in Week 3).**
 
-- Lives in a separate folder `avatar-service/`, run on a GPU machine (a lab PC, Colab + ngrok, or a friend's card).
-- Pipeline: text → TTS wav → SyncTalk inference → frames → stream to the browser.
-- Transport: MJPEG over HTTP is far easier than WebRTC and good enough for a demo. Use WebRTC (`aiortc`) only if you have time to spare.
-- The contract stays identical: `POST /api/avatar/speak {text}` returns `{audio_url, visemes, video_stream_url?}`. The frontend renders Tier B when `video_stream_url` is present and falls back to Tier A otherwise. **Same endpoint, graceful degradation.**
-- Prepare/train the avatar identity offline in Week 2, not during Week 3.
+The model exists: the **`redwan`** dataset and the **`final_v2`** checkpoint (epoch 59),
+brought over from the `Fydp_v2` project into [`avatar-service/`](avatar-service/README.md).
+That removes the biggest unknown — there is no model to train during these four weeks,
+only integration work.
+
+- Runs as a **separate process** from the FastAPI backend (needs CUDA + its own conda env).
+- Entry point `avatar_server_ws.py`, a FastAPI + uvicorn WebSocket server on port 5001.
+- Flow: `POST /session` → stream WAV into `WS /ws/audio/{sid}` → read `[pts_ms uint64] + jpg`
+  frames out of `WS /ws/video/{sid}` → play them against the audio clock.
+- The 1.27 GB of reference frames stay outside this repo; `SYNCTALK_DATASET` points at them.
+- The contract stays identical: `POST /api/avatar/speak {text}` returns
+  `{audio_url, visemes, video_stream_url?}`. The frontend renders Tier B when
+  `video_stream_url` is present and falls back to Tier A otherwise.
+  **Same endpoint, graceful degradation.**
+
+Set `AVATAR_SERVICE_URL` to switch tiers. Leave it empty and the whole app runs Tier A
+with no GPU — which is how Members 2, 3 and 4 should run it.
 
 **Endpoints:** `POST /api/avatar/speak`, `GET /api/avatar/status` (which tier is live), `GET /api/avatar/config`.
 
@@ -598,7 +617,7 @@ GET  /api/analytics/mastery/me         -> [{topic_tag, mastery_score, attempts}]
 
 - **W1:** LLM client + mock, prompt v1, `conversations`/`messages` tables and CRUD, non-streaming chat endpoint, minimal chat UI, Tier A avatar spike (mouth moves to `speechSynthesis`).
 - **W2:** SSE streaming, memory + summarisation, quiz generator with validation and M2 integration, adaptive difficulty, TTS endpoint.
-- **W3:** Accurate lipsync + expressions, mastery engine wired to `quiz.submitted`, recommender + daily plan, SyncTalk spike if there is time.
+- **W3:** Accurate lipsync + expressions, mastery engine wired to `quiz.submitted`, recommender + daily plan, wire up the SyncTalk service (Tier B) — the model is already trained.
 - **W4:** Latency tuning (target: under 2s to first token), quota/error fallbacks, prompt tuning against real usage, demo script, and integration support for everyone.
 
 ### 6.9 Definition of done
@@ -901,7 +920,7 @@ That "the recommendation changed because I got it wrong" beat is the strongest t
 
 | # | Risk | Owner | Mitigation |
 | --- | --- | --- | --- |
-| 1 | **SyncTalk needs a GPU and will not run on ordinary free hosting** | M1 | Tier A browser avatar ships first and always works; SyncTalk is an upgrade behind the same API, never demo-critical |
+| 1 | **SyncTalk needs a GPU and will not run on ordinary free hosting** | M1 | Model already trained (`redwan` + `final_v2`), so only integration remains; Tier A browser avatar still ships first and always works; SyncTalk is an upgrade behind the same API, never demo-critical |
 | 2 | LLM rate limits or an exhausted key mid-demo | M1 | Two providers configured; response cache for repeated prompts; `MockLLMClient`; a pre-generated quiz in the seed data |
 | 3 | Lessons shipped without `topic_tags` → recommender dead | M3 | Server-side validation plus an admin form requirement; seed data fully tagged |
 | 4 | Merge conflicts in shared files | All | Shared files finalised on day 1; one line each; small PRs |
@@ -916,7 +935,7 @@ That "the recommendation changed because I got it wrong" beat is the strongest t
 
 Cut in this order, from the top:
 
-1. WebRTC / SyncTalk (Tier B avatar)
+1. Tier B / SyncTalk integration — the trained model keeps for later, Tier A carries the demo
 2. Voice input (speech to text)
 3. Coins and any shop economy — keep XP and badges
 4. Course-scoped leaderboards — keep global only

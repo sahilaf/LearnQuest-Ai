@@ -88,7 +88,10 @@ no models are defined, and no migrations exist yet.
 - [ ] `GET /api/recommendations` + `/daily-plan` live — @
 - [ ] `GET /api/analytics/mastery/me` exposed for M4's charts — @
 - [ ] `RecommendationCard` exported and rendering in M2's dashboard — @
-- [ ] Tier B / SyncTalk spike (optional — cut first if behind) — @
+- [ ] Tier B: start `avatar-service` and confirm `/health` responds — @
+- [ ] Tier B: `POST /api/avatar/speak` returns a `video_stream_url` when the service is up — @
+- [ ] Tier B: frontend plays the JPEG frame stream against the audio clock — @
+- [ ] Tier B: app still falls back to Tier A cleanly when `AVATAR_SERVICE_URL` is empty — @
 - [ ] Short-answer AI grading endpoint (optional) — @
 
 ### Week 4 — polish & integration

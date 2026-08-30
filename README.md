@@ -13,7 +13,7 @@ XP / badge / streak system.
 | **Database** | PostgreSQL (Supabase free tier) |
 | **Auth** | Supabase Auth |
 | **AI** | LLM API (Groq / Gemini / OpenAI, pluggable) |
-| **Avatar** | Browser TTS + viseme lipsync (Tier A) → SyncTalk (Tier B) |
+| **Avatar** | Browser TTS + viseme lipsync (Tier A) → SyncTalk 2D, GPU service (Tier B) |
 
 ---
 
@@ -178,8 +178,12 @@ LearnQuest/
 ├── CHECKLIST.md     # tick your tasks off here as you finish them
 ├── context.md       # original project proposal
 ├── backend/         # FastAPI app
-└── frontend/        # React app
+├── frontend/        # React app
+└── avatar-service/  # SyncTalk 2D talking-head service (GPU, optional - Tier B)
 ```
+
+`avatar-service/` is **optional**. Leave `AVATAR_SERVICE_URL` empty and the app runs the
+Tier A browser avatar with no GPU. See [avatar-service/README.md](avatar-service/README.md).
 
 Detailed folder-by-folder ownership is in [plan.md](plan.md) §1.
 
