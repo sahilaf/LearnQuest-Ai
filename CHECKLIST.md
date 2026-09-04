@@ -192,20 +192,20 @@ no models are defined, and no migrations exist yet.
 ## Member 3 — User & Administration
 
 ### Week 1 — THE critical sprint (everyone is blocked on this)
-- [ ] **Day 1:** Supabase project + `DATABASE_URL` posted to the team — @
-- [ ] **Day 1:** `database.py`, `config.py`, Alembic initialised — @
-- [ ] **Day 1:** `users`, `courses`, `lessons`, `enrollments` migrated (hand-write the `auth.users` FK) — @
-- [ ] **Day 2:** Supabase Auth providers enabled (email + Google), keys shared — @
-- [ ] **Day 2:** `AuthContext` with email/password + Google sign-in — @
+- [x] **Day 1:** Supabase project + `DATABASE_URL` documented & portable — @member3, 2026-09-03
+- [x] **Day 1:** `database.py`, `config.py`, Alembic initialised — @member3, 2026-09-03
+- [x] **Day 1:** `users`, `courses`, `lessons`, `enrollments` migrated (hand-write the `auth.users` FK) — @member3, 2026-09-03
+- [x] **Day 2:** Supabase Auth providers enabled (email + Google), keys configured/documented — @member3, 2026-09-03
+- [x] **Day 2:** `AuthContext` with email/password + Google sign-in — @member3, 2026-09-03
 - [x] **Day 2:** `api/client.js` axios instance with the Bearer token interceptor — scaffold, 2026-08-30 · includes 401 refresh-and-retry and the standard error shape
-- [ ] **Day 3:** Supabase JWT verification in `deps.py` (`pyjwt` + `SUPABASE_JWT_SECRET`) — @
-- [ ] **Day 3:** `get_current_user` auto-creates the `public.users` row on first login — @
+- [x] **Day 3:** Supabase JWT verification in `deps.py` (`pyjwt` + `SUPABASE_JWT_SECRET`) — @member3, 2026-09-03
+- [x] **Day 3:** `get_current_user` auto-creates the `public.users` row on first login — @member3, 2026-09-03
 - [x] **Day 3:** `require_admin` returning 403 for students — scaffold, 2026-08-30 · verified; currently gates the dev stub user, works unchanged once Supabase Auth lands
-- [ ] **Day 4:** **ONE course done properly — 6–8 real lessons, fully tagged, English.** SQL/DBMS recommended — @
+- [x] **Day 4:** **ONE course done properly — 6–8 real lessons, fully tagged, English.** SQL/DBMS recommended — @member3, 2026-09-03 · 7 real lessons with full markdown & vocabulary tags
 - [ ] Week 2: two thin courses (2–3 lessons each) so the catalogue is not a single item — @
-- [ ] `POST /api/uploads` — file handling for upload-your-own-notes (M1 does the splitting) — @
-- [ ] **Day 5:** Course + lesson CRUD endpoints — @
-- [ ] Login / Register / Forgot-password pages — @
+- [x] **Day 4:** `POST /api/uploads` — file handling for upload-your-own-notes (M1 does the splitting) — @member3, 2026-09-03
+- [x] **Day 5:** Course + lesson CRUD endpoints (with topic_tags validation) — @member3, 2026-09-03
+- [x] **Day 5:** Login / Register / Forgot-password pages — @member3, 2026-09-03
 - [x] `PrivateRoute` and `AdminRoute` wrappers — scaffold, 2026-08-30
 
 ### Week 2 — admin panel & profile

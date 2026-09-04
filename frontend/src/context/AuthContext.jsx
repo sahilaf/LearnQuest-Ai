@@ -3,16 +3,13 @@
  *
  * OWNER: Member 3. See plan.md §8.2.
  *
- * When VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are missing this runs in DEV MODE
- * and hands back a fake signed-in user, so Members 1, 2 and 4 can build pages before
- * credentials exist. The backend mirrors this with DEV_ALLOW_ANONYMOUS.
- *
- * TODO(M3): after sign-in, call POST /api/auth/sync so the public.users row exists,
- * and use the role it returns instead of the hardcoded 'student' below.
+ * Handles Supabase session, token refresh, and synchronization with backend public.users.
+ * When Supabase keys are not configured, runs in DEV MODE and provides a developer user.
  */
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { setTokenProvider, setUnauthorizedHandler } from '../api/client';
+import { syncUser } from '../api/users';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const AuthContext = createContext(null);
@@ -32,9 +29,8 @@ function toAppUser(session) {
     id,
     email,
     full_name: meta.full_name ?? meta.name ?? email,
-    avatar_url: meta.avatar_url ?? null,
-    // TODO(M3): real role comes from public.users via /api/auth/sync.
-    role: 'student',
+    avatar_url: meta.avatar_url ?? meta.picture ?? null,
+    role: meta.role ?? 'student',
   };
 }
 
@@ -42,6 +38,21 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Sync user with backend database to get real role and ensure public.users exists
+  const syncWithBackend = async (baseUser) => {
+    try {
+      const res = await syncUser();
+      if (res?.data?.user) {
+        setUser((prev) => ({
+          ...(prev || baseUser),
+          ...res.data.user,
+        }));
+      }
+    } catch (err) {
+      console.warn('Backend user sync failed, falling back to session user:', err);
+    }
+  };
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -52,21 +63,28 @@ export function AuthProvider({ children }) {
     }
 
     // The interceptor in api/client.js pulls the token from here on every request.
-    // supabase-js refreshes it automatically, so this always returns a live token.
     setTokenProvider(async () => {
       const { data } = await supabase.auth.getSession();
       return data.session?.access_token ?? null;
     });
 
     supabase.auth.getSession().then(({ data }) => {
-      setUser(toAppUser(data.session));
+      const appUser = toAppUser(data.session);
+      setUser(appUser);
       setLoading(false);
+      if (appUser) {
+        syncWithBackend(appUser);
+      }
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(toAppUser(session));
+      const appUser = toAppUser(session);
+      setUser(appUser);
+      if (appUser) {
+        syncWithBackend(appUser);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -87,43 +105,78 @@ export function AuthProvider({ children }) {
 
       async login(email, password) {
         setError(null);
-        if (!isSupabaseConfigured) return setError('Supabase is not configured yet.');
-        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-        if (err) setError(err.message);
-        return err ?? null;
+        if (!isSupabaseConfigured) {
+          setUser(DEV_USER);
+          return null;
+        }
+        const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) {
+          setError(err.message);
+          return err;
+        }
+        const appUser = toAppUser(data.session);
+        setUser(appUser);
+        if (appUser) await syncWithBackend(appUser);
+        return null;
       },
 
       async loginWithGoogle() {
         setError(null);
-        if (!isSupabaseConfigured) return setError('Supabase is not configured yet.');
+        if (!isSupabaseConfigured) {
+          setUser(DEV_USER);
+          return null;
+        }
         const { error: err } = await supabase.auth.signInWithOAuth({
           provider: 'google',
-          options: { redirectTo: `${window.location.origin}/dashboard` },
+          options: {
+            redirectTo: `${window.location.origin}/dashboard`,
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'select_account',
+            },
+          },
         });
-        if (err) setError(err.message);
-        return err ?? null;
+        if (err) {
+          setError(err.message);
+          return err;
+        }
+        return null;
       },
 
       async register(email, password, fullName) {
         setError(null);
-        if (!isSupabaseConfigured) return setError('Supabase is not configured yet.');
-        const { error: err } = await supabase.auth.signUp({
+        if (!isSupabaseConfigured) {
+          setUser({ ...DEV_USER, email, full_name: fullName });
+          return null;
+        }
+        const { data, error: err } = await supabase.auth.signUp({
           email,
           password,
           options: { data: { full_name: fullName } },
         });
-        if (err) setError(err.message);
-        return err ?? null;
+        if (err) {
+          setError(err.message);
+          return err;
+        }
+        const appUser = toAppUser(data.session);
+        setUser(appUser);
+        if (appUser) await syncWithBackend(appUser);
+        return null;
       },
 
       async resetPassword(email) {
         setError(null);
-        if (!isSupabaseConfigured) return setError('Supabase is not configured yet.');
+        if (!isSupabaseConfigured) {
+          return null;
+        }
         const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/login`,
         });
-        if (err) setError(err.message);
-        return err ?? null;
+        if (err) {
+          setError(err.message);
+          return err;
+        }
+        return null;
       },
 
       async logout() {
