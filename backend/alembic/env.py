@@ -9,7 +9,7 @@ from app.config import settings
 
 # Importing app.models registers every model on Base.metadata for autogenerate.
 import app.models  # noqa: F401
-from app.database import Base
+from app.database import Base, get_engine
 
 config = context.config
 
@@ -21,7 +21,7 @@ if not settings.database_url:
         "DATABASE_URL is not set. Copy backend/.env.example to backend/.env first."
     )
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 
@@ -39,11 +39,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = get_engine()
     with connectable.connect() as connection:
         context.configure(
             connection=connection,

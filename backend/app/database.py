@@ -29,13 +29,20 @@ def get_engine():
                 "DATABASE_URL is not set. Copy backend/.env.example to backend/.env "
                 "and fill in the Supabase connection string (see plan.md 8.1)."
             )
-        _engine = create_engine(
-            settings.database_url,
-            pool_pre_ping=True,
-            pool_size=5,
-            max_overflow=10,
-            future=True,
-        )
+        if settings.database_url.startswith("sqlite"):
+            _engine = create_engine(
+                settings.database_url,
+                connect_args={"check_same_thread": False},
+                future=True,
+            )
+        else:
+            _engine = create_engine(
+                settings.database_url,
+                pool_pre_ping=True,
+                pool_size=5,
+                max_overflow=10,
+                future=True,
+            )
     return _engine
 
 
@@ -48,8 +55,11 @@ def get_session_factory() -> sessionmaker:
     return _SessionLocal
 
 
-def get_db() -> Generator[Session, None, None]:
-    """FastAPI dependency. Usage: db: Session = Depends(get_db)"""
+def get_db() -> Generator[Session | None, None, None]:
+    """FastAPI dependency. Usage: db: Session | None = Depends(get_db)"""
+    if not database_is_configured():
+        yield None
+        return
     db = get_session_factory()()
     try:
         yield db
