@@ -455,9 +455,70 @@ Look for: `Index Scan using ix_lessons_course_id` vs `Seq Scan`.
     return course
 
 
-def seed_badges(db: Session) -> None:
-    """TODO(M4): ~15 badges with JSONB criteria (plan.md §9.4)."""
-    logger.info("seed_badges placeholder (owned by Member 4).")
+INITIAL_BADGES = [
+    {
+        "code": "first_lesson",
+        "name": "First Lesson",
+        "description": "Completed your first lesson",
+        "icon": "🎓",
+        "criteria": {"type": "count", "event": "lesson.completed", "threshold": 1},
+        "xp_reward": 50,
+    },
+    {
+        "code": "streak_7",
+        "name": "7-Day Streak",
+        "description": "Reached a 7-day learning streak",
+        "icon": "🔥",
+        "criteria": {"type": "streak", "threshold": 7},
+        "xp_reward": 100,
+    },
+]
+
+
+def seed_badges(db: Session) -> list[Any]:
+    """Seed exactly the two Week 2 initial badges: first_lesson and streak_7.
+
+    Idempotent: updates existing or creates missing badges. Cleans up any unreferenced
+    stray badges so exactly the 2 required initial badges exist.
+    """
+    from app.models.gamification import Badge, UserBadge
+
+    seeded = []
+    target_codes = {b["code"] for b in INITIAL_BADGES}
+
+    for badge_def in INITIAL_BADGES:
+        existing = db.query(Badge).filter(Badge.code == badge_def["code"]).first()
+        if existing:
+            existing.name = badge_def["name"]
+            existing.description = badge_def["description"]
+            existing.icon = badge_def["icon"]
+            existing.criteria = badge_def["criteria"]
+            existing.xp_reward = badge_def["xp_reward"]
+            seeded.append(existing)
+        else:
+            new_badge = Badge(
+                id=uuid.uuid4(),
+                code=badge_def["code"],
+                name=badge_def["name"],
+                description=badge_def["description"],
+                icon=badge_def["icon"],
+                criteria=badge_def["criteria"],
+                xp_reward=badge_def["xp_reward"],
+            )
+            db.add(new_badge)
+            seeded.append(new_badge)
+
+    # Clean up unreferenced stray badges outside the two required initial badges
+    extra_badges = db.query(Badge).filter(~Badge.code.in_(target_codes)).all()
+    for extra in extra_badges:
+        has_earned = db.query(UserBadge).filter(UserBadge.badge_id == extra.id).first()
+        if not has_earned:
+            db.delete(extra)
+            logger.info("Cleaned up unreferenced non-standard badge: %s", extra.code)
+
+    db.commit()
+    logger.info("Seeded exactly %d initial badges (first_lesson, streak_7).", len(seeded))
+    return seeded
 
 
 def seed_challenges(db: Session) -> None:

@@ -1,4 +1,5 @@
 /** Authenticated app shell. OWNER: Member 3. */
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -8,9 +9,12 @@ import {
   Shield,
   Users,
   LogOut,
+  Trophy,
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
+import { StreakFlame, XPBar, BadgeCelebrationModal } from '../game';
+import { myStats } from '../../api/gamification';
 
 /**
  * Shell follows the system's shape (docs/DESIGN_GUIDELINES.md): a top bar for
@@ -22,6 +26,7 @@ const NAV = [
   { to: '/roadmap', label: 'Roadmap', icon: Map },
   { to: '/courses', label: 'Courses', icon: BookOpen },
   { to: '/tutor', label: 'AI Tutor', icon: Sparkles },
+  { to: '/achievements', label: 'Achievements', icon: Trophy },
 ];
 
 // Restore these as each one is built (routes already exist in App.jsx):
@@ -40,6 +45,21 @@ function initialsOf(name) {
 
 export default function AppLayout() {
   const { user, isAdmin, devMode, logout } = useAuth();
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (user) {
+      myStats()
+        .then((res) => {
+          if (isMounted && res) setStats(res);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const railLink = ({ isActive }) =>
     `flex items-center gap-2.5 rounded px-3 py-2 text-sm transition-colors ${
@@ -71,8 +91,12 @@ export default function AppLayout() {
           </NavLink>
 
           <div className="ml-auto flex items-center gap-3">
-            {/* TODO(M4): streak + XP chips go here, wired to /api/me/stats.
-                Deliberately absent until they show real numbers. */}
+            {stats && (
+              <div className="flex items-center gap-2">
+                <StreakFlame stats={stats} compact />
+                <XPBar stats={stats} compact />
+              </div>
+            )}
 
             <NavLink
               to="/profile"
@@ -137,6 +161,9 @@ export default function AppLayout() {
           ))}
         </div>
       </nav>
+
+      {/* In-app badge celebration modal with confetti */}
+      <BadgeCelebrationModal />
     </div>
   );
 }
