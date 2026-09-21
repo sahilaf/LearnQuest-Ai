@@ -3,6 +3,7 @@ import client from './client';
 
 export const myStats = () => client.get('/api/me/stats');
 export const myBadges = () => client.get('/api/me/badges');
+export const myAchievements = () => client.get('/api/me/achievements');
 export const todaysChallenges = () => client.get('/api/challenges/today');
 export const claimChallenge = (id) => client.post(`/api/challenges/${id}/claim`);
 export const leaderboard = (params) => client.get('/api/leaderboard', { params });

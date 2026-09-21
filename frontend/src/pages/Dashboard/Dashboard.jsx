@@ -24,6 +24,7 @@ import {
   ProgressBar,
   Spinner,
 } from '../../components/ui';
+import { StreakFlame, XPBar } from '../../components/game';
 
 function formatDuration(seconds) {
   if (!seconds || seconds <= 0) return '0 min';
@@ -187,37 +188,13 @@ export default function Dashboard() {
       {/* 1. M4 Gamification Stats Ribbon (Integrated gracefully) */}
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Card className="flex items-center gap-3 p-3.5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-lg dark:bg-amber-950/60">
-              🔥
-            </span>
-            <div className="min-w-0">
-              <div className="text-xs font-medium text-slate-500">Day Streak</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {stats.current_streak ?? 0} {stats.current_streak === 1 ? 'day' : 'days'}
-              </div>
-            </div>
+          <Card className="flex items-center p-3.5">
+            <StreakFlame stats={stats} />
           </Card>
 
-          <Card className="flex items-center gap-3 p-3.5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-lg dark:bg-primary-950/60">
-              ⚡
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-                <span>Level {stats.level ?? 1}</span>
-                <span>{stats.xp ?? 0} XP</span>
-              </div>
-              <div className="mt-1">
-                <ProgressBar
-                  value={
-                    stats.next_level_xp
-                      ? Math.min(100, Math.round(((stats.xp ?? 0) / stats.next_level_xp) * 100))
-                      : 0
-                  }
-                  size="sm"
-                />
-              </div>
+          <Card className="flex items-center p-3.5">
+            <div className="w-full">
+              <XPBar stats={stats} />
             </div>
           </Card>
 

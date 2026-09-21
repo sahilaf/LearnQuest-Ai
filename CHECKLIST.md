@@ -63,30 +63,30 @@ to teach it out of the mistake. Its score on the retry is your grade.
 **⛔ FIRST: unblock the database.** Quiz + progress tables don't exist — the models
 are commented out in `models/__init__.py:3`, so they were never migrated.
 
-- [ ] Uncomment `from app.models import progress, quiz` — @, 2026-__-__
-- [ ] Create + run migration `0006_m2_quiz_progress_schema` — set
+- [x] Uncomment `from app.models import progress, quiz` — @skredwanulislam, 2026-09-21
+- [x] Create + run migration `0006_m2_quiz_progress_schema` — set
       `down_revision = "0005_m1_misconception_tracking"` so it chains instead of
-      branching (two heads off 0004 would need an alembic merge) — @, 2026-__-__
-- [ ] Verify `quizzes`, `quiz_questions`, `quiz_attempts`, `lesson_progress` exist — @, 2026-__-__
+      branching (two heads off 0004 would need an alembic merge) — @skredwanulislam, 2026-09-21
+- [x] Verify `quizzes`, `quiz_questions`, `quiz_attempts`, `lesson_progress` exist — @skredwanulislam, 2026-09-21
 
 **Then make quizzes work** — nothing in the app has a game loop without this.
 
-- [ ] `GET /api/quizzes/{id}` — questions **with `correct_answer` stripped**
-      (security, plan.md 7.3 — never send answers to the client) — @, 2026-__-__
-- [ ] `POST /api/quizzes/{id}/attempts` — create attempt — @, 2026-__-__
-- [ ] `POST /api/quizzes/attempts/{id}/submit` — score + persist — @, 2026-__-__
-- [ ] **`emit(db, user_id, "quiz.submitted", payload)` on submit** — triggers M1's
+- [x] `GET /api/quizzes/{id}` — questions **with `correct_answer` stripped**
+      (security, plan.md 7.3 — never send answers to the client) — @skredwanulislam, 2026-09-21
+- [x] `POST /api/quizzes/{id}/attempts` — create attempt — @skredwanulislam, 2026-09-21
+- [x] `POST /api/quizzes/attempts/{id}/submit` — score + persist — @skredwanulislam, 2026-09-21
+- [x] **`emit(db, user_id, "quiz.submitted", payload)` on submit** — triggers M1's
       misconception capture *and* M4's XP. The payload **must** include an
-      `answers` list or no misconception can be identified: — @, 2026-__-__
+      `answers` list or no misconception can be identified: — @skredwanulislam, 2026-09-21
       ```python
       {"quiz_id": ..., "correct_count": 3, "total_questions": 5,
        "answers": [{"topic_tag": "dbms.sql_joins", "prompt": "...",
                     "correct_answer": "...", "user_answer": "...",
                     "is_correct": False}, ...]}
       ```
-- [ ] `QuizPlayer.jsx` — one question at a time, progress — @, 2026-__-__
-- [ ] `QuizResult.jsx` — score + per-question review — @, 2026-__-__
-- [ ] `GET /api/me/progress` — real *(M4 needs this in Slot 4)* — @, 2026-__-__
+- [x] `QuizPlayer.jsx` — one question at a time, progress — @skredwanulislam, 2026-09-21
+- [x] `QuizResult.jsx` — score + per-question review — @skredwanulislam, 2026-09-21
+- [x] `GET /api/me/progress` — real *(M4 needs this in Slot 4)* — @skredwanulislam, 2026-09-21
 
 **✅ Hand off when:** you can take a quiz, get a score, and M1's misconception
 appears for a wrong answer.
@@ -114,11 +114,11 @@ appears for a wrong answer.
 
 **Dashboard — the first screen after login, currently blank.**
 
-- [ ] XP + level + progress bar — `GET /api/me/stats` *(already real)* — @, 2026-__-__
-- [ ] Streak counter *(already real)* — @, 2026-__-__
-- [ ] "Continue learning" — uses M2's `/api/me/progress` — @, 2026-__-__
-- [ ] "Next quest" — `GET /api/roadmap/me` *(already real)* — @, 2026-__-__
-- [ ] Wire header streak/XP in `AppLayout.jsx` to real values (hardcoded `0` today) — @, 2026-__-__
+- [x] XP + level + progress bar — `GET /api/me/stats` *(already real)* — @rhossain222308-del, 2026-09-21
+- [x] Streak counter *(already real)* — @rhossain222308-del, 2026-09-21
+- [x] "Continue learning" — uses M2's `/api/me/progress` — @rhossain222308-del, 2026-09-21
+- [x] "Next quest" — `GET /api/roadmap/me` *(already real)* — @rhossain222308-del, 2026-09-21
+- [x] Wire header streak/XP in `AppLayout.jsx` to real values (hardcoded `0` today) — @rhossain222308-del, 2026-09-21
 
 **✅ Week 1 is done when:** sign up → dashboard shows real numbers → take a quiz →
 get one wrong → the app names your misconception.
@@ -158,7 +158,7 @@ Nova → Nova passes.
 - [ ] Solve % + attempt count per skill — @, 2026-__-__
 - [ ] Use `.table-dense` rows, not big cards — @, 2026-__-__
 - [ ] Filters: subject, difficulty, status, search — @, 2026-__-__
-- [ ] `GET /api/me/history` — real *(M4 needs it next)* — @, 2026-__-__
+- [x] `GET /api/me/history` — real *(M4 needs it next)* — @skredwanulislam, 2026-09-21
 
 **✅ Hand off when:** the courses page looks like a practice platform, not a shop.
 **→ Push, then tell M3.**
@@ -182,10 +182,10 @@ Nova → Nova passes.
 
 **Fill every remaining dead page.**
 
-- [ ] `GET /api/leaderboard` — real → `Leaderboard.jsx` (`.table-dense`) — @, 2026-__-__
-- [ ] Seed badges + `GET /api/me/badges` → `Achievements.jsx` — @, 2026-__-__
+- [ ] `GET /api/leaderboard` — real → `Leaderboard.jsx` (`.table-dense`) — @, 2026-__-__ *(descoped for Week 2)*
+- [x] Seed badges + `GET /api/me/badges` → `Achievements.jsx` — @rhossain222308-del, 2026-09-21
 - [ ] `GET /api/mastery/me` → `Stats.jsx` + **misconception map** (M1's API) — @, 2026-__-__
-- [ ] `History.jsx` from M2's `/api/me/history` — @, 2026-__-__
+- [x] `History.jsx` from M2's `/api/me/history` — @rhossain222308-del, 2026-09-21
 
 **✅ Hand off when:** no nav link is a dead end.
 
