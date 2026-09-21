@@ -81,30 +81,9 @@ def update_me(
 @router.get("/me/enrollments")
 def get_my_enrollments(
     user: CurrentUser,
-    authorization: Annotated[str | None, Header()] = None,
     db: Session | None = Depends(get_db),
 ) -> dict[str, Any]:
-    """List courses the current user is enrolled in."""
-    if not authorization or not db or not database_is_configured():
-        return {"items": [], "total": 0}
-
-    from app.models.course import Course, Enrollment
-
-    user_uuid = uuid.UUID(user["id"])
-    enrollments = (
-        db.query(Enrollment)
-        .join(Course, Enrollment.course_id == Course.id)
-        .filter(Enrollment.user_id == user_uuid)
-        .order_by(Enrollment.enrolled_at.desc())
-        .all()
-    )
-
-    items = []
-    for enr in enrollments:
-        data = enr.to_dict()
-        if enr.course:
-            data["course"] = enr.course.to_dict()
-        items.append(data)
-
-    return {"items": items, "total": len(items)}
+    """List courses the current user is enrolled in (Member 2)."""
+    from app.routers.progress import my_enrollments
+    return my_enrollments(user=user, db=db)
 

@@ -60,6 +60,9 @@ class EventType:
     TUTOR_SESSION = "tutor.session"        # Emitted by M1 -> {conversation_id, message_count}
     QUIZ_GENERATED = "quiz.generated"      # Emitted by M1 -> {quiz_id, topic}
     DAILY_LOGIN = "daily.login"            # Emitted by M3 -> {}
+    STREAK_UPDATED = "streak.updated"      # Emitted by M4 -> {current_streak, longest_streak}
+    BADGE_EARNED = "badge.earned"          # Emitted by M4 -> {badge_code, badge_name}
+    ROADMAP_NODE_COMPLETED = "roadmap.node_completed"  # Emitted by M1 -> {node_id}
 
 
 # Standard set of known event types in the platform
@@ -71,6 +74,9 @@ EVENT_TYPES: set[str] = {
     EventType.TUTOR_SESSION,
     EventType.QUIZ_GENERATED,
     EventType.DAILY_LOGIN,
+    EventType.STREAK_UPDATED,
+    EventType.BADGE_EARNED,
+    EventType.ROADMAP_NODE_COMPLETED,
 }
 
 # In-memory registry mapping event_type -> list of subscriber handlers
@@ -103,12 +109,14 @@ def register_handler(event_type: str) -> Callable[[Handler], Handler]:
         EVENT_TYPES.add(event_type)
 
     def decorator(func: Handler) -> Handler:
-        HANDLERS.setdefault(event_type, []).append(func)
-        logger.debug(
-            "Registered handler %s for event %s",
-            getattr(func, "__name__", repr(func)),
-            event_type,
-        )
+        handlers = HANDLERS.setdefault(event_type, [])
+        if func not in handlers:
+            handlers.append(func)
+            logger.debug(
+                "Registered handler %s for event %s",
+                getattr(func, "__name__", repr(func)),
+                event_type,
+            )
         return func
 
     return decorator

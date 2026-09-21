@@ -22,7 +22,7 @@ from sqlalchemy import (
     Uuid,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
 from app.database import Base
@@ -48,6 +48,9 @@ class UserStats(Base):
     longest_streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_active_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     total_learning_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Relationships
+    user: Mapped[Any] = relationship("User")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -94,6 +97,9 @@ class XPEvent(Base):
         index=True,
     )
 
+    # Relationships
+    user: Mapped[Any] = relationship("User")
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
@@ -126,6 +132,9 @@ class Badge(Base):
         default=dict,
     )
     xp_reward: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Relationships
+    user_badges: Mapped[list[UserBadge]] = relationship("UserBadge", back_populates="badge", cascade="all, delete-orphan")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -170,6 +179,10 @@ class UserBadge(Base):
         default=lambda: datetime.now(timezone.utc),
     )
 
+    # Relationships
+    user: Mapped[Any] = relationship("User")
+    badge: Mapped[Badge] = relationship("Badge", back_populates="user_badges")
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
@@ -196,6 +209,11 @@ class DailyChallenge(Base):
     target_value: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     xp_reward: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     coin_reward: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Relationships
+    user_challenges: Mapped[list[UserChallenge]] = relationship(
+        "UserChallenge", back_populates="challenge", cascade="all, delete-orphan"
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -239,6 +257,10 @@ class UserChallenge(Base):
     is_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Relationships
+    user: Mapped[Any] = relationship("User")
+    challenge: Mapped[DailyChallenge] = relationship("DailyChallenge", back_populates="user_challenges")
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
@@ -276,6 +298,9 @@ class Notification(Base):
         default=lambda: datetime.now(timezone.utc),
         index=True,
     )
+
+    # Relationships
+    user: Mapped[Any] = relationship("User")
 
     def to_dict(self) -> dict[str, Any]:
         return {

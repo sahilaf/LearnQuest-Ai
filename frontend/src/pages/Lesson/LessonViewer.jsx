@@ -489,22 +489,31 @@ export default function LessonViewer() {
                     🎉 Lesson Completed!
                   </h3>
                   <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                    You have finished reading this lesson. Ready to continue your journey?
+                    You have finished reading this lesson. Ready to test your understanding with a quiz?
                   </p>
                 </div>
-                {nextLesson ? (
-                  <Link to={`/lessons/${nextLesson.id}`}>
-                    <Button variant="primary" size="sm">
-                      Next Lesson →
-                    </Button>
-                  </Link>
-                ) : (
-                  <Link to={`/courses/${courseSlug}`}>
-                    <Button variant="secondary" size="sm">
-                      Course Completed ✓
-                    </Button>
-                  </Link>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {lesson?.quiz_id && (
+                    <Link to={`/quiz/${lesson.quiz_id}`}>
+                      <Button variant="primary" size="sm">
+                        Take Practice Quiz →
+                      </Button>
+                    </Link>
+                  )}
+                  {nextLesson ? (
+                    <Link to={`/lessons/${nextLesson.id}`}>
+                      <Button variant="secondary" size="sm">
+                        Next Lesson →
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Link to={`/courses/${courseSlug}`}>
+                      <Button variant="secondary" size="sm">
+                        Course Completed ✓
+                      </Button>
+                    </Link>
+                  )}
+                </div>
               </div>
             </Card>
           )}
@@ -525,19 +534,29 @@ export default function LessonViewer() {
               </Link>
             )}
 
-            {nextLesson ? (
-              <Link to={`/lessons/${nextLesson.id}`}>
-                <Button variant="primary">
-                  Next: {nextLesson.title} →
-                </Button>
-              </Link>
-            ) : (
-              <Link to={`/courses/${courseSlug}`}>
-                <Button variant="secondary">
-                  Finish Course ✓
-                </Button>
-              </Link>
-            )}
+            <div className="flex items-center gap-2">
+              {lesson?.quiz_id && (
+                <Link to={`/quiz/${lesson.quiz_id}`}>
+                  <Button variant="secondary">
+                    Practice Quiz 🎯
+                  </Button>
+                </Link>
+              )}
+
+              {nextLesson ? (
+                <Link to={`/lessons/${nextLesson.id}`}>
+                  <Button variant="primary">
+                    Next: {nextLesson.title} →
+                  </Button>
+                </Link>
+              ) : (
+                <Link to={`/courses/${courseSlug}`}>
+                  <Button variant="secondary">
+                    Finish Course ✓
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
         </div>
 
@@ -568,6 +587,28 @@ export default function LessonViewer() {
                     </button>
                   ))}
                 </nav>
+              </Card>
+            )}
+
+            {/* Practice Quiz Card */}
+            {lesson?.quiz_id && (
+              <Card className="border-line bg-surface p-5 dark:border-[#242B35] dark:bg-[#171C23]">
+                <div className="space-y-2">
+                  <span className="label text-easy-fg dark:text-easy">
+                    Assessment
+                  </span>
+                  <h4 className="text-base font-semibold text-ink dark:text-white">
+                    Lesson Practice Quiz
+                  </h4>
+                  <p className="text-xs leading-relaxed text-muted dark:text-[#8A94A2]">
+                    Test your understanding of the concepts covered in this lesson.
+                  </p>
+                  <Link to={`/quiz/${lesson.quiz_id}`} className="block pt-1">
+                    <Button variant="primary" size="sm" className="w-full">
+                      Start Quiz 🎯
+                    </Button>
+                  </Link>
+                </div>
               </Card>
             )}
 

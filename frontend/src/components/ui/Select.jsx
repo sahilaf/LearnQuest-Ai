@@ -1,7 +1,14 @@
 /** Shared UI kit. OWNER: Member 2. Everyone imports these - plan.md 4.5. */
 
-export default function Select({ label, options = [], className = '', id, children, ...props }) {
+import { forwardRef } from 'react';
+
+const Select = forwardRef(function Select(
+  { label, options = [], error, hint, className = '', id, children, ...props },
+  ref
+) {
   const selectId = id || props.name;
+  const describedBy = error ? `${selectId}-error` : hint ? `${selectId}-hint` : undefined;
+
   return (
     <div className={className}>
       {label && (
@@ -14,7 +21,16 @@ export default function Select({ label, options = [], className = '', id, childr
       )}
       <div className="relative">
         {/* Native arrows differ per platform, so draw our own. */}
-        <select id={selectId} className="field cursor-pointer appearance-none pr-9" {...props}>
+        <select
+          ref={ref}
+          id={selectId}
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={describedBy}
+          className={`field cursor-pointer appearance-none pr-9 ${
+            error ? 'border-hard focus:border-hard focus:ring-hard/25' : ''
+          }`}
+          {...props}
+        >
           {children ||
             options.map((o) => (
               <option key={o.value} value={o.value}>
@@ -31,6 +47,18 @@ export default function Select({ label, options = [], className = '', id, childr
           <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
+      {error && (
+        <p id={`${selectId}-error`} className="mt-1.5 text-xs text-hard">
+          {error}
+        </p>
+      )}
+      {!error && hint && (
+        <p id={`${selectId}-hint`} className="mt-1.5 text-xs text-muted">
+          {hint}
+        </p>
+      )}
     </div>
   );
-}
+});
+
+export default Select;

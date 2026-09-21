@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import CurrentUser
-from app.models.gamification import UserStats
-from app.services import xp_engine  # noqa: F401
+from app.models.gamification import Badge, UserBadge, UserStats
+from app.services import badge_checker, xp_engine  # noqa: F401
+from app.services.badge_checker import get_badge_progress
 from app.services.xp_engine import xp_for_level
 
 router = APIRouter(prefix="/api", tags=["gamification"])
@@ -32,6 +33,24 @@ def my_stats(user: CurrentUser, db: Session | None = Depends(get_db)) -> dict:
 
     if db is not None and user_uuid:
         stats = db.query(UserStats).filter(UserStats.user_id == user_uuid).first()
+        if not stats:
+            try:
+                stats = UserStats(
+                    user_id=user_uuid,
+                    xp=0,
+                    level=1,
+                    coins=0,
+                    current_streak=0,
+                    longest_streak=0,
+                    total_learning_seconds=0,
+                )
+                db.add(stats)
+                db.commit()
+                db.refresh(stats)
+            except Exception:
+                db.rollback()
+                stats = None
+
         if stats:
             next_xp = xp_for_level(stats.level + 1)
             return {
@@ -47,7 +66,7 @@ def my_stats(user: CurrentUser, db: Session | None = Depends(get_db)) -> dict:
     return {
         "xp": 0,
         "level": 1,
-        "next_level_xp": 283,
+        "next_level_xp": xp_for_level(2),
         "coins": 0,
         "current_streak": 0,
         "longest_streak": 0,
@@ -56,10 +75,78 @@ def my_stats(user: CurrentUser, db: Session | None = Depends(get_db)) -> dict:
 
 
 @router.get("/me/badges")
-def my_badges(user: CurrentUser) -> dict:
-    """Earned badges plus locked ones with progress toward them."""
-    # TODO(M4): left join badges with user_badges.
-    return {"earned": [], "locked": []}
+@router.get("/me/achievements")
+def my_achievements(user: CurrentUser, db: Session | None = Depends(get_db)) -> dict:
+    """Earned badges plus locked ones with live progress toward requirements."""
+    user_uuid = None
+    if user and "id" in user:
+        try:
+            user_uuid = uuid.UUID(str(user["id"]))
+        except ValueError:
+            user_uuid = None
+
+    if db is None or not user_uuid:
+        return {
+            "earned": [],
+            "locked": [],
+            "all": [],
+            "total_earned": 0,
+            "total_badges": 0,
+        }
+
+    # Query all available badges
+    badges = db.query(Badge).order_by(Badge.xp_reward.asc(), Badge.name.asc()).all()
+
+    # Query earned user_badges for this user
+    user_badges = (
+        db.query(UserBadge)
+        .filter(UserBadge.user_id == user_uuid)
+        .all()
+    )
+    earned_map = {ub.badge_id: ub.earned_at for ub in user_badges}
+
+    earned_list = []
+    locked_list = []
+
+    for badge in badges:
+        is_earned = badge.id in earned_map
+        earned_at = earned_map[badge.id].isoformat() if is_earned else None
+
+        # Calculate progress info
+        progress_info = get_badge_progress(db, user_uuid, badge)
+        if is_earned:
+            progress_info["percentage"] = 100
+            progress_info["satisfied"] = True
+
+        badge_data = {
+            "id": str(badge.id),
+            "code": badge.code,
+            "name": badge.name,
+            "description": badge.description,
+            "icon": badge.icon or "🏆",
+            "xp_reward": badge.xp_reward,
+            "is_earned": is_earned,
+            "earned_at": earned_at,
+            "criteria": badge.criteria,
+            "progress": progress_info,
+        }
+
+        if is_earned:
+            earned_list.append(badge_data)
+        else:
+            locked_list.append(badge_data)
+
+    return {
+        "earned": earned_list,
+        "locked": locked_list,
+        "all": earned_list + locked_list,
+        "total_earned": len(earned_list),
+        "total_badges": len(badges),
+    }
+
+
+# Backwards compatible alias
+my_badges = my_achievements
 
 
 @router.get("/challenges/today")

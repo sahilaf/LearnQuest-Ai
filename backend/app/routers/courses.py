@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import database_is_configured, get_db
 from app.deps import CurrentUser
 from app.models.course import Course, Enrollment, Lesson
+from app.models.quiz import Quiz
 from app.schemas.course import CourseDetailResponse, CourseResponse, EnrollmentResponse
 from app.services.events import emit
 
@@ -106,7 +107,24 @@ def get_course(
             headers={"X-Error-Code": "COURSE_NOT_FOUND"},
         )
 
-    return course.to_dict(include_lessons=True)
+    course_dict = course.to_dict(include_lessons=False)
+    lesson_ids = [l.id for l in course.lessons]
+    quizzes_by_lesson: dict[uuid.UUID, str] = {}
+    if lesson_ids:
+        quizzes = db.query(Quiz).filter(Quiz.lesson_id.in_(lesson_ids)).all()
+        for q in quizzes:
+            if q.lesson_id:
+                quizzes_by_lesson[q.lesson_id] = str(q.id)
+
+    sorted_lessons = sorted(course.lessons, key=lambda l: l.order_index)
+    lessons_out = []
+    for l in sorted_lessons:
+        l_dict = l.to_dict()
+        l_dict["quiz_id"] = quizzes_by_lesson.get(l.id)
+        lessons_out.append(l_dict)
+    course_dict["lessons"] = lessons_out
+
+    return course_dict
 
 
 @router.post("/{course_id}/enroll")

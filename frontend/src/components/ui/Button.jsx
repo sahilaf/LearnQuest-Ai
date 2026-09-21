@@ -7,6 +7,8 @@
  * a hover state, nothing more. One primary button per view; everything else is
  * secondary or ghost.
  */
+import { forwardRef } from 'react';
+
 const VARIANTS = {
   primary:
     'bg-primary-600 text-white border border-primary-600 hover:bg-primary-700 hover:border-primary-700 active:bg-primary-800',
@@ -14,6 +16,8 @@ const VARIANTS = {
     'bg-surface text-body border border-line-strong hover:bg-canvas hover:border-muted active:bg-line/60 '
     + 'dark:bg-[#171C23] dark:text-[#C6CDD6] dark:border-[#2D3643] dark:hover:bg-[#1C222B]',
   easy:
+    'bg-easy text-white border border-easy hover:brightness-95 active:brightness-90',
+  success:
     'bg-easy text-white border border-easy hover:brightness-95 active:brightness-90',
   danger:
     'bg-hard text-white border border-hard hover:brightness-95 active:brightness-90',
@@ -30,18 +34,22 @@ const SIZES = {
   lg: 'h-10 px-4 text-base gap-2',
 };
 
-export default function Button({
-  variant = 'primary',
-  size = 'md',
-  loading = false,
-  disabled = false,
-  className = '',
-  children,
-  ...props
-}) {
+const Button = forwardRef(function Button(
+  {
+    variant = 'primary',
+    size = 'md',
+    loading = false,
+    disabled = false,
+    className = '',
+    children,
+    ...props
+  },
+  ref
+) {
   const isLink = variant === 'link';
   return (
     <button
+      ref={ref}
       disabled={disabled || loading}
       className={`inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded font-medium
         transition-colors disabled:cursor-not-allowed disabled:opacity-50
@@ -54,4 +62,6 @@ export default function Button({
       {children}
     </button>
   );
-}
+});
+
+export default Button;

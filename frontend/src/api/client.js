@@ -64,11 +64,13 @@ client.interceptors.response.use(
     }
 
     // Normalise to the standard error shape (plan.md 4.2).
-    return Promise.reject({
-      status: response?.status ?? 0,
-      detail: response?.data?.detail ?? error.message ?? 'Something went wrong.',
-      code: response?.data?.code ?? 'NETWORK_ERROR',
-    });
+    const errorMsg = response?.data?.detail ?? error.message ?? 'Something went wrong.';
+    const normalizedError = new Error(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
+    normalizedError.status = response?.status ?? 0;
+    normalizedError.detail = errorMsg;
+    normalizedError.code = response?.data?.code ?? 'NETWORK_ERROR';
+    normalizedError.response = response;
+    return Promise.reject(normalizedError);
   }
 );
 

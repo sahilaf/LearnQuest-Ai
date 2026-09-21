@@ -66,6 +66,7 @@ class LessonResponse(BaseModel):
     video_url: str | None = None
     estimated_minutes: int
     topic_tags: list[str]
+    quiz_id: str | UUID | None = None
     created_at: datetime | None = None
 
 

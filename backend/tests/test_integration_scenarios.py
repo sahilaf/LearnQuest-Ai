@@ -19,6 +19,7 @@ from typing import Any
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.database import Base
 from app.models.gamification import UserStats, XPEvent
@@ -36,7 +37,12 @@ class TestIntegrationScenarios(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """Create in-memory SQLite database for integration verification."""
-        cls.engine = create_engine("sqlite:///:memory:", echo=False)
+        cls.engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+            echo=False,
+        )
         Base.metadata.create_all(bind=cls.engine)
         cls.SessionLocal = sessionmaker(bind=cls.engine)
 
@@ -278,7 +284,54 @@ class TestIntegrationScenarios(unittest.TestCase):
         data2 = my_stats(user={"id": str(self.user_id)}, db=self.db)
         self.assertEqual(data2["xp"], 50)
         self.assertEqual(data2["level"], 1)
-        self.assertEqual(data2["next_level_xp"], 283)
+        self.assertEqual(data2["next_level_xp"], 282)
+
+    def test_http_api_me_stats_and_achievements_with_testclient(self) -> None:
+        """Verify GET /api/me/stats and GET /api/me/achievements over HTTP using TestClient."""
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.database import get_db
+        from app.deps import get_current_user
+        from app.seed.seed_data import seed_badges
+
+        # Seed badges into the test db
+        seed_badges(self.db)
+
+        # Override dependencies
+        app.dependency_overrides[get_db] = lambda: self.db
+        app.dependency_overrides[get_current_user] = lambda: {
+            "id": str(self.user_id),
+            "email": self.user.email,
+            "role": "student",
+        }
+
+        try:
+            client = TestClient(app)
+
+            # Test GET /api/me/stats
+            stats_resp = client.get("/api/me/stats")
+            self.assertEqual(stats_resp.status_code, 200)
+            stats_json = stats_resp.json()
+            self.assertIn("xp", stats_json)
+            self.assertIn("level", stats_json)
+            self.assertIn("current_streak", stats_json)
+            self.assertEqual(stats_json["next_level_xp"], 282)
+
+            # Test GET /api/me/achievements
+            achieve_resp = client.get("/api/me/achievements")
+            self.assertEqual(achieve_resp.status_code, 200)
+            achieve_json = achieve_resp.json()
+            self.assertIn("earned", achieve_json)
+            self.assertIn("locked", achieve_json)
+            self.assertEqual(achieve_json["total_badges"], 2)
+
+            # Also verify /api/me/badges alias
+            badges_resp = client.get("/api/me/badges")
+            self.assertEqual(badges_resp.status_code, 200)
+
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+            app.dependency_overrides.pop(get_current_user, None)
 
 
 if __name__ == "__main__":

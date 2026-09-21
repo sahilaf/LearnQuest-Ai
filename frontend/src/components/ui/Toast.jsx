@@ -11,6 +11,7 @@ const TOAST_TONES = {
   default: 'border-l-4 border-l-muted',
   primary: 'border-l-4 border-l-primary-600',
   easy: 'border-l-4 border-l-easy',
+  success: 'border-l-4 border-l-easy',
   info: 'border-l-4 border-l-info',
   warning: 'border-l-4 border-l-medium',
   danger: 'border-l-4 border-l-hard',

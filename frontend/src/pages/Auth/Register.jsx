@@ -12,7 +12,7 @@ import { Button, Card, Input } from '../../components/ui';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { register, loginWithGoogle, isAuthenticated, devMode } = useAuth();
+  const { register, loginWithGoogle, isAuthenticated, devMode, error: authError, clearError } = useAuth();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -30,6 +30,7 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    clearError?.();
 
     if (!fullName.trim()) {
       setError('Please enter your full name.');
@@ -65,6 +66,7 @@ export default function Register() {
 
   const handleGoogleSignIn = async () => {
     setError(null);
+    clearError?.();
     setGoogleLoading(true);
     try {
       const err = await loginWithGoogle();
@@ -79,6 +81,8 @@ export default function Register() {
       setGoogleLoading(false);
     }
   };
+
+  const displayError = error || authError;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-6 lg:px-8">
@@ -103,10 +107,10 @@ export default function Register() {
             </div>
           )}
 
-          {error && (
+          {displayError && (
             <div className="mb-4 flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{error}</span>
+              <span>{displayError}</span>
             </div>
           )}
 

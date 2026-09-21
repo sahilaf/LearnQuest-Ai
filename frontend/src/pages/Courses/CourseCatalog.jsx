@@ -252,9 +252,11 @@ export default function CourseCatalog() {
                       </div>
                       {isEnrolled && <Badge tone="easy">Enrolled</Badge>}
                     </div>
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                      {course.title}
-                    </h2>
+                    <Link to={`/courses/${course.slug || course.id}`}>
+                      <h2 className="text-lg font-semibold text-slate-900 transition-colors hover:text-primary-600 dark:text-slate-100 dark:hover:text-primary-400">
+                        {course.title}
+                      </h2>
+                    </Link>
                     <p className="mt-2 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">
                       {course.description || 'No description provided.'}
                     </p>

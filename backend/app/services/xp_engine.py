@@ -66,13 +66,13 @@ def xp_for_level(n: int) -> int:
     """Calculate cumulative XP threshold required to reach level n.
 
     Formula: 100 * (n ^ 1.5)
-    Level 2 ≈ 283 XP
-    Level 5 ≈ 1118 XP
-    Level 10 ≈ 3162 XP
+    Level 2 = 282 XP
+    Level 5 = 1118 XP
+    Level 10 = 3162 XP
     """
     if n <= 1:
         return 100
-    return int(round(100 * (n**1.5)))
+    return int(100 * (n**1.5))
 
 
 def level_from_xp(xp: int) -> int:
@@ -93,20 +93,29 @@ def level_from_xp(xp: int) -> int:
 level_for_xp = level_from_xp
 
 
-def get_today_tutor_xp(db: Session | Any, user_id: UUID | str | Any) -> int:
-    """Sum total XP earned by a user from tutor sessions today (UTC)."""
+def get_today_tutor_xp(
+    db: Session | Any,
+    user_id: UUID | str | Any,
+    local_date: date | None = None,
+) -> int:
+    """Sum total XP earned by a user from tutor sessions today (local date)."""
     if db is None:
         return 0
 
     user_uuid = _normalize_uuid(user_id)
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    if local_date is None:
+        local_date = date.today()
+
+    start_of_day = datetime.combine(local_date, datetime.min.time(), tzinfo=timezone.utc)
+    end_of_day = datetime.combine(local_date, datetime.max.time(), tzinfo=timezone.utc)
 
     total = (
         db.query(func.coalesce(func.sum(XPEvent.xp_awarded), 0))
         .filter(
             XPEvent.user_id == user_uuid,
             XPEvent.event_type == "tutor.session",
-            XPEvent.created_at >= today_start,
+            XPEvent.created_at >= start_of_day,
+            XPEvent.created_at <= end_of_day,
         )
         .scalar()
     )
@@ -279,7 +288,7 @@ def award_xp(
 def update_streak(
     db: Session | Any,
     user_id: UUID | str | Any,
-    local_date: date | None = None,
+    local_date: date | str | None = None,
 ) -> int:
     """Update streak on learner activity using user local date.
 
@@ -292,10 +301,27 @@ def update_streak(
     if db is None:
         return 1
 
+    user_uuid = _normalize_uuid(user_id)
+
+    if isinstance(local_date, str):
+        try:
+            local_date = date.fromisoformat(local_date)
+        except ValueError:
+            local_date = None
+
+    if local_date is None and db is not None:
+        try:
+            from app.models.user import User
+            user = db.query(User).filter(User.id == user_uuid).first()
+            if user and user.preferences and "timezone" in user.preferences:
+                from zoneinfo import ZoneInfo
+                tz = ZoneInfo(user.preferences["timezone"])
+                local_date = datetime.now(tz).date()
+        except Exception:
+            local_date = None
+
     if local_date is None:
         local_date = date.today()
-
-    user_uuid = _normalize_uuid(user_id)
 
     try:
         stats = db.query(UserStats).filter(UserStats.user_id == user_uuid).first()
@@ -313,6 +339,23 @@ def update_streak(
             db.add(stats)
             db.commit()
             db.refresh(stats)
+
+            # Emit streak.updated event for badge checker and other subscribers
+            try:
+                from app.services.events import emit
+                emit(
+                    db,
+                    user_uuid,
+                    "streak.updated",
+                    {
+                        "current_streak": stats.current_streak,
+                        "longest_streak": stats.longest_streak,
+                        "local_date": local_date.isoformat(),
+                    },
+                )
+            except Exception:
+                logger.warning("Could not emit streak.updated event for user %s", user_id)
+
             return stats.current_streak
 
         if stats.last_active_date == local_date:
@@ -327,6 +370,23 @@ def update_streak(
         stats.last_active_date = local_date
         db.commit()
         db.refresh(stats)
+
+        # Emit streak.updated event for badge checker and other subscribers
+        try:
+            from app.services.events import emit
+            emit(
+                db,
+                user_uuid,
+                "streak.updated",
+                {
+                    "current_streak": stats.current_streak,
+                    "longest_streak": stats.longest_streak,
+                    "local_date": local_date.isoformat(),
+                },
+            )
+        except Exception:
+            logger.warning("Could not emit streak.updated event for user %s", user_id)
+
         return stats.current_streak
 
     except Exception:
@@ -346,9 +406,17 @@ def on_lesson_completed(
     user_id: Any,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Handle lesson completion: award +50 XP, update learning time."""
+    """Handle lesson completion: award +50 XP, update learning time and streak."""
     lesson_id = payload.get("lesson_id")
     seconds = payload.get("seconds", 0)
+    local_date = payload.get("local_date") or payload.get("date")
+
+    # Update learning streak on lesson completion
+    if db is not None:
+        try:
+            update_streak(db, user_id, local_date=local_date)
+        except Exception:
+            logger.exception("Could not update streak on lesson.completed for user %s", user_id)
 
     result = award_xp(
         db=db,
@@ -382,10 +450,18 @@ def on_quiz_submitted(
     user_id: Any,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Handle quiz submission: 10 base XP + (5 * correct) + (25 bonus if perfect)."""
+    """Handle quiz submission: 10 base XP + (5 * correct) + (25 bonus if perfect), update streak."""
     quiz_id = payload.get("quiz_id") or payload.get("attempt_id")
     correct_count = int(payload.get("correct_count", payload.get("correct", 0)))
     total_questions = int(payload.get("total_questions", payload.get("total", 0)))
+    local_date = payload.get("local_date") or payload.get("date")
+
+    # Update streak on quiz completion
+    if db is not None:
+        try:
+            update_streak(db, user_id, local_date=local_date)
+        except Exception:
+            logger.exception("Could not update streak on quiz.submitted for user %s", user_id)
 
     base_xp = XP_AWARDS["quiz.submitted_base"]
     correct_xp = correct_count * XP_AWARDS["quiz.per_correct"]
@@ -426,6 +502,34 @@ def on_course_enrolled(
         amount=XP_AWARDS["course.enrolled"],
         reason="course.enrolled",
         event_type="course.enrolled",
+        ref_type="course",
+        ref_id=course_id,
+        metadata=payload,
+    )
+
+
+@register_handler("course.completed")
+def on_course_completed(
+    db: Session | Any,
+    user_id: Any,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Handle course completion: award +200 XP, update streak."""
+    course_id = payload.get("course_id")
+    local_date = payload.get("local_date") or payload.get("date")
+
+    if db is not None:
+        try:
+            update_streak(db, user_id, local_date=local_date)
+        except Exception:
+            logger.exception("Could not update streak on course.completed for user %s", user_id)
+
+    return award_xp(
+        db=db,
+        user_id=user_id,
+        amount=XP_AWARDS["course.completed"],
+        reason="course.completed",
+        event_type="course.completed",
         ref_type="course",
         ref_id=course_id,
         metadata=payload,
@@ -550,6 +654,7 @@ def register_xp_handlers() -> None:
         "lesson.completed": on_lesson_completed,
         "quiz.submitted": on_quiz_submitted,
         "course.enrolled": on_course_enrolled,
+        "course.completed": on_course_completed,
         "tutor.session": on_tutor_session,
         "daily.login": on_daily_login,
     }

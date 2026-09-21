@@ -29,15 +29,19 @@ def get_engine():
                 "DATABASE_URL is not set. Copy backend/.env.example to backend/.env "
                 "and fill in the Supabase connection string (see plan.md 8.1)."
             )
-        if settings.database_url.startswith("sqlite"):
+        url = settings.database_url
+        if url.startswith("postgresql://"):
+            url = "postgresql+psycopg2://" + url[len("postgresql://"):]
+
+        if url.startswith("sqlite"):
             _engine = create_engine(
-                settings.database_url,
+                url,
                 connect_args={"check_same_thread": False},
                 future=True,
             )
         else:
             _engine = create_engine(
-                settings.database_url,
+                url,
                 pool_pre_ping=True,
                 pool_size=5,
                 max_overflow=10,

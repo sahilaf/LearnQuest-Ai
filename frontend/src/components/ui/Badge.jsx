@@ -8,8 +8,9 @@ const TONES = {
   primary: 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300',
   info: 'bg-info-bg text-info-fg dark:bg-info/15 dark:text-info',
 
-  // Difficulty. `success` is an alias for `easy` - same green, different
-  // meaning (passed vs low difficulty), and both are used in the app.
+  // Difficulty & status. `success` is an alias for `easy` - same green,
+  // different meaning (passed vs low difficulty). Both are used in the app;
+  // collapsing them to one key is what caused the duplicate-key bug.
   easy: 'bg-easy-bg text-easy-fg dark:bg-easy/15 dark:text-easy',
   success: 'bg-easy-bg text-easy-fg dark:bg-easy/15 dark:text-easy',
   medium: 'bg-medium-bg text-medium-fg dark:bg-medium/15 dark:text-medium',

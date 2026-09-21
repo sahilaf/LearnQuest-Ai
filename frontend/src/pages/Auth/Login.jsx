@@ -12,7 +12,7 @@ import { Button, Card, Input } from '../../components/ui';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, loginWithGoogle, isAuthenticated, devMode } = useAuth();
+  const { login, loginWithGoogle, isAuthenticated, devMode, error: authError, clearError } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,6 +29,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    clearError?.();
     if (!email.trim() || !password) {
       setError('Please enter both email and password.');
       return;
@@ -51,6 +52,7 @@ export default function Login() {
 
   const handleGoogleSignIn = async () => {
     setError(null);
+    clearError?.();
     setGoogleLoading(true);
     try {
       const err = await loginWithGoogle();
@@ -65,6 +67,8 @@ export default function Login() {
       setGoogleLoading(false);
     }
   };
+
+  const displayError = error || authError;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-6 lg:px-8">
@@ -89,10 +93,10 @@ export default function Login() {
             </div>
           )}
 
-          {error && (
+          {displayError && (
             <div className="mb-4 flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{error}</span>
+              <span>{displayError}</span>
             </div>
           )}
 

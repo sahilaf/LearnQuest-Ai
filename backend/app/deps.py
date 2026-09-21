@@ -32,6 +32,7 @@ import httpx
 import jwt
 from fastapi import Depends, Header, HTTPException, status
 from jwt import PyJWKClient
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -43,8 +44,8 @@ logger = logging.getLogger("learnquest.auth")
 
 DEV_USER: dict[str, Any] = {
     "id": "00000000-0000-0000-0000-000000000001",
-    "email": "dev@learnquest.local",
-    "full_name": "Dev User",
+    "email": "admin@learnquest.ai",
+    "full_name": "LearnQuest Admin",
     "role": "admin",
     "avatar_url": None,
     "preferences": {},
@@ -184,12 +185,16 @@ def _sync_user_in_db(
     default_role: str = "student",
 ) -> dict[str, Any]:
     """Look up or create the public.users row, update last_login_at, and emit daily.login."""
+    clean_email = (email or "").strip().lower()
+    is_explicit_admin = clean_email == "admin@learnquest.ai"
+    effective_role = "admin" if is_explicit_admin else "student"
+
     fallback_user = {
         "id": str(user_id),
-        "email": email,
+        "email": clean_email or email,
         "full_name": full_name,
         "avatar_url": avatar_url,
-        "role": default_role,
+        "role": effective_role,
         "preferences": {},
     }
 
@@ -200,16 +205,28 @@ def _sync_user_in_db(
         session_factory = get_session_factory()
         with session_factory() as db:
             user_row = db.query(User).filter(User.id == user_id).first()
+            if not user_row and clean_email:
+                user_row = db.query(User).filter(func.lower(func.trim(User.email)) == clean_email).first()
+                if user_row and user_row.id != user_id:
+                    # Update ID to match the new Supabase auth UUID
+                    try:
+                        user_row.id = user_id
+                    except Exception:
+                        pass
+
             now = datetime.now(timezone.utc)
             is_first_login_today = False
+            row_email = (user_row.email if user_row else "").strip().lower()
+            is_target_admin = is_explicit_admin or (row_email == "admin@learnquest.ai")
+            effective_role = "admin" if is_target_admin else "student"
 
             if not user_row:
                 user_row = User(
                     id=user_id,
-                    email=email,
-                    full_name=full_name,
+                    email=clean_email or email,
+                    full_name=full_name or (clean_email.split('@')[0].title() if clean_email else None),
                     avatar_url=avatar_url,
-                    role=default_role,
+                    role=effective_role,
                     preferences={},
                     created_at=now,
                     last_login_at=now,
@@ -222,6 +239,8 @@ def _sync_user_in_db(
                 if user_row.last_login_at is None or user_row.last_login_at.date() < now.date():
                     is_first_login_today = True
                 user_row.last_login_at = now
+                # Enforce admin role strictly for admin@learnquest.ai only
+                user_row.role = effective_role
                 if full_name and not user_row.full_name:
                     user_row.full_name = full_name
                 if avatar_url and not user_row.avatar_url:
@@ -261,30 +280,43 @@ def get_current_user(
                 dev_id = uuid.UUID(DEV_USER["id"])
                 dev_email = DEV_USER["email"]
             name_part = dev_email.split("@")[0].replace(".", " ").title()
+            clean_dev_email = dev_email.strip().lower()
             return _sync_user_in_db(
                 user_id=dev_id,
-                email=dev_email,
+                email=clean_dev_email,
                 full_name=name_part,
-                default_role="student",
+                default_role="admin" if clean_dev_email == "admin@learnquest.ai" else "student",
             )
 
-        if not settings.supabase_jwt_secret and settings.dev_allow_anonymous:
-            # Running in dev mode with mock token or unconfigured secret
-            dev_id = uuid.UUID(DEV_USER["id"])
-            return _sync_user_in_db(
-                user_id=dev_id,
-                email=DEV_USER["email"],
-                full_name=DEV_USER["full_name"],
-                default_role="admin",
-            )
+        claims = None
+        try:
+            claims = verify_supabase_token(token)
+        except Exception as exc:
+            if settings.dev_allow_anonymous:
+                # If token is a JWT from Supabase, extract real claims without signature verification in dev mode
+                try:
+                    claims = jwt.decode(token, options={"verify_signature": False})
+                    if not claims or "sub" not in claims:
+                        raise ValueError("No sub claim in token")
+                except Exception:
+                    dev_id = uuid.UUID(DEV_USER["id"])
+                    clean_dev_email = DEV_USER["email"].strip().lower()
+                    return _sync_user_in_db(
+                        user_id=dev_id,
+                        email=clean_dev_email,
+                        full_name=DEV_USER["full_name"],
+                        default_role="admin" if clean_dev_email == "admin@learnquest.ai" else "student",
+                    )
+            else:
+                raise exc
 
-        claims = verify_supabase_token(token)
         try:
             user_id = uuid.UUID(claims["sub"])
         except (ValueError, KeyError) as err:
             raise _unauthorized("Invalid user ID in token sub claim.", "AUTH_TOKEN_INVALID") from err
 
-        email = claims.get("email") or f"{user_id}@learnquest.local"
+        raw_email = claims.get("email") or f"{user_id}@learnquest.local"
+        email = raw_email.strip().lower()
         user_meta = claims.get("user_metadata") or {}
         full_name = user_meta.get("full_name") or user_meta.get("name")
         avatar_url = user_meta.get("avatar_url") or user_meta.get("picture")
@@ -294,16 +326,17 @@ def get_current_user(
             email=email,
             full_name=full_name,
             avatar_url=avatar_url,
-            default_role="student",
+            default_role="admin" if email == "admin@learnquest.ai" else "student",
         )
 
     if settings.dev_allow_anonymous:
         dev_id = uuid.UUID(DEV_USER["id"])
+        clean_dev_email = DEV_USER["email"].strip().lower()
         return _sync_user_in_db(
             user_id=dev_id,
-            email=DEV_USER["email"],
+            email=clean_dev_email,
             full_name=DEV_USER["full_name"],
-            default_role="admin",
+            default_role="admin" if clean_dev_email == "admin@learnquest.ai" else "student",
         )
 
     raise _unauthorized("Missing Authorization header.", "AUTH_MISSING_TOKEN")
@@ -312,14 +345,22 @@ def get_current_user(
 def require_admin(
     user: Annotated[dict[str, Any], Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """Dependency that ensures the authenticated user has the 'admin' role.
+    """Dependency that ensures the authenticated user is admin@learnquest.ai.
 
-    Raises 403 Forbidden for students.
+    Raises 403 Forbidden for all other users.
     """
-    if user.get("role") != "admin":
+    email = (user.get("email") or "").strip().lower()
+    role = (user.get("role") or "").strip().lower()
+    if email != "admin@learnquest.ai" or role != "admin":
+        logger.warning(
+            "require_admin rejected user id=%s email=%s role=%s",
+            user.get("id"),
+            email,
+            role,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required.",
+            detail="Admin access required. Only admin@learnquest.ai has administrator privileges.",
             headers={"X-Error-Code": "AUTH_FORBIDDEN"},
         )
     return user

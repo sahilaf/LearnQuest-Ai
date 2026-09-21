@@ -18,6 +18,21 @@ from app.schemas.course import (
     LessonResponse,
     LessonUpdate,
 )
+from app.schemas.progress import (
+    CourseProgressResponse,
+    HistoryItemResponse,
+    LessonProgressResponse,
+    ProgressUpdateRequest,
+)
+from app.schemas.quiz import (
+    AnswerSubmit,
+    AttemptAnswerResultResponse,
+    AttemptResultResponse,
+    AttemptStartResponse,
+    AttemptSubmitRequest,
+    QuestionPublicResponse,
+    QuizPublicResponse,
+)
 from app.schemas.upload import UploadResponse
 from app.schemas.user import (
     AdminUserUpdate,
@@ -30,16 +45,27 @@ from app.schemas.user import (
 __all__ = [
     "AdminOverviewResponse",
     "AdminUserUpdate",
+    "AnswerSubmit",
+    "AttemptAnswerResultResponse",
+    "AttemptResultResponse",
+    "AttemptStartResponse",
+    "AttemptSubmitRequest",
     "CourseCreate",
     "CourseDetailResponse",
+    "CourseProgressResponse",
     "CourseResponse",
     "CourseUpdate",
     "EnrollmentResponse",
     "ErrorResponse",
+    "HistoryItemResponse",
     "LessonCreate",
+    "LessonProgressResponse",
     "LessonResponse",
     "LessonUpdate",
     "Page",
+    "ProgressUpdateRequest",
+    "QuestionPublicResponse",
+    "QuizPublicResponse",
     "SyncUserResponse",
     "UploadResponse",
     "UserProfileResponse",

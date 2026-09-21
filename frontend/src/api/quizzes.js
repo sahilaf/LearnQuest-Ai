@@ -3,6 +3,7 @@ import client from './client';
 
 // --- taking quizzes (M2) ---
 export const getQuiz = (quizId) => client.get(`/api/quizzes/${quizId}`);
+export const getQuizByLesson = (lessonId) => client.get(`/api/quizzes/lesson/${lessonId}`);
 export const startAttempt = (quizId) => client.post(`/api/quizzes/${quizId}/attempts`);
 export const submitAttempt = (attemptId, answers) =>
   client.post(`/api/quizzes/attempts/${attemptId}/submit`, { answers });

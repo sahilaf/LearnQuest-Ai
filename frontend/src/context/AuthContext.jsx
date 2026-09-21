@@ -16,14 +16,14 @@ const AuthContext = createContext(null);
 
 const DEV_USER = {
   id: '00000000-0000-0000-0000-000000000001',
-  email: 'dev@learnquest.local',
-  full_name: 'Dev User',
+  email: 'admin@learnquest.ai',
+  full_name: 'Alex Mercer (Admin)',
   role: 'admin',
   avatar_url: null,
 };
 
 function generateDevUserId(email) {
-  if (email === 'dev@learnquest.local' || email === 'admin@learnquest.ai') {
+  if (email === 'admin@learnquest.ai') {
     return '00000000-0000-0000-0000-000000000001';
   }
   let hash = 0;
@@ -38,28 +38,18 @@ function generateDevUserId(email) {
 function toAppUser(session) {
   if (!session?.user) return null;
   const { id, email, user_metadata: meta = {} } = session.user;
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const isExplicitAdmin = cleanEmail === 'admin@learnquest.ai';
   return {
     id,
-    email,
-    full_name: meta.full_name ?? meta.name ?? email,
+    email: cleanEmail,
+    full_name: meta.full_name ?? meta.name ?? cleanEmail,
     avatar_url: meta.avatar_url ?? meta.picture ?? null,
-    role: meta.role ?? 'student',
+    role: isExplicitAdmin ? 'admin' : 'student',
   };
 }
 
 
-// --- TEMPORARY OAuth diagnostic (remove once sign-in is confirmed working) ---
-// The redirect wipes the console, so the timeline is written to localStorage.
-// After a failed sign-in run:  JSON.parse(localStorage.getItem('lq_auth_trace'))
-function authTrace(step, detail) {
-  try {
-    const trace = JSON.parse(localStorage.getItem('lq_auth_trace') || '[]');
-    trace.push({ t: new Date().toISOString().slice(11, 23), step, ...detail });
-    localStorage.setItem('lq_auth_trace', JSON.stringify(trace.slice(-40)));
-  } catch {
-    /* storage unavailable - diagnostics are best effort */
-  }
-}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -72,9 +62,12 @@ export function AuthProvider({ children }) {
       const res = await syncUser();
       const userData = res?.user || res?.data?.user;
       if (userData) {
+        const cleanEmail = (userData.email || baseUser.email || '').trim().toLowerCase();
+        const isExplicitAdmin = cleanEmail === 'admin@learnquest.ai';
         setUser((prev) => ({
           ...(prev || baseUser),
           ...userData,
+          role: isExplicitAdmin ? 'admin' : 'student',
         }));
       }
     } catch (err) {
@@ -103,28 +96,79 @@ export function AuthProvider({ children }) {
     }
 
     let isMounted = true;
-    authTrace('mount', {
-      path: window.location.pathname,
-      hash: window.location.hash.slice(0, 60),
-      search: window.location.search.slice(0, 60),
-    });
+    // --- URL inspection: what, if anything, did the provider send back? ---
+    const urlHash = typeof window !== 'undefined' ? window.location.hash : '';
+    const urlSearch = typeof window !== 'undefined' ? window.location.search : '';
 
-    // Credentials actually coming back from the provider.
-    const hasAuthCredentialsInUrl =
-      typeof window !== 'undefined' &&
-      (window.location.hash.includes('access_token=') ||
-        window.location.search.includes('code='));
+    const hashParams = new URLSearchParams(urlHash.replace(/^#/, ''));
+    const searchParams = new URLSearchParams(urlSearch);
 
-    // The provider already told us it failed - nothing is in flight.
-    const hasAuthErrorInUrl =
-      typeof window !== 'undefined' &&
-      (window.location.hash.includes('error=') ||
-        window.location.search.includes('error='));
+    const oauthError = hashParams.get('error') || searchParams.get('error');
+    const oauthErrorDesc =
+      hashParams.get('error_description') || searchParams.get('error_description');
+    const oauthCode = searchParams.get('code');
 
-    // Only hold `loading` while a session is genuinely on its way. Treating an
-    // error redirect as "still waiting" left the app spinning for the full
-    // timeout before showing a failure it already knew about.
-    const hasAuthRedirectInUrl = hasAuthCredentialsInUrl && !hasAuthErrorInUrl;
+    if (oauthError) {
+      let msg = oauthErrorDesc
+        ? decodeURIComponent(oauthErrorDesc.replace(/\+/g, ' '))
+        : oauthError;
+      if (
+        oauthError === 'unsupported_provider'
+        || msg.toLowerCase().includes('provider is not enabled')
+      ) {
+        msg =
+          'Google sign-in is not enabled on this Supabase project yet. Please sign in '
+          + 'with email/password, or enable the Google provider under Supabase Dashboard '
+          + '-> Authentication -> Providers.';
+      } else if (msg.toLowerCase().includes('unable to exchange external code')) {
+        msg =
+          'Google OAuth configuration error: Supabase could not exchange the code with '
+          + 'Google. Verify the Google Client ID and Secret in Supabase match Google Cloud '
+          + 'Console, and that the redirect URI there is '
+          + 'https://dkyvtuzutcblcpeerqeo.supabase.co/auth/v1/callback';
+      }
+      setError(msg);
+      // Clear the error off the URL so it does not survive navigation.
+      if (typeof window !== 'undefined' && window.history?.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+
+    // Credentials genuinely on their way back from the provider.
+    const hasAuthCredentialsInUrl = urlHash.includes('access_token=') || Boolean(oauthCode);
+
+    // Only hold `loading` while a session is actually inbound. Treating an
+    // error redirect as "still waiting" left the app spinning for the whole
+    // timeout before reporting a failure it already knew about.
+    const hasAuthRedirectInUrl = hasAuthCredentialsInUrl && !oauthError;
+
+    // PKCE returns a code that must be exchanged for a session. (The current
+    // client uses the implicit flow, so this is a no-op there - it keeps
+    // working if the flow type is ever switched.)
+    if (oauthCode && !oauthError) {
+      supabase.auth
+        .exchangeCodeForSession(oauthCode)
+        .then(({ data, error: exchangeErr }) => {
+          if (!isMounted) return;
+          if (exchangeErr) {
+            setError(exchangeErr.message);
+            setLoading(false);
+          } else if (data?.session) {
+            const appUser = toAppUser(data.session);
+            setUser(appUser);
+            setLoading(false);
+            if (appUser) syncWithBackend(appUser);
+          }
+          if (typeof window !== 'undefined' && window.history?.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        })
+        .catch((err) => {
+          if (!isMounted) return;
+          console.warn('OAuth code exchange failed:', err);
+          setLoading(false);
+        });
+    }
 
     // The interceptor in api/client.js pulls the token from here on every request.
     setTokenProvider(async (forceRefresh = false) => {
@@ -141,20 +185,6 @@ export function AuthProvider({ children }) {
       return data.session?.access_token ?? null;
     });
 
-    // Supabase reports a failed OAuth round trip by putting error= on the URL
-    // it sends you back to. Without this the user is silently returned to the
-    // login page with no idea what went wrong.
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(
-        window.location.search || window.location.hash.replace(/^#/, '')
-      );
-      const oauthError = params.get('error_description') || params.get('error');
-      if (oauthError) {
-        console.error('OAuth sign-in failed:', oauthError);
-        setError(decodeURIComponent(oauthError.replace(/\+/g, ' ')));
-      }
-    }
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -167,10 +197,8 @@ export function AuthProvider({ children }) {
       // cleared `loading`, PrivateRoute redirected to /login, and the redirect
       // threw away the tokens in the URL - which is exactly "I signed in with
       // Google and landed back on the login page". Wait for the real event.
-      authTrace('event', { event, session: appUser ? 'YES' : 'null', hasAuthRedirectInUrl });
 
       if (!appUser && event === 'INITIAL_SESSION' && hasAuthRedirectInUrl) {
-        authTrace('event-ignored', { why: 'INITIAL_SESSION null during OAuth return' });
         return;
       }
 
@@ -186,7 +214,6 @@ export function AuthProvider({ children }) {
       .then(({ data }) => {
         if (!isMounted) return;
         const appUser = toAppUser(data.session);
-        authTrace('getSession', { session: appUser ? 'YES' : 'null', hasAuthRedirectInUrl });
         if (appUser) {
           setUser(appUser);
           setLoading(false);
@@ -203,7 +230,6 @@ export function AuthProvider({ children }) {
         // cleared `loading`, so the whole app sat on a spinner forever.
         // Failing to restore a session means "signed out", not "wait".
         if (!isMounted) return;
-        authTrace('getSession-rejected', { err: String(err?.message || err).slice(0, 80) });
         console.warn('Could not restore session; continuing signed out.', err);
 
         // ...unless we are mid-OAuth. On the way back from Google the URL
@@ -224,7 +250,6 @@ export function AuthProvider({ children }) {
     // a slow connection - bouncing the user to /login just as they signed in.
     const timeoutId = setTimeout(() => {
       if (!isMounted) return;
-      authTrace('timeout-fired', { note: 'gave up waiting for a session' });
       setLoading(false);
     }, hasAuthRedirectInUrl ? 20000 : 6000);
 
@@ -253,8 +278,9 @@ export function AuthProvider({ children }) {
       user,
       loading,
       error,
+      clearError: () => setError(null),
       isAuthenticated: Boolean(user),
-      isAdmin: user?.role === 'admin',
+      isAdmin: user?.email === 'admin@learnquest.ai' && user?.role === 'admin',
       devMode: !isSupabaseConfigured,
 
       async login(email, password) {
@@ -265,7 +291,7 @@ export function AuthProvider({ children }) {
             id: devId,
             email,
             full_name: email.split('@')[0].replace('.', ' '),
-            role: email.includes('admin') ? 'admin' : 'student',
+            role: email === 'admin@learnquest.ai' ? 'admin' : 'student',
             avatar_url: null,
           };
           localStorage.setItem('learnquest_dev_user', JSON.stringify(devAccount));
@@ -274,7 +300,8 @@ export function AuthProvider({ children }) {
           await syncWithBackend(devAccount);
           return null;
         }
-        const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+        const cleanEmail = (email || '').trim().toLowerCase();
+        const { data, error: err } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
         if (err) {
           setError(err.message);
           return err;
@@ -288,7 +315,13 @@ export function AuthProvider({ children }) {
       async loginWithGoogle() {
         setError(null);
         if (!isSupabaseConfigured) {
-          const devAccount = { ...DEV_USER };
+          const devAccount = {
+            id: '00000000-0000-4000-8000-000000000099',
+            email: 'google.user@learnquest.local',
+            full_name: 'Google User',
+            role: 'student',
+            avatar_url: null,
+          };
           localStorage.setItem('learnquest_dev_user', JSON.stringify(devAccount));
           setTokenProvider(async () => `dev:${devAccount.id}:${devAccount.email}`);
           setUser(devAccount);
@@ -298,10 +331,6 @@ export function AuthProvider({ children }) {
           provider: 'google',
           options: {
             redirectTo: `${window.location.origin}/dashboard`,
-            queryParams: {
-              access_type: 'offline',
-              prompt: 'select_account',
-            },
           },
         });
         if (err) {

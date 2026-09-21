@@ -106,19 +106,22 @@ def list_users(
     if role:
         query = query.filter(User.role == role.strip())
 
+    page_num = page if isinstance(page, int) else 1
+    page_sz = page_size if isinstance(page_size, int) else 20
+
     total = query.count()
     users = (
         query.order_by(User.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .offset((page_num - 1) * page_sz)
+        .limit(page_sz)
         .all()
     )
 
     return {
         "items": [u.to_dict() for u in users],
         "total": total,
-        "page": page,
-        "page_size": page_size,
+        "page": page_num,
+        "page_size": page_sz,
     }
 
 
@@ -163,6 +166,87 @@ def update_user(
 # ==========================================
 
 
+@router.get("/api/admin/courses")
+def list_admin_courses(
+    admin: AdminUser,
+    search: str | None = None,
+    subject: str | None = None,
+    difficulty: str | None = None,
+    is_published: bool | None = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session | None = Depends(get_db),
+) -> dict[str, Any]:
+    """List all courses (both published and drafts) for admin management."""
+    if not db or not database_is_configured():
+        return {"items": [], "total": 0, "page": page, "page_size": page_size}
+
+    query = db.query(Course)
+    if search:
+        search_filter = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                Course.title.ilike(search_filter),
+                Course.description.ilike(search_filter),
+                Course.slug.ilike(search_filter),
+            )
+        )
+    if subject:
+        query = query.filter(Course.subject.ilike(subject.strip()))
+    if difficulty:
+        query = query.filter(Course.difficulty.ilike(difficulty.strip()))
+    if is_published is not None:
+        query = query.filter(Course.is_published == is_published)
+
+    page_num = page if isinstance(page, int) else 1
+    page_sz = page_size if isinstance(page_size, int) else 20
+
+    total = query.count()
+    courses = (
+        query.order_by(Course.created_at.desc())
+        .offset((page_num - 1) * page_sz)
+        .limit(page_sz)
+        .all()
+    )
+
+    items = []
+    for c in courses:
+        d = c.to_dict()
+        d["lessons_count"] = len(c.lessons)
+        items.append(d)
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page_num,
+        "page_size": page_sz,
+    }
+
+
+@router.get("/api/admin/courses/{course_id}")
+def get_admin_course(
+    course_id: str,
+    admin: AdminUser,
+    db: Session | None = Depends(get_db),
+) -> dict[str, Any]:
+    """Get single course with its lessons for editing."""
+    if not db or not database_is_configured():
+        raise HTTPException(status_code=404, detail="Course not found.")
+
+    try:
+        c_uuid = uuid.UUID(course_id)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail="Invalid course ID.") from err
+
+    course = db.query(Course).filter(Course.id == c_uuid).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found.")
+
+    d = course.to_dict()
+    d["lessons"] = [l.to_dict() for l in sorted(course.lessons, key=lambda x: x.order_index)]
+    return d
+
+
 @router.post("/api/admin/courses", response_model=CourseResponse)
 def create_course(
     payload: CourseCreate,
@@ -187,7 +271,18 @@ def create_course(
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    admin_uuid = uuid.UUID(admin["id"])
+    try:
+        admin_uuid = uuid.UUID(str(admin.get("id", "")))
+        # Verify user exists in public.users to satisfy foreign key
+        if not db.query(User).filter(User.id == admin_uuid).first():
+            user_by_email = db.query(User).filter(User.email == admin.get("email")).first()
+            if user_by_email:
+                admin_uuid = user_by_email.id
+            else:
+                admin_uuid = None
+    except Exception:
+        admin_uuid = None
+
     slug = payload.slug or _slugify(payload.title)
 
     # Ensure slug uniqueness
@@ -210,9 +305,17 @@ def create_course(
         is_private=payload.is_private,
         created_by=admin_uuid,
     )
-    db.add(course)
-    db.commit()
-    db.refresh(course)
+    try:
+        db.add(course)
+        db.commit()
+        db.refresh(course)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Database error saving course: {exc}",
+        ) from exc
+
     return course.to_dict()
 
 

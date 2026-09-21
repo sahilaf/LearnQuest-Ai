@@ -1,6 +1,11 @@
 /** Shared UI kit. OWNER: Member 2. Everyone imports these - plan.md 4.5. */
 
-export default function Input({ label, error, hint, className = '', id, ...props }) {
+import { forwardRef } from 'react';
+
+const Input = forwardRef(function Input(
+  { label, error, hint, className = '', id, ...props },
+  ref
+) {
   const inputId = id || props.name;
   const describedBy = error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined;
 
@@ -15,6 +20,7 @@ export default function Input({ label, error, hint, className = '', id, ...props
         </label>
       )}
       <input
+        ref={ref}
         id={inputId}
         aria-invalid={error ? 'true' : undefined}
         aria-describedby={describedBy}
@@ -35,4 +41,6 @@ export default function Input({ label, error, hint, className = '', id, ...props
       )}
     </div>
   );
-}
+});
+
+export default Input;
