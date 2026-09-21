@@ -4,7 +4,7 @@
 const TONES = {
   primary: 'bg-primary-600',
   easy: 'bg-easy',
-  easy: 'bg-easy',
+  success: 'bg-easy',
   medium: 'bg-medium',
   hard: 'bg-hard',
   info: 'bg-info',

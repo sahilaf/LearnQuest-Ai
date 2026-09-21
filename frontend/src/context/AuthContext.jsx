@@ -47,6 +47,20 @@ function toAppUser(session) {
   };
 }
 
+
+// --- TEMPORARY OAuth diagnostic (remove once sign-in is confirmed working) ---
+// The redirect wipes the console, so the timeline is written to localStorage.
+// After a failed sign-in run:  JSON.parse(localStorage.getItem('lq_auth_trace'))
+function authTrace(step, detail) {
+  try {
+    const trace = JSON.parse(localStorage.getItem('lq_auth_trace') || '[]');
+    trace.push({ t: new Date().toISOString().slice(11, 23), step, ...detail });
+    localStorage.setItem('lq_auth_trace', JSON.stringify(trace.slice(-40)));
+  } catch {
+    /* storage unavailable - diagnostics are best effort */
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -89,11 +103,28 @@ export function AuthProvider({ children }) {
     }
 
     let isMounted = true;
-    const hasAuthRedirectInUrl =
+    authTrace('mount', {
+      path: window.location.pathname,
+      hash: window.location.hash.slice(0, 60),
+      search: window.location.search.slice(0, 60),
+    });
+
+    // Credentials actually coming back from the provider.
+    const hasAuthCredentialsInUrl =
       typeof window !== 'undefined' &&
       (window.location.hash.includes('access_token=') ||
-        window.location.hash.includes('error=') ||
         window.location.search.includes('code='));
+
+    // The provider already told us it failed - nothing is in flight.
+    const hasAuthErrorInUrl =
+      typeof window !== 'undefined' &&
+      (window.location.hash.includes('error=') ||
+        window.location.search.includes('error='));
+
+    // Only hold `loading` while a session is genuinely on its way. Treating an
+    // error redirect as "still waiting" left the app spinning for the full
+    // timeout before showing a failure it already knew about.
+    const hasAuthRedirectInUrl = hasAuthCredentialsInUrl && !hasAuthErrorInUrl;
 
     // The interceptor in api/client.js pulls the token from here on every request.
     setTokenProvider(async (forceRefresh = false) => {
@@ -110,11 +141,39 @@ export function AuthProvider({ children }) {
       return data.session?.access_token ?? null;
     });
 
+    // Supabase reports a failed OAuth round trip by putting error= on the URL
+    // it sends you back to. Without this the user is silently returned to the
+    // login page with no idea what went wrong.
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(
+        window.location.search || window.location.hash.replace(/^#/, '')
+      );
+      const oauthError = params.get('error_description') || params.get('error');
+      if (oauthError) {
+        console.error('OAuth sign-in failed:', oauthError);
+        setError(decodeURIComponent(oauthError.replace(/\+/g, ' ')));
+      }
+    }
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
       const appUser = toAppUser(session);
+
+      // supabase-js fires INITIAL_SESSION as soon as we subscribe. Coming back
+      // from Google the credentials are still sitting unparsed in the URL, so
+      // that first event carries a null session. Treating it as "signed out"
+      // cleared `loading`, PrivateRoute redirected to /login, and the redirect
+      // threw away the tokens in the URL - which is exactly "I signed in with
+      // Google and landed back on the login page". Wait for the real event.
+      authTrace('event', { event, session: appUser ? 'YES' : 'null', hasAuthRedirectInUrl });
+
+      if (!appUser && event === 'INITIAL_SESSION' && hasAuthRedirectInUrl) {
+        authTrace('event-ignored', { why: 'INITIAL_SESSION null during OAuth return' });
+        return;
+      }
+
       setUser(appUser);
       setLoading(false);
       if (appUser) {
@@ -127,6 +186,7 @@ export function AuthProvider({ children }) {
       .then(({ data }) => {
         if (!isMounted) return;
         const appUser = toAppUser(data.session);
+        authTrace('getSession', { session: appUser ? 'YES' : 'null', hasAuthRedirectInUrl });
         if (appUser) {
           setUser(appUser);
           setLoading(false);
@@ -143,18 +203,30 @@ export function AuthProvider({ children }) {
         // cleared `loading`, so the whole app sat on a spinner forever.
         // Failing to restore a session means "signed out", not "wait".
         if (!isMounted) return;
+        authTrace('getSession-rejected', { err: String(err?.message || err).slice(0, 80) });
         console.warn('Could not restore session; continuing signed out.', err);
+
+        // ...unless we are mid-OAuth. On the way back from Google the URL
+        // carries `?code=`, and supabase-js still has to exchange it over the
+        // network before any session exists. Clearing the user here declares
+        // "signed out" while that is still in flight, and PrivateRoute then
+        // redirects to /login - which discards the code and loses the login.
+        // onAuthStateChange is what resolves this case; let it.
+        if (hasAuthRedirectInUrl) return;
+
         setUser(null);
         setLoading(false);
       });
 
-    // Unconditional safety net. Previously this only armed on the OAuth
-    // redirect path, so an ordinary page load had nothing to fall back on if
-    // the auth call hung rather than rejected.
+    // Safety net so a hung auth call cannot spin forever. The OAuth window is
+    // much longer than the plain one: a PKCE code exchange is a full network
+    // round trip to Supabase, and 4s was short enough to fire mid-exchange on
+    // a slow connection - bouncing the user to /login just as they signed in.
     const timeoutId = setTimeout(() => {
       if (!isMounted) return;
+      authTrace('timeout-fired', { note: 'gave up waiting for a session' });
       setLoading(false);
-    }, hasAuthRedirectInUrl ? 4000 : 6000);
+    }, hasAuthRedirectInUrl ? 20000 : 6000);
 
     return () => {
       isMounted = false;

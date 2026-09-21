@@ -70,3 +70,8 @@ avatar-service/*.png
 !avatar-service/checkpoint/final_v2/loss_log.csv
 .coverage
 htmlcov/
+
+# Shared credentials handed to teammates - NEVER commit
+supabase.txt
+credentials.txt
+*.secrets.txt
