@@ -3,7 +3,7 @@
  * See plan.md §6.6, §6.7.
  *
  * Full-featured interactive AI Tutor dashboard:
- * - Real-time animated Tier A avatar with lipsync and expression state machine
+ * - SyncTalk avatar that speaks each reply (or an offline panel when it cannot)
  * - Socratic conversation chat with markdown and code highlighting
  * - Conversation management (create, list, switch, delete)
  * - Dynamic lesson context attachment (when navigated from a lesson)
@@ -25,8 +25,10 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
+  GraduationCap,
 } from 'lucide-react';
 import AvatarStage from '../../components/avatar/AvatarStage';
+import TeachBackPanel from './TeachBackPanel';
 import ChatPanel from '../../components/tutor/ChatPanel';
 import PageHeader from '../../components/layout/PageHeader';
 import { Button, Badge, Spinner } from '../../components/ui';
@@ -38,7 +40,9 @@ import {
 import { getLesson } from '../../api/lessons';
 
 export default function TutorPage() {
-  const { conversationId: routeConvId } = useParams();
+  // The URL carries the conversation's per-user number (/tutor/7), not its
+  // UUID. The API accepts either, so this value is passed straight through.
+  const { conversationId: routeConvRef } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -48,12 +52,11 @@ export default function TutorPage() {
   // Conversations list state
   const [conversations, setConversations] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
-  const [selectedConvId, setSelectedConvId] = useState(routeConvId || null);
+  const [selectedConvRef, setSelectedConvRef] = useState(routeConvRef || null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Avatar state machine
   const [avatarExpression, setAvatarExpression] = useState('neutral');
-  const [visemes, setVisemes] = useState([]);
   const [spokenText, setSpokenText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audioMuted, setAudioMuted] = useState(false);
@@ -61,12 +64,15 @@ export default function TutorPage() {
   // Active mobile view tab: 'split' (desktop default) | 'avatar' | 'chat'
   const [activeMobileTab, setActiveMobileTab] = useState('chat');
 
+  // Right-hand column: ask Nova, or teach her. Teach-Back is the novel mode.
+  const [rightMode, setRightMode] = useState('chat');
+
   // Sync route param with internal state
   useEffect(() => {
-    if (routeConvId) {
-      setSelectedConvId(routeConvId);
+    if (routeConvRef) {
+      setSelectedConvRef(routeConvRef);
     }
-  }, [routeConvId]);
+  }, [routeConvRef]);
 
   // Fetch optional attached lesson info
   useEffect(() => {
@@ -88,16 +94,16 @@ export default function TutorPage() {
       setConversations(items);
 
       // If no conversation is active and conversations exist, select the latest
-      if (!selectedConvId && !routeConvId && items.length > 0) {
-        setSelectedConvId(items[0].id);
-        navigate(`/tutor/${items[0].id}`, { replace: true });
+      if (!selectedConvRef && !routeConvRef && items.length > 0) {
+        setSelectedConvRef(items[0].number);
+        navigate(`/tutor/${items[0].number}`, { replace: true });
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);
     } finally {
       setLoadingConversations(false);
     }
-  }, [selectedConvId, routeConvId, navigate]);
+  }, [selectedConvRef, routeConvRef, navigate]);
 
   useEffect(() => {
     fetchConversations();
@@ -115,8 +121,8 @@ export default function TutorPage() {
       });
 
       setConversations((prev) => [created, ...prev]);
-      setSelectedConvId(created.id);
-      navigate(`/tutor/${created.id}`);
+      setSelectedConvRef(created.number);
+      navigate(`/tutor/${created.number}`);
       setSidebarOpen(false);
     } catch (err) {
       console.error('Failed to create new conversation:', err);
@@ -124,23 +130,23 @@ export default function TutorPage() {
   };
 
   // Handle conversation deletion
-  const handleDeleteConversation = async (e, convId) => {
+  const handleDeleteConversation = async (e, convRef) => {
     e.stopPropagation();
     if (!window.confirm('Delete this conversation history?')) return;
 
     try {
-      await deleteConversation(convId);
-      const remaining = conversations.filter((c) => c.id !== convId);
+      await deleteConversation(convRef);
+      // Compare as strings: the value from the URL is a string, the one on the
+      // record is a number, and `===` between them is silently always false.
+      const remaining = conversations.filter(
+        (c) => String(c.number) !== String(convRef),
+      );
       setConversations(remaining);
 
-      if (selectedConvId === convId) {
-        const nextId = remaining.length > 0 ? remaining[0].id : null;
-        setSelectedConvId(nextId);
-        if (nextId) {
-          navigate(`/tutor/${nextId}`);
-        } else {
-          navigate('/tutor');
-        }
+      if (String(selectedConvRef) === String(convRef)) {
+        const nextRef = remaining.length > 0 ? remaining[0].number : null;
+        setSelectedConvRef(nextRef);
+        navigate(nextRef ? `/tutor/${nextRef}` : '/tutor');
       }
     } catch (err) {
       console.error('Failed to delete conversation:', err);
@@ -148,16 +154,15 @@ export default function TutorPage() {
   };
 
   // Switch conversation
-  const handleSelectConversation = (convId) => {
-    setSelectedConvId(convId);
-    navigate(`/tutor/${convId}`);
+  const handleSelectConversation = (convRef) => {
+    setSelectedConvRef(convRef);
+    navigate(`/tutor/${convRef}`);
     setSidebarOpen(false);
   };
 
   // Avatar speech & expression coordination callbacks
-  const handleAssistantReply = ({ reply, visemes: vList, expression, text }) => {
+  const handleAssistantReply = ({ reply, expression, text }) => {
     setAvatarExpression(expression || 'explaining');
-    setVisemes(vList || []);
     setSpokenText(text || reply || '');
     setIsSpeaking(true);
   };
@@ -179,6 +184,15 @@ export default function TutorPage() {
     setAvatarExpression('neutral');
   };
 
+  // Teach-Back speaks through the same avatar. Nova is arguing from a false
+  // belief here, so she is 'explaining' rather than 'encouraging'.
+  const handleNovaSpeak = useCallback((text) => {
+    if (!text) return;
+    setAvatarExpression('explaining');
+    setSpokenText(text);
+    setIsSpeaking(true);
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       {/* Top Header */}
@@ -196,12 +210,12 @@ export default function TutorPage() {
             >
               {audioMuted ? (
                 <>
-                  <VolumeX className="h-4 w-4 text-red-500" />
+                  <VolumeX className="h-4 w-4 text-hard-fg" />
                   <span className="text-xs">Unmute</span>
                 </>
               ) : (
                 <>
-                  <Volume2 className="h-4 w-4 text-emerald-500" />
+                  <Volume2 className="h-4 w-4 text-easy-fg" />
                   <span className="text-xs">Mute Voice</span>
                 </>
               )}
@@ -230,14 +244,14 @@ export default function TutorPage() {
       />
 
       {/* Mobile Tab Toggle (Avatar / Chat) */}
-      <div className="flex rounded-xl bg-slate-100 p-1 lg:hidden dark:bg-slate-800">
+      <div className="flex rounded-xl bg-raised p-1 lg:hidden">
         <button
           type="button"
           onClick={() => setActiveMobileTab('chat')}
           className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${
             activeMobileTab === 'chat'
-              ? 'bg-white text-primary-600 shadow-sm dark:bg-slate-700 dark:text-primary-300'
-              : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+              ? 'bg-surface text-primary-600 shadow-sm'
+              : 'text-muted hover:text-ink'
           }`}
         >
           Chat Stream
@@ -247,8 +261,8 @@ export default function TutorPage() {
           onClick={() => setActiveMobileTab('avatar')}
           className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${
             activeMobileTab === 'avatar'
-              ? 'bg-white text-primary-600 shadow-sm dark:bg-slate-700 dark:text-primary-300'
-              : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+              ? 'bg-surface text-primary-600 shadow-sm'
+              : 'text-muted hover:text-ink'
           }`}
         >
           Avatar Stage
@@ -263,13 +277,13 @@ export default function TutorPage() {
       <div className="relative grid grid-cols-1 gap-5 lg:grid-cols-12 lg:h-[calc(100vh-16rem)] lg:min-h-[560px]">
         {/* Collapsible Sidebar (Drawer on mobile, left rail on desktop) */}
         <aside
-          className={`fixed inset-y-0 left-0 z-40 w-72 transform bg-white p-4 shadow-xl transition-transform duration-200 ease-in-out dark:bg-slate-900 lg:static lg:z-auto lg:w-auto lg:transform-none lg:col-span-3 lg:rounded-lg lg:border lg:border-slate-200/80 lg:shadow-sm lg:dark:border-slate-800/80 ${
+          className={`fixed inset-y-0 left-0 z-40 w-72 transform bg-surface p-4 shadow-xl transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:w-auto lg:transform-none lg:col-span-3 lg:rounded-lg lg:border lg:border-line/80 lg:shadow-sm lg: ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
         >
           <div className="flex h-full flex-col">
             <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
                 <MessageSquare className="h-4 w-4 text-primary-500" />
                 <span>Conversations</span>
               </div>
@@ -293,27 +307,27 @@ export default function TutorPage() {
               )}
 
               {!loadingConversations && conversations.length === 0 && (
-                <div className="py-8 text-center text-xs text-slate-400">
+                <div className="py-8 text-center text-xs text-muted">
                   No conversations yet. Start chatting below!
                 </div>
               )}
 
               {!loadingConversations &&
                 conversations.map((conv) => {
-                  const isActive = conv.id === selectedConvId;
+                  const isActive = String(conv.number) === String(selectedConvRef);
                   return (
                     <div
                       key={conv.id}
-                      onClick={() => handleSelectConversation(conv.id)}
+                      onClick={() => handleSelectConversation(conv.number)}
                       className={`group relative flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-xs transition-all ${
                         isActive
-                          ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-950/40 dark:text-primary-300'
-                          : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60'
+                          ? 'bg-primary-50 font-medium text-primary-700'
+                          : 'text-body hover:bg-raised'
                       }`}
                     >
                       <div className="min-w-0 flex-1 pr-2">
                         <p className="truncate">{conv.title || 'Untitled chat'}</p>
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-[10px] text-muted">
                           {new Date(conv.updated_at || conv.created_at).toLocaleDateString(
                             [],
                             { month: 'short', day: 'numeric' }
@@ -323,8 +337,8 @@ export default function TutorPage() {
 
                       <button
                         type="button"
-                        onClick={(e) => handleDeleteConversation(e, conv.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-opacity"
+                        onClick={(e) => handleDeleteConversation(e, conv.number)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-hard-fg transition-opacity"
                         title="Delete conversation"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -336,7 +350,7 @@ export default function TutorPage() {
 
             {/* Lesson Context Tag if active */}
             {lessonData && (
-              <div className="mt-3 rounded-xl border border-primary-100 bg-primary-50/60 p-2.5 text-xs text-primary-800 dark:border-primary-900/40 dark:bg-primary-950/30 dark:text-primary-300">
+              <div className="mt-3 rounded-xl border border-primary-100 bg-primary-50/60 p-2.5 text-xs text-primary-800">
                 <div className="flex items-center gap-1.5 font-medium">
                   <BookOpen className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{lessonData.title}</span>
@@ -351,7 +365,7 @@ export default function TutorPage() {
         {sidebarOpen && (
           <div
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-xs lg:hidden"
+            className="fixed inset-0 z-30 bg-canvas/40 backdrop-blur-xs lg:hidden"
           />
         )}
 
@@ -361,16 +375,16 @@ export default function TutorPage() {
             activeMobileTab === 'avatar' ? 'flex' : 'hidden lg:flex'
           }`}
         >
-          <div className="flex-1 flex flex-col rounded-lg border border-slate-200/80 bg-white shadow-sm overflow-hidden dark:border-slate-800/80 dark:bg-slate-900">
+          <div className="flex-1 flex flex-col rounded-lg border border-line/80 bg-surface shadow-sm overflow-hidden">
             {/* Stage header info */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 text-xs dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-line px-4 py-2.5 text-xs">
               <div className="flex items-center gap-2">
                 <div
                   className={`h-2 w-2 rounded-full ${
-                    isSpeaking ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                    isSpeaking ? 'bg-easy animate-pulse' : 'bg-line-strong'
                   }`}
                 />
-                <span className="font-medium text-slate-700 dark:text-slate-200">
+                <span className="font-medium text-body">
                   Nova · Socratic Tutor
                 </span>
               </div>
@@ -383,11 +397,9 @@ export default function TutorPage() {
             {/* AvatarStage is aspect-square, so its height tracks its width.
                 min-h-0 lets this row shrink inside the fixed-height column, and
                 the max-w cap stops the square from outgrowing the space it has. */}
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3 bg-gradient-to-b from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-900">
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3 bg-gradient-to-b from-raised to-surface">
               <div className="w-full max-w-[320px]">
                 <AvatarStage
-                  expression={avatarExpression}
-                  visemes={visemes}
                   spokenText={spokenText}
                   isSpeaking={isSpeaking}
                   onSpeechEnd={handleSpeechEnd}
@@ -398,14 +410,14 @@ export default function TutorPage() {
             </div>
 
             {/* Avatar Persona Card */}
-            <div className="border-t border-slate-100 bg-slate-50/50 p-3.5 text-xs dark:border-slate-800 dark:bg-slate-900/60">
+            <div className="border-t border-line bg-raised/50 p-3.5 text-xs">
               <div className="flex items-start gap-2">
                 <Sparkles className="h-4 w-4 text-primary-500 mt-0.5 shrink-0" />
                 <div>
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">
+                  <h4 className="font-semibold text-ink">
                     Socratic AI Guide
                   </h4>
-                  <p className="mt-0.5 text-slate-500 dark:text-slate-400 text-[11px] leading-relaxed">
+                  <p className="mt-0.5 text-muted text-[11px] leading-relaxed">
                     Trained to unpack mental models, diagnose misunderstandings, and
                     guide you toward solutions through questioning.
                   </p>
@@ -415,25 +427,65 @@ export default function TutorPage() {
           </div>
         </div>
 
-        {/* Right: Chat Panel */}
+        {/* Right: ask Nova, or teach her */}
         <div
           className={`lg:col-span-5 h-[620px] lg:h-full ${
-            activeMobileTab === 'chat' ? 'block' : 'hidden lg:block'
-          }`}
+            activeMobileTab === 'chat' ? 'flex' : 'hidden lg:flex'
+          } flex-col gap-2`}
         >
-          <ChatPanel
-            conversationId={selectedConvId}
-            onConversationCreated={(newConv) => {
-              setConversations((prev) => [newConv, ...prev]);
-              setSelectedConvId(newConv.id);
-              navigate(`/tutor/${newConv.id}`, { replace: true });
-            }}
-            onAssistantReply={handleAssistantReply}
-            onThinkingStart={handleThinkingStart}
-            onSpeakMessage={handleSpeakMessage}
-            lessonId={lessonId}
-            lessonTitle={lessonData?.title}
-          />
+          <div className="flex shrink-0 items-center gap-1 rounded-lg border border-line bg-surface p-1">
+            <button
+              type="button"
+              onClick={() => setRightMode('chat')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                rightMode === 'chat'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-muted hover:text-body'
+              }`}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Ask Nova
+            </button>
+            <button
+              type="button"
+              onClick={() => setRightMode('teachback')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                rightMode === 'teachback'
+                  ? 'bg-primary-600 text-white'
+                  : 'text-muted hover:text-body'
+              }`}
+            >
+              <GraduationCap className="h-3.5 w-3.5" />
+              Teach Nova
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1">
+            {/* Both panels stay mounted: switching tabs must not throw away an
+                in-progress Teach-Back session or an unsent chat draft. */}
+            <div className={`h-full ${rightMode === 'chat' ? 'block' : 'hidden'}`}>
+              <ChatPanel
+                conversationId={selectedConvRef}
+                onConversationCreated={(newConv) => {
+                  setConversations((prev) => [newConv, ...prev]);
+                  setSelectedConvRef(newConv.number);
+                  navigate(`/tutor/${newConv.number}`, { replace: true });
+                }}
+                onAssistantReply={handleAssistantReply}
+                onThinkingStart={handleThinkingStart}
+                onSpeakMessage={handleSpeakMessage}
+                lessonId={lessonId}
+                lessonTitle={lessonData?.title}
+              />
+            </div>
+            <div
+              className={`h-full overflow-hidden rounded-lg border border-line bg-surface ${
+                rightMode === 'teachback' ? 'block' : 'hidden'
+              }`}
+            >
+              <TeachBackPanel onNovaSpeak={handleNovaSpeak} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
