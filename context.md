@@ -145,13 +145,19 @@ The avatar uses our own pipeline powered by **SyncTalk**, a trained audio-driven
 talking-head model, rather than a third-party avatar framework. The service
 streams rendered frames over a WebSocket alongside synchronised audio.
 
-Two tiers are supported so the platform never hard-depends on a GPU:
+There is one avatar: SyncTalk. The placeholder SVG avatar ("Tier A") was
+removed on 2026-09-22 — two avatars meant two lipsync paths and two voices that
+could both fire at once, and the cartoon silently replaced the real tutor
+exactly when you most wanted to know something was wrong.
 
-- **Tier A (always available):** an animated SVG avatar driven by a viseme
-  timeline, running entirely in the browser.
-- **Tier B (when a GPU host is configured):** the SyncTalk model streaming a
-  photoreal face. The UI falls back to Tier A automatically if the service is
-  unreachable.
+It needs two things, and `GET /api/avatar/status` reports both:
+
+- the **SyncTalk service** reachable at `AVATAR_SERVICE_URL`, and
+- a **speech provider**, because the service renders frames only in response to
+  audio. Gemini TTS returns 24 kHz PCM, which is the rate SyncTalk works in.
+
+With either missing the UI shows an "avatar offline" panel naming the reason.
+The tutor still answers in text, and Teach-Back runs normally.
 
 ---
 

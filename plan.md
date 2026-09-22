@@ -679,6 +679,16 @@ GET  /api/analytics/mastery/me         -> [{topic_tag, mastery_score, attempts}]
 
 ### 6.6 Avatar pipeline — two tiers, ship Tier A first
 
+> **Amended 2026-09-22 — Tier A was removed.** Tier B shipped and works, so the
+> browser SVG avatar and its Web Speech voice were deleted rather than kept as a
+> fallback: two avatars meant two lipsync implementations and two voices that
+> could both fire at once, and the cartoon silently replaced the photoreal tutor
+> exactly when a failure most needed to be visible. The avatar now either runs or
+> shows an offline panel naming what is missing. Speech comes from Gemini TTS
+> (24 kHz PCM, the rate SyncTalk works in). The rest of this section is kept as
+> the original plan of record; where it describes Tier A, read it as history.
+
+
 > **Risk, read before planning Week 1.** SyncTalk needs a CUDA GPU and will not run on ordinary free web hosting, so it runs as a separate service on a GPU machine. The model itself is already trained (see Tier B below), but the demo must still survive a machine without a GPU — so Tier A ships first and stays the fallback.
 
 **Tier A — browser avatar (must ship, Weeks 1–2).** Zero infrastructure cost, works on any laptop.

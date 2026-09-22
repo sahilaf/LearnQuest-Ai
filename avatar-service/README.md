@@ -9,9 +9,10 @@ This runs as a **separate process from the LearnQuest backend** — it needs a C
 and a conda environment that the FastAPI app does not. The backend talks to it over
 HTTP/WebSocket via `AVATAR_SERVICE_URL`.
 
-> **Tier A still ships first.** The browser avatar (Web Speech TTS + viseme lipsync) is
-> the fallback and must work on any laptop with no GPU. This service is the upgrade —
-> when `AVATAR_SERVICE_URL` is empty, the app degrades to Tier A automatically.
+> **This is the only avatar.** The placeholder SVG avatar was removed on 2026-09-22.
+> When `AVATAR_SERVICE_URL` is empty, or this service is down, or no speech provider is
+> configured, the app shows an "avatar offline" panel — the tutor still answers in text
+> and Teach-Back still runs, there is just no face.
 
 ---
 
@@ -32,7 +33,7 @@ HTTP/WebSocket via `AVATAR_SERVICE_URL`.
 Every gitignored file above is already on this machine — the copy from `Fydp_v2` brought
 them across. They are excluded from *version control*, not missing. A teammate cloning
 fresh gets the code and no weights, which is correct: they cannot run this without a GPU
-anyway, and Tier A is what they should be running.
+anyway, and the app runs fine without an avatar.
 
 Weights are gitignored deliberately: GitHub warns above 50 MB, and a 1.3 GB repo
 punishes every teammate who clones it. They live on disk, not in history.
@@ -93,7 +94,7 @@ python avatar_server_ws.py --checkpoint checkpoint/final_v2/59.pth --dataset <da
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/health` | liveness — the backend polls this to decide Tier A vs Tier B |
+| `GET` | `/health` | liveness — the backend polls this to decide online vs offline |
 | `GET` | `/idle/info` | idle-loop cache status |
 | `GET` | `/idle/frame/{idx}` | single idle frame |
 | `POST` | `/session` | returns `{session_id}` |

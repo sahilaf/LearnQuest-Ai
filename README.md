@@ -13,7 +13,7 @@ XP / badge / streak system.
 | **Database** | PostgreSQL (Supabase free tier) |
 | **Auth** | Supabase Auth |
 | **AI** | LLM API (Groq / Gemini / OpenAI, pluggable) |
-| **Avatar** | Browser TTS + viseme lipsync (Tier A) → SyncTalk 2D, GPU service (Tier B) |
+| **Avatar** | SyncTalk 2D over WebSocket, GPU service + Gemini TTS (`avatar-service/`) |
 | **Voice** | LiveKit + Gemini Live realtime agent (optional — see `agent/`) |
 
 ---
@@ -123,7 +123,7 @@ App: <http://localhost:5173>
 | `LLM_PROVIDER` | yes | `groq` \| `gemini` \| `openai` \| `mock` |
 | `LLM_API_KEY` | unless `mock` | provider API key |
 | `LLM_MODEL` | yes | e.g. `llama-3.3-70b-versatile` |
-| `AVATAR_SERVICE_URL` | no | empty = Tier A browser avatar only |
+| `AVATAR_SERVICE_URL` | no | empty = no avatar; the tutor still answers in text |
 | `CORS_ORIGINS` | yes | comma-separated allowed origins |
 | `DEV_ALLOW_ANONYMOUS` | dev only | `true` lets requests through without a Supabase token |
 
@@ -185,8 +185,9 @@ LearnQuest/
 ```
 
 `avatar-service/` and `agent/` are both **optional**. Leave `AVATAR_SERVICE_URL` empty and
-the app runs the text tutor with the Tier A browser avatar — no GPU, no LiveKit, no
-realtime API. That is how Members 2, 3 and 4 should run it.
+the app runs the text tutor with no avatar — no GPU, no LiveKit, no realtime API. The
+tutor page shows an "avatar offline" panel and everything else, including Teach-Back,
+works normally. That is how Members 2, 3 and 4 should run it.
 
 See [avatar-service/README.md](avatar-service/README.md) and [agent/README.md](agent/README.md).
 
