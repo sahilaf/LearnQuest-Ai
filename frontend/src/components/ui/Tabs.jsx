@@ -12,8 +12,8 @@ export default function Tabs({ tabs = [], activeTab, onChange, variant = 'underl
     tab.badge !== undefined && (
       <span
         className={`rounded px-1.5 py-0.5 text-2xs font-medium ${
-          isActive ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                   : 'bg-canvas text-muted dark:bg-[#1C222B]'
+          isActive ? 'bg-primary-50 text-primary-700'
+                   : 'bg-canvas text-muted'
         }`}
       >
         {tab.badge}
@@ -22,7 +22,7 @@ export default function Tabs({ tabs = [], activeTab, onChange, variant = 'underl
 
   if (variant === 'pills') {
     return (
-      <div role="tablist" className={`inline-flex rounded border border-line-strong bg-surface p-0.5 dark:border-[#2D3643] dark:bg-[#171C23] ${className}`}>
+      <div role="tablist" className={`inline-flex rounded border border-line-strong bg-surface p-0.5 ${className}`}>
         {tabs.map((tab) => {
           const id = tab.id ?? tab.value;
           const isActive = id === activeTab;
@@ -34,7 +34,7 @@ export default function Tabs({ tabs = [], activeTab, onChange, variant = 'underl
               aria-selected={isActive}
               onClick={() => onChange?.(id)}
               className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-                isActive ? 'bg-primary-600 text-white' : 'text-muted hover:text-body dark:hover:text-white'
+                isActive ? 'bg-primary-600 text-white' : 'text-muted hover:text-body'
               }`}
             >
               {tab.icon && <span>{tab.icon}</span>}
@@ -48,7 +48,7 @@ export default function Tabs({ tabs = [], activeTab, onChange, variant = 'underl
   }
 
   return (
-    <div role="tablist" className={`flex gap-1 border-b border-line dark:border-[#242B35] ${className}`}>
+    <div role="tablist" className={`flex gap-1 border-b border-line ${className}`}>
       {tabs.map((tab) => {
         const id = tab.id ?? tab.value;
         const isActive = id === activeTab;
@@ -61,8 +61,8 @@ export default function Tabs({ tabs = [], activeTab, onChange, variant = 'underl
             onClick={() => onChange?.(id)}
             className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
               isActive
-                ? 'border-primary-600 text-primary-700 dark:text-primary-400'
-                : 'border-transparent text-muted hover:border-line-strong hover:text-body dark:hover:text-white'
+                ? 'border-primary-600 text-primary-700'
+                : 'border-transparent text-muted hover:border-line-strong hover:text-body'
             }`}
           >
             {tab.icon && <span>{tab.icon}</span>}

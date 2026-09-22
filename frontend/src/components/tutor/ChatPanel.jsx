@@ -236,7 +236,6 @@ export default function ChatPanel({
         role: 'assistant',
         content: response.reply,
         created_at: new Date().toISOString(),
-        visemes: response.visemes || [],
         expression: response.expression || 'explaining',
       };
 
@@ -245,7 +244,6 @@ export default function ChatPanel({
       // Trigger Avatar Stage speech & mouth animation
       onAssistantReply?.({
         reply: response.reply,
-        visemes: response.visemes || [],
         expression: response.expression || 'explaining',
         text: cleanTextForSpeech(response.reply),
       });
@@ -271,10 +269,10 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-sm dark:border-slate-800/80 dark:bg-slate-900/95">
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-line/80 bg-surface/95 shadow-sm backdrop-blur-sm">
       {/* Context banner if tied to a lesson */}
       {lessonTitle && (
-        <div className="flex items-center gap-2 border-b border-slate-100 bg-primary-50/50 px-4 py-2 text-xs font-medium text-primary-700 dark:border-slate-800 dark:bg-primary-950/20 dark:text-primary-300">
+        <div className="flex items-center gap-2 border-b border-line bg-primary-50/50 px-4 py-2 text-xs font-medium text-primary-700">
           <Sparkles className="h-3.5 w-3.5" />
           <span>Active Context: {lessonTitle}</span>
         </div>
@@ -283,7 +281,7 @@ export default function ChatPanel({
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
         {loading && (
-          <div className="flex h-40 flex-col items-center justify-center gap-2 text-slate-400">
+          <div className="flex h-40 flex-col items-center justify-center gap-2 text-muted">
             <Spinner size="md" />
             <p className="text-xs">Loading conversation history...</p>
           </div>
@@ -291,13 +289,13 @@ export default function ChatPanel({
 
         {!loading && messages.length === 0 && (
           <div className="my-auto flex flex-col items-center justify-center py-8 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-gradient-to-tr from-primary-500 to-indigo-500 text-white shadow-md shadow-primary-500/20">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-gradient-to-tr from-primary-500 to-primary-600 text-white shadow-md shadow-primary-500/20">
               <Bot className="h-7 w-7" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+            <h3 className="text-lg font-semibold text-ink">
               Meet Your AI Socratic Tutor
             </h3>
-            <p className="mt-1.5 max-w-sm text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-1.5 max-w-sm text-sm text-muted">
               Ask anything about your courses, request step-by-step breakdowns, or
               test your conceptual mastery with interactive guidance.
             </p>
@@ -311,16 +309,16 @@ export default function ChatPanel({
                     key={item.label}
                     type="button"
                     onClick={() => handleSend(item.prompt)}
-                    className="flex items-start gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 text-left transition-all hover:border-primary-400 hover:bg-primary-50/50 hover:shadow-sm dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-primary-500/40 dark:hover:bg-primary-900/20"
+                    className="flex items-start gap-2.5 rounded-xl border border-line/80 bg-raised/80 p-3 text-left transition-all hover:border-primary-400 hover:bg-primary-50/50 hover:shadow-sm"
                   >
-                    <div className="rounded-lg bg-primary-100 p-1.5 text-primary-600 dark:bg-primary-900/50 dark:text-primary-300">
+                    <div className="rounded-lg bg-primary-100 p-1.5 text-primary-600">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      <div className="text-xs font-semibold text-ink">
                         {item.label}
                       </div>
-                      <div className="mt-0.5 text-[11px] leading-tight text-slate-500 dark:text-slate-400">
+                      <div className="mt-0.5 text-[11px] leading-tight text-muted">
                         {item.prompt.slice(0, 42)}...
                       </div>
                     </div>
@@ -346,7 +344,7 @@ export default function ChatPanel({
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-medium shadow-sm ${
                   isUser
                     ? 'bg-primary-600 text-white'
-                    : 'bg-gradient-to-tr from-slate-800 to-indigo-900 text-primary-300 ring-2 ring-primary-500/20'
+                    : 'bg-gradient-to-tr from-surface to-primary-600 text-primary-300 ring-2 ring-primary-500/20'
                 }`}
               >
                 {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
@@ -356,27 +354,27 @@ export default function ChatPanel({
               <div
                 className={`group relative max-w-[85%] rounded-lg px-4 py-3 text-sm shadow-sm transition-all sm:max-w-[78%] ${
                   isUser
-                    ? 'rounded-tr-xs bg-gradient-to-r from-primary-600 to-indigo-600 text-white'
-                    : 'rounded-tl-xs border border-slate-200/80 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-800/90 dark:text-slate-100'
+                    ? 'rounded-tr-xs bg-gradient-to-r from-primary-600 to-primary-600 text-white'
+                    : 'rounded-tl-xs border border-line/80 bg-surface text-ink'
                 }`}
               >
                 {isUser ? (
                   <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                 ) : (
-                  <div className="prose prose-sm dark:prose-invert max-w-none space-y-2 leading-relaxed break-words">
+                  <div className="prose prose-sm max-w-none space-y-2 leading-relaxed break-words">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
                         code({ node, inline, className, children, ...props }) {
                           return inline ? (
                             <code
-                              className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-primary-600 dark:bg-slate-900 dark:text-primary-400"
+                              className="rounded bg-raised px-1.5 py-0.5 font-mono text-xs text-primary-600"
                               {...props}
                             >
                               {children}
                             </code>
                           ) : (
-                            <pre className="overflow-x-auto rounded-xl bg-slate-900 p-3 font-mono text-xs text-slate-100 dark:bg-slate-950">
+                            <pre className="overflow-x-auto rounded-xl bg-canvas p-3 font-mono text-xs text-ink">
                               <code {...props}>{children}</code>
                             </pre>
                           );
@@ -399,7 +397,7 @@ export default function ChatPanel({
 
                 {/* Bottom toolbar for assistant responses */}
                 {!isUser && (
-                  <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-xs text-slate-400 dark:border-slate-700/60">
+                  <div className="mt-2.5 flex items-center justify-between border-t border-line pt-2 text-xs text-muted">
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
@@ -409,7 +407,7 @@ export default function ChatPanel({
                             expression: 'explaining',
                           })
                         }
-                        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-raised hover:text-body"
                         title="Play explanation with Avatar voice"
                       >
                         <Volume2 className="h-3.5 w-3.5" />
@@ -419,13 +417,13 @@ export default function ChatPanel({
                       <button
                         type="button"
                         onClick={() => handleCopy(msg.id, msg.content)}
-                        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-raised hover:text-body"
                         title="Copy response"
                       >
                         {isCopied ? (
                           <>
-                            <Check className="h-3.5 w-3.5 text-emerald-500" />
-                            <span className="text-[11px] text-emerald-500">Copied</span>
+                            <Check className="h-3.5 w-3.5 text-easy-fg" />
+                            <span className="text-[11px] text-easy-fg">Copied</span>
                           </>
                         ) : (
                           <>
@@ -452,11 +450,11 @@ export default function ChatPanel({
         {/* Submitting / Thinking Indicator */}
         {submitting && (
           <div className="flex items-start gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-slate-800 to-indigo-900 text-primary-300 ring-2 ring-primary-500/20">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-surface to-primary-600 text-primary-300 ring-2 ring-primary-500/20">
               <Bot className="h-4 w-4 animate-pulse" />
             </div>
-            <div className="rounded-lg rounded-tl-xs border border-slate-200/80 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-800/90">
-              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <div className="rounded-lg rounded-tl-xs border border-line/80 bg-surface px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-2 text-xs text-muted">
                 <span className="flex gap-1">
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary-500 [animation-delay:-0.3s]"></span>
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary-500 [animation-delay:-0.15s]"></span>
@@ -470,13 +468,13 @@ export default function ChatPanel({
 
         {/* Error Alert */}
         {error && (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+          <div className="flex items-center gap-2 rounded-xl border border-hard/30 bg-hard-bg p-3 text-xs text-hard-fg">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span className="flex-1">{error}</span>
             <button
               type="button"
               onClick={() => setError(null)}
-              className="font-medium underline hover:text-red-900"
+              className="font-medium underline hover:text-hard-fg"
             >
               Dismiss
             </button>
@@ -487,13 +485,13 @@ export default function ChatPanel({
       </div>
 
       {/* Message Input Bar */}
-      <div className="border-t border-slate-200/80 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/80">
+      <div className="border-t border-line/80 bg-raised/50 p-3">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSend();
           }}
-          className="relative flex items-end gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm transition-focus focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800"
+          className="relative flex items-end gap-2 rounded-xl border border-line bg-surface p-1.5 shadow-sm transition-focus focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20"
         >
           {/* Speech-to-text mic button */}
           <button
@@ -501,8 +499,8 @@ export default function ChatPanel({
             onClick={toggleRecording}
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
               isRecording
-                ? 'bg-red-500 text-white animate-pulse'
-                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200'
+                ? 'bg-hard text-white animate-pulse'
+                : 'text-muted hover:bg-raised hover:text-body'
             }`}
             title={isRecording ? 'Stop listening' : 'Speak your question (Voice Input)'}
           >
@@ -519,7 +517,7 @@ export default function ChatPanel({
             placeholder={
               isRecording ? 'Listening to your voice...' : 'Ask your tutor a question... (Enter to send)'
             }
-            className="max-h-36 min-h-[36px] flex-1 resize-none bg-transparent py-1.5 text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+            className="max-h-36 min-h-[36px] flex-1 resize-none bg-transparent py-1.5 text-sm text-ink outline-none placeholder:text-muted"
           />
 
           {/* Send Button */}
@@ -533,7 +531,7 @@ export default function ChatPanel({
           </Button>
         </form>
 
-        <div className="mt-1.5 flex items-center justify-between px-1 text-[11px] text-slate-400 dark:text-slate-500">
+        <div className="mt-1.5 flex items-center justify-between px-1 text-[11px] text-muted">
           <span>Shift + Enter for new line</span>
           <span>Socratic AI Mode · Active</span>
         </div>

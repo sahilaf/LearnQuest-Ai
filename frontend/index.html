@@ -4,18 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="AI-powered personalized learning with a real-time avatar tutor." />
-    <meta name="theme-color" content="#7C3AED" />
+    <meta name="theme-color" content="#0A0C10" />
     <title>LearnQuest AI</title>
 
-    <!-- Inter is the design system's UI face (docs/DESIGN_GUIDELINES.md): a
-         neutral, highly legible face suited to dense tables and data. -->
+    <!-- Three faces, three jobs (docs/DESIGN_GUIDELINES.md):
+         Inter        - the UI face, legible in dense tables and forms
+         Instrument Serif - display only: page titles and hero copy
+         JetBrains Mono   - micro-labels, topic tags and code -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
   </head>
+  <!-- Dark is the product's theme, not a toggle. Tokens live on :root in
+       index.css; adding class="light" here opts the whole app back out. -->
   <body class="h-full">
     <div id="root" class="h-full"></div>
     <script type="module" src="/src/main.jsx"></script>

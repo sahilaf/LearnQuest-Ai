@@ -14,7 +14,7 @@ const Select = forwardRef(function Select(
       {label && (
         <label
           htmlFor={selectId}
-          className="mb-1.5 block text-sm font-medium text-body dark:text-[#C6CDD6]"
+          className="mb-1.5 block text-sm font-medium text-body"
         >
           {label}
         </label>

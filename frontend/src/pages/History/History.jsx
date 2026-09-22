@@ -125,7 +125,7 @@ export default function History() {
           variant="pills"
         />
 
-        <span className="text-xs font-medium text-slate-500">
+        <span className="text-xs font-medium text-muted">
           Showing {items.length} of {total} {total === 1 ? 'record' : 'records'}
         </span>
       </div>
@@ -136,8 +136,8 @@ export default function History() {
           <Spinner size="lg" label="Loading learning history..." />
         </div>
       ) : error ? (
-        <Card className="border-rose-200 bg-rose-50/50 p-6 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
-          <p className="text-sm font-medium text-rose-800 dark:text-rose-300">{error}</p>
+        <Card className="border-hard/30 bg-hard-bg/50 p-6 text-center">
+          <p className="text-sm font-medium text-hard-fg">{error}</p>
           <Button variant="primary" size="sm" onClick={fetchHistory} className="mt-4">
             Retry
           </Button>
@@ -161,10 +161,10 @@ export default function History() {
       ) : (
         <div className="space-y-4">
           {/* Dense Table View */}
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+          <div className="overflow-hidden rounded-lg border border-line bg-surface shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-200 bg-slate-50/70 font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-200">
+                <thead className="border-b border-line bg-raised/70 font-semibold text-body">
                   <tr>
                     <th className="px-4 py-3">Type</th>
                     <th className="px-4 py-3">Title & Track</th>
@@ -174,7 +174,7 @@ export default function History() {
                     <th className="px-4 py-3 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-line">
                   {items.map((item) => {
                     const isLesson = item.item_type === 'lesson';
                     const isQuiz = item.item_type === 'quiz';
@@ -182,15 +182,15 @@ export default function History() {
                     return (
                       <tr
                         key={`${item.item_type}-${item.id}`}
-                        className="transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/30"
+                        className="transition-colors hover:bg-raised/60"
                       >
                         {/* Type Column */}
                         <td className="whitespace-nowrap px-4 py-3">
                           <span
                             className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-medium ${
                               isLesson
-                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                                : 'bg-primary-50 text-primary-700 dark:bg-primary-950/60 dark:text-primary-300'
+                                ? 'bg-info-bg text-info-fg'
+                                : 'bg-primary-50 text-primary-700'
                             }`}
                           >
                             <span>{isLesson ? '📖' : '⚡'}</span>
@@ -200,11 +200,11 @@ export default function History() {
 
                         {/* Title & Track Column */}
                         <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-900 dark:text-slate-100">
+                          <div className="font-semibold text-ink">
                             {item.title}
                           </div>
                           {item.course_title && (
-                            <div className="text-[11px] text-slate-500">
+                            <div className="text-[11px] text-muted">
                               {item.course_title}
                             </div>
                           )}
@@ -233,12 +233,12 @@ export default function History() {
                         </td>
 
                         {/* Time Spent */}
-                        <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
+                        <td className="whitespace-nowrap px-4 py-3 font-mono text-body">
                           {formatDuration(item.seconds_spent)}
                         </td>
 
                         {/* Date */}
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-500">
+                        <td className="whitespace-nowrap px-4 py-3 text-muted">
                           {formatTimestamp(item.completed_at)}
                         </td>
 
@@ -270,7 +270,7 @@ export default function History() {
           {/* Pagination Controls */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-muted">
                 Page {page} of {totalPages}
               </span>
               <div className="flex gap-2">

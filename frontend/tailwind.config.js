@@ -1,89 +1,145 @@
 /** @type {import('tailwindcss').Config} */
 // SHARED FILE - change by agreement (plan.md 2.4). Design tokens: plan.md 4.5.
 //
-// LearnQuest uses a professional, information-dense design language modelled on
-// HackerRank: flat surfaces, 1px hairline borders, small radii, restrained
-// colour, and normal-weight type. Colour marks status and nothing else.
-// Full rules: docs/DESIGN_GUIDELINES.md
+// LearnQuest is a dark-first product surface: a near-black canvas, panels lifted
+// by one hairline border, an editorial serif for display type against a neutral
+// UI face, and exactly one accent colour. Full rules: docs/DESIGN_GUIDELINES.md
+//
+// Why every colour is a CSS variable
+// ----------------------------------
+// The previous system hard-coded dark values inline (`dark:bg-[#171C23]`) in
+// about forty places with no token behind them, so nothing matched anything and
+// a palette change meant a find-and-replace across the app. Colours now resolve
+// through `rgb(var(--x) / <alpha-value>)`, which keeps Tailwind's opacity
+// modifiers working (`bg-easy/15`, `border-line/60`) while letting the whole
+// theme swap from one place in index.css.
+const token = (name) => `rgb(var(${name}) / <alpha-value>)`;
+
 export default {
-  darkMode: 'class',
+  // Dark is the default theme, applied on :root. `.light` opts back out, so the
+  // class strategy stays available without `dark:` prefixes everywhere.
+  darkMode: ['class', '.dark'],
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
-        // Brand. Used for primary actions, active nav and focus - not decoration.
+        // Brand. Primary actions, active navigation and focus rings. Never
+        // decoration - if it is violet, it is interactive or it is the tutor.
         primary: {
-          50: '#F5F3FF',
-          100: '#EDE9FE',
-          200: '#DDD6FE',
-          300: '#C4B5FD',
-          400: '#A78BFA',
-          500: '#8B5CF6',
-          600: '#7C3AED', // primary action
-          700: '#6D28D9', // hover / pressed
-          800: '#5B21B6',
-          900: '#4C1D95',
+          50: token('--primary-50'),
+          100: token('--primary-100'),
+          200: token('--primary-200'),
+          300: token('--primary-300'),
+          400: token('--primary-400'),
+          500: token('--primary-500'),
+          600: token('--primary-600'),
+          700: token('--primary-700'),
+          800: token('--primary-800'),
+          900: token('--primary-900'),
         },
 
-        // Difficulty + status. These are the only other colours allowed to carry
-        // meaning, and they map 1:1 to the labels users read.
-        easy: { DEFAULT: '#00AF54', bg: '#E8F8EF', fg: '#00713A' },
-        medium: { DEFAULT: '#FFB300', bg: '#FFF6E0', fg: '#8A6100' },
-        hard: { DEFAULT: '#E5384B', bg: '#FDECEE', fg: '#A31D2C' },
-        info: { DEFAULT: '#2D7FF9', bg: '#EAF2FE', fg: '#1A5BB8' },
+        // Difficulty and status. The only other colours allowed to carry
+        // meaning, mapped 1:1 to the words a user reads.
+        easy: {
+          DEFAULT: token('--easy'),
+          bg: token('--easy-bg'),
+          fg: token('--easy-fg'),
+        },
+        medium: {
+          DEFAULT: token('--medium'),
+          bg: token('--medium-bg'),
+          fg: token('--medium-fg'),
+        },
+        hard: {
+          DEFAULT: token('--hard'),
+          bg: token('--hard-bg'),
+          fg: token('--hard-fg'),
+        },
+        info: {
+          DEFAULT: token('--info'),
+          bg: token('--info-bg'),
+          fg: token('--info-fg'),
+        },
 
-        // Neutral ramp - the workhorse of a dense UI.
-        ink: '#1F2933', // headings
-        body: '#39424E', // body copy (HackerRank's text colour)
-        muted: '#6B7885', // secondary text, table headers
-        faint: '#9AA5B1', // placeholders, disabled
-        line: '#E4E7EB', // 1px hairline border
-        'line-strong': '#CBD2D9', // input borders, dividers that must read
-        surface: '#FFFFFF', // cards, tables, panels
-        canvas: '#F5F7FA', // page background
+        // Neutral ramp. `canvas` is the page, `surface` is a panel on it, and
+        // `raised` is a panel on a panel - three levels, no more.
+        ink: token('--ink'), // headings
+        body: token('--body'), // body copy
+        muted: token('--muted'), // secondary text, table headers
+        faint: token('--faint'), // placeholders, disabled
+        line: token('--line'), // 1px hairline
+        'line-strong': token('--line-strong'), // input borders, real dividers
+        surface: token('--surface'), // cards, tables, panels
+        raised: token('--raised'), // menus, popovers, nested panels
+        canvas: token('--canvas'), // page background
       },
 
       fontFamily: {
-        // A neutral UI face, not a personality face.
+        // Display is editorial, UI is neutral. Mixing a high-contrast serif with
+        // a workhorse sans is what keeps this from looking like a dashboard
+        // template; the serif is for page titles and hero copy only.
+        display: ['"Instrument Serif"', 'Georgia', 'ui-serif', 'serif'],
         sans: ['Inter', 'Roboto', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
 
       fontSize: {
-        // Dense scale: 13px is the default body size in this system.
-        '2xs': ['11px', { lineHeight: '16px' }],
-        xs: ['12px', { lineHeight: '18px' }],
-        sm: ['13px', { lineHeight: '20px' }],
-        base: ['14px', { lineHeight: '22px' }],
-        lg: ['16px', { lineHeight: '24px' }],
-        xl: ['18px', { lineHeight: '26px' }],
-        '2xl': ['22px', { lineHeight: '30px' }],
-        '3xl': ['28px', { lineHeight: '36px' }],
+        // 15px body. The old scale bottomed out at 11px for chips and 13px for
+        // navigation, which is below what anyone should be asked to read on a
+        // laptop at arm's length.
+        '2xs': ['12px', { lineHeight: '16px' }],
+        xs: ['13px', { lineHeight: '18px' }],
+        sm: ['14px', { lineHeight: '20px' }],
+        base: ['15px', { lineHeight: '24px' }],
+        lg: ['17px', { lineHeight: '26px' }],
+        xl: ['20px', { lineHeight: '28px' }],
+        '2xl': ['24px', { lineHeight: '32px' }],
+        '3xl': ['30px', { lineHeight: '38px' }],
+        '4xl': ['40px', { lineHeight: '46px', letterSpacing: '-0.01em' }],
+        '5xl': ['56px', { lineHeight: '58px', letterSpacing: '-0.02em' }],
+        '6xl': ['72px', { lineHeight: '72px', letterSpacing: '-0.02em' }],
+      },
+
+      maxWidth: {
+        // The app shell. 1400px left ~260px of dead margin each side at 1920
+        // while the gutter inside was only 16px - cramped and empty at once.
+        shell: '1600px',
+        // Anything the eye reads as prose stays inside a comfortable measure,
+        // regardless of how wide the shell gets.
+        prose: '68ch',
       },
 
       borderRadius: {
-        DEFAULT: '4px',
-        md: '4px',
-        lg: '6px',
-        xl: '8px',
-        '2xl': '8px', // deliberately capped - nothing in this UI is pill-shaped
-        pill: '9999px', // except status chips
+        // Sharp. Depth comes from a border and a level change, not from
+        // rounding everything into a pill.
+        DEFAULT: '6px',
+        md: '6px',
+        lg: '8px',
+        xl: '12px',
+        '2xl': '16px',
+        pill: '9999px', // status chips and avatars only
       },
 
       boxShadow: {
-        // Shadows are for things that float above the page, not for depth on
-        // every card. Cards use a border.
-        card: '0 1px 2px rgba(31, 41, 51, 0.04)',
-        dropdown: '0 4px 12px rgba(31, 41, 51, 0.12)',
-        modal: '0 12px 32px rgba(31, 41, 51, 0.18)',
+        // On a near-black canvas a drop shadow is nearly invisible, so lift
+        // comes from the border. These are only for things that truly float.
+        dropdown: '0 8px 24px rgba(0, 0, 0, 0.45)',
+        modal: '0 24px 64px rgba(0, 0, 0, 0.55)',
+        // A violet glow reserved for the primary action and the live avatar.
+        glow: '0 0 0 1px rgb(var(--primary-500) / 0.25), 0 8px 32px rgb(var(--primary-600) / 0.25)',
       },
 
       keyframes: {
         'fade-in': { '0%': { opacity: 0 }, '100%': { opacity: 1 } },
+        'rise-in': {
+          '0%': { opacity: 0, transform: 'translateY(4px)' },
+          '100%': { opacity: 1, transform: 'translateY(0)' },
+        },
         shimmer: { '100%': { transform: 'translateX(100%)' } },
       },
       animation: {
         'fade-in': 'fade-in 0.15s ease-out',
+        'rise-in': 'rise-in 0.2s ease-out',
         shimmer: 'shimmer 1.4s infinite',
       },
     },

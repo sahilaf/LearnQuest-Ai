@@ -76,46 +76,46 @@ export default function Achievements() {
       {/* Summary Stats Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="flex items-center gap-3 p-4">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 text-xl">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-medium-bg text-medium-fg text-xl">
             🏆
           </span>
           <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Badges</div>
-            <div className="text-xl font-bold text-slate-900 dark:text-slate-100">{totalBadges}</div>
+            <div className="text-xs font-medium text-muted">Total Badges</div>
+            <div className="text-xl font-bold text-ink">{totalBadges}</div>
           </div>
         </Card>
 
         <Card className="flex items-center gap-3 p-4">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 text-xl">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-easy-bg text-easy-fg text-xl">
             ✓
           </span>
           <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Badges Earned</div>
-            <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+            <div className="text-xs font-medium text-muted">Badges Earned</div>
+            <div className="text-xl font-bold text-easy-fg">
               {totalEarned} / {totalBadges}
             </div>
           </div>
         </Card>
 
         <Card className="flex items-center gap-3 p-4">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-600 dark:bg-primary-950/60 dark:text-primary-400 text-xl">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-600 text-xl">
             ⚡
           </span>
           <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Bonus XP Earned</div>
-            <div className="text-xl font-bold text-primary-600 dark:text-primary-400">
+            <div className="text-xs font-medium text-muted">Bonus XP Earned</div>
+            <div className="text-xl font-bold text-primary-600">
               +{totalXpEarned} XP
             </div>
           </div>
         </Card>
 
         <Card className="flex items-center gap-3 p-4">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 text-xl">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-500/15 text-primary-300 text-xl">
             🔒
           </span>
           <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Remaining to Unlock</div>
-            <div className="text-xl font-bold text-slate-900 dark:text-slate-100">
+            <div className="text-xs font-medium text-muted">Remaining to Unlock</div>
+            <div className="text-xl font-bold text-ink">
               {lockedBadges.length}
             </div>
           </div>
@@ -123,14 +123,14 @@ export default function Achievements() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-line pb-2 dark:border-[#242B35]">
+      <div className="flex items-center gap-2 border-b border-line pb-2">
         <button
           type="button"
           onClick={() => setFilter('all')}
           className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${
             filter === 'all'
               ? 'bg-primary-600 text-white'
-              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#1C222B]'
+              : 'text-body hover:bg-raised'
           }`}
         >
           All Badges ({allBadges.length})
@@ -141,8 +141,8 @@ export default function Achievements() {
           onClick={() => setFilter('earned')}
           className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${
             filter === 'earned'
-              ? 'bg-emerald-600 text-white'
-              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#1C222B]'
+              ? 'bg-easy text-white'
+              : 'text-body hover:bg-raised'
           }`}
         >
           Earned ({earnedBadges.length})
@@ -153,8 +153,8 @@ export default function Achievements() {
           onClick={() => setFilter('locked')}
           className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${
             filter === 'locked'
-              ? 'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900'
-              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#1C222B]'
+              ? 'bg-raised text-white'
+              : 'text-body hover:bg-raised'
           }`}
         >
           Locked ({lockedBadges.length})
@@ -198,8 +198,8 @@ export default function Achievements() {
                 <Card
                   className={`relative flex flex-col justify-between overflow-hidden p-5 transition-all ${
                     isEarned
-                      ? 'border-amber-200/60 bg-gradient-to-b from-white to-amber-50/20 shadow-sm dark:border-amber-500/20 dark:from-[#171C23] dark:to-amber-950/10'
-                      : 'border-slate-200/70 bg-slate-50/50 opacity-90 dark:border-[#242B35] dark:bg-[#171C23]/60'
+                      ? 'border-medium/30 bg-gradient-to-b from-surface to-medium shadow-sm'
+                      : 'border-line/70 bg-raised/50 opacity-90'
                   }`}
                 >
                   {/* Top Row: Icon + Status Pill */}
@@ -207,20 +207,20 @@ export default function Achievements() {
                     <div
                       className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl shadow-sm transition-transform ${
                         isEarned
-                          ? 'bg-gradient-to-tr from-amber-300 to-amber-500 shadow-amber-500/20'
-                          : 'bg-slate-200 text-slate-400 grayscale dark:bg-[#242B35] dark:text-slate-500'
+                          ? 'bg-gradient-to-tr from-medium to-medium shadow-amber-500/20'
+                          : 'bg-line text-muted grayscale'
                       }`}
                     >
                       {badge.icon || <Award className="h-7 w-7" />}
                     </div>
 
                     {isEarned ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-easy-bg px-2.5 py-0.5 text-xs font-semibold text-easy-fg">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         Earned
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-[#242B35] dark:text-slate-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-line/80 px-2.5 py-0.5 text-xs font-semibold text-body">
                         <Lock className="h-3 w-3" />
                         Locked
                       </span>
@@ -229,28 +229,28 @@ export default function Achievements() {
 
                   {/* Middle Content */}
                   <div className="mt-4">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    <h3 className="text-base font-bold text-ink">
                       {badge.name}
                     </h3>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                    <p className="mt-1 text-xs text-body">
                       {badge.description}
                     </p>
                   </div>
 
                   {/* Bottom: Progress or Earned Date */}
-                  <div className="mt-5 border-t border-line/60 pt-3.5 dark:border-[#242B35]">
+                  <div className="mt-5 border-t border-line/60 pt-3.5">
                     {isEarned ? (
-                      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center justify-between text-xs text-muted">
                         <span>Earned on {formatEarnedDate(badge.earned_at)}</span>
                         {badge.xp_reward > 0 && (
-                          <span className="font-semibold text-amber-600 dark:text-amber-400">
+                          <span className="font-semibold text-medium-fg">
                             +{badge.xp_reward} XP
                           </span>
                         )}
                       </div>
                     ) : (
                       <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-2xs font-medium text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center justify-between text-2xs font-medium text-muted">
                           <span>
                             Progress: {progress.current ?? 0} / {progress.target ?? 1} {progress.unit || ''}
                           </span>

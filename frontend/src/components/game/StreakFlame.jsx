@@ -28,8 +28,8 @@ export function StreakFlame({
       <div
         className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-all ${
           hasStreak
-            ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/50'
-            : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-[#1C222B] dark:text-slate-400'
+            ? 'bg-medium-bg text-medium-fg hover:bg-medium-bg'
+            : 'bg-raised text-muted hover:bg-line'
         } ${className}`}
         title={`Streak: ${current} ${current === 1 ? 'day' : 'days'} • Longest: ${longest} days`}
       >
@@ -40,7 +40,7 @@ export function StreakFlame({
         >
           <Flame
             className={`h-4 w-4 ${
-              hasStreak ? 'fill-amber-500 text-amber-500 dark:fill-amber-400 dark:text-amber-400' : 'text-slate-400'
+              hasStreak ? 'fill-amber-500 text-medium-fg' : 'text-muted'
             }`}
           />
         </motion.span>
@@ -55,21 +55,21 @@ export function StreakFlame({
         whileHover={{ scale: 1.05 }}
         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
           hasStreak
-            ? 'bg-gradient-to-br from-amber-100 to-orange-100 text-amber-600 shadow-sm dark:from-amber-950/70 dark:to-orange-950/50 dark:text-amber-400'
-            : 'bg-slate-100 text-slate-400 dark:bg-[#242B35] dark:text-slate-500'
+            ? 'bg-gradient-to-br from-medium to-medium text-medium-fg shadow-sm'
+            : 'bg-raised text-muted'
         }`}
       >
-        <Flame className={`h-6 w-6 ${hasStreak ? 'fill-amber-500 text-amber-500 animate-pulse' : ''}`} />
+        <Flame className={`h-6 w-6 ${hasStreak ? 'fill-amber-500 text-medium-fg animate-pulse' : ''}`} />
       </motion.div>
 
       <div className="min-w-0">
-        <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Day Streak</div>
+        <div className="text-xs font-medium text-muted">Day Streak</div>
         <div className="flex items-baseline gap-1.5">
-          <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
+          <span className="text-lg font-bold text-ink">
             {current} {current === 1 ? 'day' : 'days'}
           </span>
           {longest > current && (
-            <span className="text-2xs text-slate-400 dark:text-slate-500">
+            <span className="text-2xs text-muted">
               (Best: {longest})
             </span>
           )}

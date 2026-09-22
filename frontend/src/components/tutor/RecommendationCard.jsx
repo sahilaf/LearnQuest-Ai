@@ -13,7 +13,7 @@ export default function RecommendationCard({ kind, title, reason, onOpen, onDism
         <h4 className="font-medium">{title}</h4>
         <Badge tone="primary">{kind}</Badge>
       </div>
-      <p className="text-sm text-slate-500">{reason}</p>
+      <p className="text-sm text-muted">{reason}</p>
       <div className="mt-2 flex gap-2">
         <Button size="sm" onClick={onOpen}>
           Start

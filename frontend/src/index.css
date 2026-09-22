@@ -3,21 +3,109 @@
 @tailwind utilities;
 
 /*
- * LearnQuest design system - professional / information-dense (HackerRank-style).
+ * LearnQuest design system - dark-first, editorial, information-dense.
  * SHARED FILE - change by agreement (plan.md 2.4).
  * Rules and rationale: docs/DESIGN_GUIDELINES.md
+ *
+ * Every colour lives here as space-separated RGB channels so Tailwind can apply
+ * opacity to it (`bg-easy/15`). Dark is the default on :root; `.light` opts out.
+ * Nothing in a component should ever contain a raw hex.
  */
 
 @layer base {
+  :root {
+    /* --- neutral ramp -------------------------------------------------- *
+     * Three surface levels and no more: canvas (page), surface (panel),
+     * raised (panel on a panel). A fourth level is always someone avoiding
+     * a layout decision. */
+    --canvas: 10 12 16; /* #0A0C10 */
+    --surface: 19 22 28; /* #13161C */
+    --raised: 26 30 38; /* #1A1E26 */
+    --line: 34 39 48; /* #222730 - hairline, barely there by design */
+    --line-strong: 52 59 71; /* #343B47 - inputs and real dividers */
+
+    /* Text. `body` against `canvas` measures 11.4:1, well past AA. */
+    --ink: 244 246 249; /* #F4F6F9 headings */
+    --body: 193 200 211; /* #C1C8D3 body copy */
+    --muted: 141 150 164; /* #8D96A4 secondary - 6.3:1, passes AA */
+    --faint: 110 119 133; /* #6E7785 placeholders only, never body text */
+
+    /* --- brand ---------------------------------------------------------- *
+     * Violet. 600 carries white text at 5.9:1; 400 is the on-dark text tint. */
+    --primary-50: 245 243 255;
+    --primary-100: 237 233 254;
+    --primary-200: 221 214 254;
+    --primary-300: 196 181 253;
+    --primary-400: 167 139 250; /* links and active labels on dark */
+    --primary-500: 139 92 246; /* hover on a filled action */
+    --primary-600: 124 58 237; /* the primary action */
+    --primary-700: 109 40 217;
+    --primary-800: 91 33 182;
+    --primary-900: 76 29 149;
+
+    /* --- status --------------------------------------------------------- *
+     * Tuned for a dark canvas: the light-theme greens and reds go muddy here,
+     * so each has a brighter foreground and a deep, low-chroma backing. */
+    --easy: 47 210 122;
+    --easy-bg: 16 40 28;
+    --easy-fg: 74 222 128;
+
+    --medium: 255 182 39;
+    --medium-bg: 46 34 10;
+    --medium-fg: 251 191 36;
+
+    --hard: 255 92 108;
+    --hard-bg: 48 20 26;
+    --hard-fg: 248 113 113;
+
+    --info: 77 156 255;
+    --info-bg: 14 32 56;
+    --info-fg: 96 165 250;
+
+    color-scheme: dark;
+  }
+
+  /* Opt back into light. Kept because printed handouts and the report
+     screenshots need it; the product itself ships dark. */
+  .light {
+    --canvas: 245 247 250;
+    --surface: 255 255 255;
+    --raised: 255 255 255;
+    --line: 228 231 235;
+    --line-strong: 203 210 217;
+
+    --ink: 31 41 51;
+    --body: 57 66 78;
+    --muted: 107 120 133;
+    --faint: 154 165 177;
+
+    --easy: 0 175 84;
+    --easy-bg: 232 248 239;
+    --easy-fg: 0 113 58;
+
+    --medium: 255 179 0;
+    --medium-bg: 255 246 224;
+    --medium-fg: 138 97 0;
+
+    --hard: 229 56 75;
+    --hard-bg: 253 236 238;
+    --hard-fg: 163 29 44;
+
+    --info: 45 127 249;
+    --info-bg: 234 242 254;
+    --info-fg: 26 91 184;
+
+    color-scheme: light;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
   }
 
   body {
     @apply bg-canvas text-body antialiased;
-    @apply dark:bg-[#12161C] dark:text-[#C6CDD6];
-    font-size: 14px;
-    line-height: 22px;
+    font-size: 15px;
+    line-height: 24px;
   }
 
   /* Headings are a size and colour change, not a weight explosion. */
@@ -25,7 +113,7 @@
   h2,
   h3,
   h4 {
-    @apply font-semibold text-ink dark:text-white;
+    @apply font-semibold text-ink;
   }
 
   /* Dense UIs live or die on table legibility. */
@@ -34,79 +122,120 @@
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-primary-500/50 ring-offset-1;
-    @apply dark:ring-offset-[#12161C];
+    @apply outline-none ring-2 ring-primary-500/60 ring-offset-2;
+    --tw-ring-offset-color: rgb(var(--canvas));
+  }
+
+  ::selection {
+    @apply bg-primary-500/30 text-ink;
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: theme('colors.line-strong') transparent;
+    scrollbar-color: rgb(var(--line-strong)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(var(--line-strong));
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
   }
 }
 
 @layer components {
   /* ------------------------------------------------------------------ *
+   * Shell. One width, one gutter, used by every page. The gutter grows
+   * with the viewport so wide screens read as composed rather than as a
+   * narrow column stranded in empty space.
+   * ------------------------------------------------------------------ */
+  .shell {
+    @apply mx-auto w-full max-w-shell px-5 sm:px-8 lg:px-10;
+  }
+
+  /* ------------------------------------------------------------------ *
    * Surfaces: a 1px hairline border, no drop shadow.
    * ------------------------------------------------------------------ */
   .card {
     @apply rounded-lg border border-line bg-surface;
-    @apply dark:border-[#242B35] dark:bg-[#171C23];
+  }
+
+  /* A panel with a title strip, the way a tool window is framed. Used for
+     the avatar stage and anything that should read as an instrument. */
+  .panel {
+    @apply overflow-hidden rounded-lg border border-line bg-surface;
+  }
+  .panel-head {
+    @apply flex items-center justify-between gap-3 border-b border-line bg-raised px-4 py-2.5;
   }
 
   /* Rows in a list/table that can be clicked. */
   .row-interactive {
-    @apply transition-colors hover:bg-canvas dark:hover:bg-[#1C222B];
+    @apply transition-colors hover:bg-raised;
   }
 
   /* ------------------------------------------------------------------ *
-   * Inputs: compact, 1px border, clear focus.
+   * Inputs. 40px tall to match the primary button - a form where the
+   * field is shorter than the button next to it always looks broken.
    * ------------------------------------------------------------------ */
   .field {
-    @apply w-full rounded border border-line-strong bg-surface px-3 py-2 text-base text-body;
+    @apply h-10 w-full rounded border border-line-strong bg-canvas px-3.5 text-base text-ink;
     @apply placeholder:text-faint transition-colors;
     @apply hover:border-muted;
-    @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/25;
-    @apply dark:border-[#2D3643] dark:bg-[#171C23] dark:text-[#C6CDD6] dark:placeholder:text-[#5C6675];
+    @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
+  }
+  /* Multi-line inputs set their own height. */
+  textarea.field {
+    @apply h-auto py-2.5 leading-relaxed;
   }
 
   /* ------------------------------------------------------------------ *
    * Status chip. The ONE pill-shaped thing in the system.
    * ------------------------------------------------------------------ */
   .chip {
-    @apply inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-2xs font-semibold;
+    @apply inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-2xs font-semibold;
   }
 
-  /* Difficulty labels read as text, coloured - never as heavy solid blocks. */
   .chip-easy {
-    @apply bg-easy-bg text-easy-fg dark:bg-easy/15 dark:text-easy;
+    @apply bg-easy-bg text-easy-fg;
   }
   .chip-medium {
-    @apply bg-medium-bg text-medium-fg dark:bg-medium/15 dark:text-medium;
+    @apply bg-medium-bg text-medium-fg;
   }
   .chip-hard {
-    @apply bg-hard-bg text-hard-fg dark:bg-hard/15 dark:text-hard;
+    @apply bg-hard-bg text-hard-fg;
   }
 
-  /* Small uppercase label above a section or beside a stat. */
+  /* ------------------------------------------------------------------ *
+   * Micro-label. Monospaced and letter-spaced, used above a section or
+   * beside a stat. The mono face is what makes these read as instrument
+   * labels rather than as shrunken headings.
+   * ------------------------------------------------------------------ */
   .label {
-    @apply text-2xs font-semibold uppercase tracking-wide text-muted;
+    @apply font-mono text-2xs font-medium uppercase tracking-[0.12em] text-muted;
   }
 
-  /* Data tables - the backbone of the courses/practice screens. */
+  /* Editorial page title. */
+  .display {
+    @apply font-display font-normal tracking-tight text-ink;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Data tables - the backbone of the courses/practice screens.
+   * ------------------------------------------------------------------ */
   .table-dense {
-    @apply w-full border-collapse text-sm;
+    @apply w-full border-collapse text-base;
   }
   .table-dense th {
-    @apply border-b border-line px-4 py-2.5 text-left;
+    @apply border-b border-line px-4 py-3 text-left;
   }
   .table-dense td {
-    @apply border-b border-line px-4 py-3 align-middle;
+    @apply border-b border-line px-4 py-3.5 align-middle;
   }
   .table-dense tbody tr:last-child td {
     @apply border-b-0;
-  }
-  .dark .table-dense th,
-  .dark .table-dense td {
-    @apply border-[#242B35];
   }
 }

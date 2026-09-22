@@ -149,43 +149,14 @@ export default function CourseDetail() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[350px] items-center justify-center">
-        <Spinner size="lg" label="Loading course details..." />
-      </div>
-    );
-  }
-
-  if (error || !course) {
-    return (
-      <div className="py-6">
-        <Link
-          to="/courses"
-          className="mb-6 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-        >
-          ← Back to Courses
-        </Link>
-        <EmptyState
-          title="Course Not Found"
-          description={error || "We couldn't locate the course you requested."}
-          action={
-            <div className="flex gap-3">
-              <Button variant="secondary" size="sm" onClick={() => navigate('/courses')}>
-                Browse Courses
-              </Button>
-              <Button variant="primary" size="sm" onClick={loadData}>
-                Try Again
-              </Button>
-            </div>
-          }
-        />
-      </div>
-    );
-  }
-
+  // --- Derived data -------------------------------------------------------
+  // These must sit ABOVE the early returns below. React requires the same
+  // hooks in the same order on every render; when they lived after the
+  // `if (loading)` return, the first pass ran 10 hooks and the second ran 15,
+  // and React threw "Rendered more hooks than during the previous render",
+  // unmounting the tree and leaving a blank page.
   const lessons = useMemo(
-    () => [...(course.lessons || [])].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)),
+    () => [...(course?.lessons || [])].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)),
     [course?.lessons]
   );
 
@@ -198,12 +169,6 @@ export default function CourseDetail() {
     () => new Set(courseProgress?.in_progress_lesson_ids || []),
     [courseProgress?.in_progress_lesson_ids]
   );
-
-  const nextLessonId = courseProgress?.next_lesson_id || lessons[0]?.id;
-  const nextLesson = lessons.find((l) => l.id === nextLessonId) || lessons[0];
-  const completionPercentage = courseProgress?.completion_percentage ?? 0;
-  const completedCount = courseProgress?.completed_lessons ?? 0;
-  const isAllCompleted = lessons.length > 0 && completedCount >= lessons.length;
 
   // Skills matrix: aggregate unique topic tags and the lessons that teach them
   const skillsMatrix = useMemo(() => {
@@ -225,6 +190,47 @@ export default function CourseDetail() {
   // Quizzes list across track
   const quizzesList = useMemo(() => lessons.filter((l) => Boolean(l.quiz_id)), [lessons]);
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[350px] items-center justify-center">
+        <Spinner size="lg" label="Loading course details..." />
+      </div>
+    );
+  }
+
+  if (error || !course) {
+    return (
+      <div className="py-6">
+        <Link
+          to="/courses"
+          className="mb-6 inline-flex items-center text-sm font-medium text-muted hover:text-ink"
+        >
+          ← Back to Courses
+        </Link>
+        <EmptyState
+          title="Course Not Found"
+          description={error || "We couldn't locate the course you requested."}
+          action={
+            <div className="flex gap-3">
+              <Button variant="secondary" size="sm" onClick={() => navigate('/courses')}>
+                Browse Courses
+              </Button>
+              <Button variant="primary" size="sm" onClick={loadData}>
+                Try Again
+              </Button>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
+
+  const nextLessonId = courseProgress?.next_lesson_id || lessons[0]?.id;
+  const nextLesson = lessons.find((l) => l.id === nextLessonId) || lessons[0];
+  const completionPercentage = courseProgress?.completion_percentage ?? 0;
+  const completedCount = courseProgress?.completed_lessons ?? 0;
+  const isAllCompleted = lessons.length > 0 && completedCount >= lessons.length;
+
   const tabsConfig = [
     { id: 'curriculum', label: 'Track Curriculum', badge: lessons.length },
     { id: 'skills', label: 'Skills & Concepts', badge: skillsMatrix.length },
@@ -237,14 +243,14 @@ export default function CourseDetail() {
       <div>
         <Link
           to="/courses"
-          className="inline-flex items-center text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+          className="inline-flex items-center text-sm font-medium text-muted transition-colors hover:text-ink"
         >
           ← Back to Tracks & Courses
         </Link>
       </div>
 
       {/* Course Hero Banner */}
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 sm:p-8">
+      <div className="rounded-lg border border-line bg-surface p-6 shadow-sm sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl space-y-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -259,30 +265,30 @@ export default function CourseDetail() {
               )}
             </div>
 
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">
+            <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
               {course.title}
             </h1>
 
-            <p className="text-base text-slate-600 dark:text-slate-300 sm:text-lg">
+            <p className="text-base text-body sm:text-lg">
               {course.description || 'No description provided for this course.'}
             </p>
 
             {/* Metadata Badges */}
-            <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted">
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-line-strong" />
                 <span>{course.estimated_hours ? `${course.estimated_hours} Hours` : 'Self-paced'}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-line-strong" />
                 <span>{lessons.length} {lessons.length === 1 ? 'Module' : 'Modules'}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-line-strong" />
                 <span>{skillsMatrix.length} Core Skills</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-line-strong" />
                 <span>{quizzesList.length} Practice Quizzes</span>
               </div>
             </div>
@@ -290,7 +296,7 @@ export default function CourseDetail() {
             {/* Progress Bar (if enrolled) */}
             {isEnrolled && lessons.length > 0 && (
               <div className="space-y-1.5 pt-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
+                <div className="flex items-center justify-between text-xs font-semibold text-body">
                   <span>Track Progress</span>
                   <span>
                     {completedCount} of {lessons.length} completed ({completionPercentage}%)
@@ -305,8 +311,8 @@ export default function CourseDetail() {
           </div>
 
           {/* Action / Next Step Box */}
-          <div className="flex w-full flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-800/40 lg:w-80 lg:shrink-0">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          <div className="flex w-full flex-col gap-3 rounded-xl border border-line bg-raised/80 p-5 lg:w-80 lg:shrink-0">
+            <h3 className="text-sm font-semibold text-ink">
               {isEnrolled ? 'Next Action' : 'Start This Track'}
             </h3>
 
@@ -314,7 +320,7 @@ export default function CourseDetail() {
               <div className="space-y-3">
                 {isAllCompleted ? (
                   <div className="space-y-3">
-                    <div className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                    <div className="rounded-lg bg-easy-bg px-3 py-2 text-xs font-medium text-easy-fg">
                       🎉 Track 100% Completed! Great work mastering this topic.
                     </div>
                     {lessons[0]?.id && (
@@ -327,7 +333,7 @@ export default function CourseDetail() {
                   </div>
                 ) : nextLesson ? (
                   <div className="space-y-3">
-                    <div className="rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary-800 dark:bg-primary-950/50 dark:text-primary-300">
+                    <div className="rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary-800">
                       <span className="font-semibold">Next up:</span> {nextLesson.title}
                     </div>
                     <Link to={`/lessons/${nextLesson.id}`} className="block w-full">
@@ -359,20 +365,20 @@ export default function CourseDetail() {
                     </Button>
                   </Link>
                 )}
-                <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-center text-xs text-muted">
                   Instant free access • Hands-on practice
                 </p>
               </div>
             )}
 
             {enrollSuccess && (
-              <div className="animate-fade-in rounded-lg bg-emerald-50 p-2.5 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <div className="animate-fade-in rounded-lg bg-easy-bg p-2.5 text-xs text-easy-fg">
                 🎉 Successfully enrolled! You can now start learning below.
               </div>
             )}
 
             {enrollError && (
-              <div className="animate-fade-in rounded-lg bg-rose-50 p-2.5 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+              <div className="animate-fade-in rounded-lg bg-hard-bg p-2.5 text-xs text-hard-fg">
                 {enrollError}
               </div>
             )}
@@ -394,14 +400,14 @@ export default function CourseDetail() {
           <div className="space-y-4">
             <div className="flex items-end justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                <h2 className="text-lg font-bold text-ink">
                   Track Modules & Lessons
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-muted">
                   Follow the structured learning path, read notes, and complete practice challenges.
                 </p>
               </div>
-              <span className="text-xs font-medium text-slate-500">
+              <span className="text-xs font-medium text-muted">
                 {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'}
               </span>
             </div>
@@ -426,8 +432,8 @@ export default function CourseDetail() {
                       key={lesson.id}
                       className={`flex flex-col gap-4 transition-all ${
                         isCurrent
-                          ? 'border-primary-400 bg-primary-50/20 dark:border-primary-600/60 dark:bg-primary-950/10'
-                          : 'hover:border-slate-300 dark:hover:border-slate-700'
+                          ? 'border-primary-400 bg-primary-50/20'
+                          : 'hover:border-line-strong'
                       }`}
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -435,10 +441,10 @@ export default function CourseDetail() {
                           <span
                             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold ${
                               isCompleted
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                ? 'bg-easy-bg text-easy-fg'
                                 : isCurrent
                                 ? 'bg-primary-600 text-white'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                : 'bg-raised text-body'
                             }`}
                           >
                             {isCompleted ? '✓' : lessonNumber}
@@ -448,7 +454,7 @@ export default function CourseDetail() {
                             <div className="flex flex-wrap items-center gap-2">
                               <Link
                                 to={`/lessons/${lesson.id}`}
-                                className="font-semibold text-slate-900 hover:text-primary-600 dark:text-slate-100 dark:hover:text-primary-400"
+                                className="font-semibold text-ink hover:text-primary-600"
                               >
                                 {lesson.title}
                               </Link>
@@ -469,7 +475,7 @@ export default function CourseDetail() {
                               )}
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                               <span>
                                 {lesson.estimated_minutes
                                   ? `~${lesson.estimated_minutes} min`
@@ -500,7 +506,7 @@ export default function CourseDetail() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="text-xs text-slate-600 dark:text-slate-300"
+                              className="text-xs text-body"
                               onClick={() =>
                                 setExpandedLessonId((prev) =>
                                   prev === lesson.id ? null : lesson.id
@@ -530,9 +536,9 @@ export default function CourseDetail() {
 
                       {/* Expandable Lesson Material & Notes */}
                       {expandedLessonId === lesson.id && lesson.content_md && (
-                        <div className="mt-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+                        <div className="mt-3 border-t border-line pt-4">
                           <div className="mb-3 flex items-center justify-between">
-                            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">
                               Lesson Materials & Reading Notes
                             </h4>
                             <Link to={`/lessons/${lesson.id}`}>
@@ -559,7 +565,7 @@ export default function CourseDetail() {
                             </div>
                           )}
 
-                          <div className="prose prose-sm max-w-none rounded-lg bg-slate-50 p-4 text-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                          <div className="prose prose-sm max-w-none rounded-lg bg-raised p-4 text-ink">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                               {lesson.content_md}
                             </ReactMarkdown>
@@ -578,10 +584,10 @@ export default function CourseDetail() {
         {activeTab === 'skills' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <h2 className="text-lg font-bold text-ink">
                 Skills & Concepts Matrix
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-muted">
                 Concepts covered in this track and the lessons that teach them.
               </p>
             </div>
@@ -596,19 +602,19 @@ export default function CourseDetail() {
                 {skillsMatrix.map(({ tag, lessons: tagLessons }) => (
                   <Card key={tag} className="space-y-2 p-4">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-semibold text-primary-700 dark:text-primary-300">
+                      <span className="font-mono text-xs font-semibold text-primary-700">
                         {tag}
                       </span>
                       <Badge tone="default" className="text-[10px]">
                         {tagLessons.length} {tagLessons.length === 1 ? 'lesson' : 'lessons'}
                       </Badge>
                     </div>
-                    <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <div className="space-y-1 pt-1 border-t border-line">
                       {tagLessons.map((l) => (
                         <Link
                           key={l.id}
                           to={`/lessons/${l.id}`}
-                          className="block truncate text-xs text-slate-600 hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
+                          className="block truncate text-xs text-body hover:text-primary-600"
                         >
                           • {l.title}
                         </Link>
@@ -625,10 +631,10 @@ export default function CourseDetail() {
         {activeTab === 'quizzes' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <h2 className="text-lg font-bold text-ink">
                 Practice Problems & Quizzes
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-muted">
                 Test your mastery with AI-evaluated practice problems and diagnostic quizzes.
               </p>
             </div>
@@ -643,18 +649,18 @@ export default function CourseDetail() {
                 {quizzesList.map((lesson) => (
                   <Card
                     key={lesson.id}
-                    className="flex flex-col gap-3 transition-all hover:border-slate-300 dark:hover:border-slate-700 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-3 transition-all hover:border-line-strong sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded bg-primary-100 text-xs font-bold text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                        <span className="flex h-6 w-6 items-center justify-center rounded bg-primary-100 text-xs font-bold text-primary-700">
                           Q
                         </span>
-                        <h3 className="font-semibold text-slate-900 dark:text-slate-100">
+                        <h3 className="font-semibold text-ink">
                           {lesson.title} — Practice Quiz
                         </h3>
                       </div>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted">
                         Diagnostic quiz assessing skills in {lesson.topic_tags?.join(', ') || 'this module'}.
                       </p>
                     </div>

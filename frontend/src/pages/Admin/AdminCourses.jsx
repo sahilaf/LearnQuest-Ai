@@ -525,7 +525,7 @@ export default function AdminCourses() {
                           <button
                             type="button"
                             onClick={() => loadCourseDetail(c.id)}
-                            className="text-left font-semibold text-ink hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
+                            className="text-left font-semibold text-ink hover:text-primary-600"
                           >
                             {c.title}
                           </button>
@@ -549,7 +549,7 @@ export default function AdminCourses() {
                         </td>
                         <td className="text-muted">{c.estimated_hours} hrs</td>
                         <td>
-                          <span className="font-medium text-ink dark:text-white">
+                          <span className="font-medium text-ink">
                             {c.lessons_count ?? 0}
                           </span>
                         </td>
@@ -608,7 +608,7 @@ export default function AdminCourses() {
          ========================================================= */}
       {activeCourseId && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between border-b border-line pb-4 dark:border-[#242B35]">
+          <div className="flex items-center justify-between border-b border-line pb-4">
             <button
               type="button"
               onClick={() => {
@@ -616,7 +616,7 @@ export default function AdminCourses() {
                 setActiveCourse(null);
                 fetchCourses();
               }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-ink dark:hover:text-white"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-ink"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Back to all courses
@@ -662,8 +662,8 @@ export default function AdminCourses() {
               {/* Left Column: Course Details Card */}
               <div className="space-y-4 lg:col-span-1">
                 <Card className="p-4">
-                  <div className="flex items-center justify-between border-b border-line pb-3 dark:border-[#242B35]">
-                    <h2 className="text-sm font-semibold text-ink dark:text-white">
+                  <div className="flex items-center justify-between border-b border-line pb-3">
+                    <h2 className="text-sm font-semibold text-ink">
                       Course Metadata
                     </h2>
                     <Badge tone={activeCourse.is_published ? 'easy' : 'neutral'}>
@@ -816,9 +816,9 @@ export default function AdminCourses() {
               {/* Right Column: Lessons List & Manager */}
               <div className="space-y-4 lg:col-span-2">
                 <Card className="p-4">
-                  <div className="flex items-center justify-between border-b border-line pb-3 dark:border-[#242B35]">
+                  <div className="flex items-center justify-between border-b border-line pb-3">
                     <div>
-                      <h2 className="text-sm font-semibold text-ink dark:text-white">
+                      <h2 className="text-sm font-semibold text-ink">
                         Curriculum Lessons ({activeCourse.lessons?.length || 0})
                       </h2>
                       <p className="text-2xs text-muted">
@@ -834,7 +834,7 @@ export default function AdminCourses() {
                   {activeCourse.lessons?.length === 0 ? (
                     <div className="py-8 text-center">
                       <FileText className="mx-auto h-8 w-8 text-faint" />
-                      <p className="mt-2 text-sm font-medium text-ink dark:text-white">
+                      <p className="mt-2 text-sm font-medium text-ink">
                         No lessons added yet
                       </p>
                       <p className="text-xs text-muted">
@@ -855,14 +855,14 @@ export default function AdminCourses() {
                       {activeCourse.lessons?.map((lesson, idx) => (
                         <div
                           key={lesson.id}
-                          className="flex items-center justify-between rounded border border-line bg-surface p-3 transition-colors hover:border-line-strong dark:border-[#242B35] dark:bg-[#171C23]"
+                          className="flex items-center justify-between rounded border border-line bg-surface p-3 transition-colors hover:border-line-strong"
                         >
                           <div className="flex items-start gap-3 min-w-0 flex-1 pr-3">
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-canvas text-2xs font-bold text-muted dark:bg-[#1C222B]">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-canvas text-2xs font-bold text-muted">
                               {lesson.order_index}
                             </span>
                             <div className="min-w-0 flex-1">
-                              <h3 className="truncate text-xs font-semibold text-ink dark:text-white">
+                              <h3 className="truncate text-xs font-semibold text-ink">
                                 {lesson.title}
                               </h3>
                               <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -885,7 +885,7 @@ export default function AdminCourses() {
                               type="button"
                               disabled={idx === 0 || actionLoading}
                               onClick={() => handleMoveLessonOrder(lesson, 'up')}
-                              className="rounded p-1 text-muted hover:bg-canvas hover:text-ink disabled:opacity-30 dark:hover:bg-[#1C222B]"
+                              className="rounded p-1 text-muted hover:bg-canvas hover:text-ink disabled:opacity-30"
                               title="Move up"
                             >
                               <ArrowUp className="h-3.5 w-3.5" />
@@ -894,7 +894,7 @@ export default function AdminCourses() {
                               type="button"
                               disabled={idx === activeCourse.lessons.length - 1 || actionLoading}
                               onClick={() => handleMoveLessonOrder(lesson, 'down')}
-                              className="rounded p-1 text-muted hover:bg-canvas hover:text-ink disabled:opacity-30 dark:hover:bg-[#1C222B]"
+                              className="rounded p-1 text-muted hover:bg-canvas hover:text-ink disabled:opacity-30"
                               title="Move down"
                             >
                               <ArrowDown className="h-3.5 w-3.5" />
@@ -1065,7 +1065,7 @@ export default function AdminCourses() {
               }
               className="rounded border-line text-primary-600 focus:ring-primary-600/20"
             />
-            <span className="text-xs font-medium text-ink dark:text-white">
+            <span className="text-xs font-medium text-ink">
               Publish immediately to student catalog
             </span>
           </label>
@@ -1158,9 +1158,9 @@ export default function AdminCourses() {
           </div>
 
           {/* Topic Tags Picker — REQUIRED by plan.md §3.1 & §8.3 */}
-          <div className="rounded border border-line bg-canvas/60 p-3 dark:border-[#242B35] dark:bg-[#1C222B]/60">
+          <div className="rounded border border-line bg-canvas/60 p-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-ink dark:text-white flex items-center gap-1.5">
+              <label className="text-xs font-semibold text-ink flex items-center gap-1.5">
                 <Tag className="h-3.5 w-3.5 text-primary-600" />
                 Topic Tags (Required for Misconceptions & AI Recs)
               </label>
@@ -1172,7 +1172,7 @@ export default function AdminCourses() {
               {lessonForm.topic_tags.map((t) => (
                 <span
                   key={t}
-                  className="inline-flex items-center gap-1 rounded bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-950 dark:text-primary-300"
+                  className="inline-flex items-center gap-1 rounded bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700"
                 >
                   {t}
                   <button
@@ -1226,7 +1226,7 @@ export default function AdminCourses() {
                   type="button"
                   onClick={() => handleAddTag(sug)}
                   disabled={lessonForm.topic_tags.includes(sug)}
-                  className="rounded border border-line bg-surface px-1.5 py-0.5 text-2xs text-muted hover:border-line-strong hover:text-ink disabled:opacity-40 dark:border-[#242B35] dark:bg-[#171C23]"
+                  className="rounded border border-line bg-surface px-1.5 py-0.5 text-2xs text-muted hover:border-line-strong hover:text-ink disabled:opacity-40"
                 >
                   +{sug}
                 </button>
@@ -1236,14 +1236,14 @@ export default function AdminCourses() {
 
           {/* Markdown Content with Write / Preview Tabs */}
           <div>
-            <div className="flex items-center justify-between border-b border-line pb-2 dark:border-[#242B35]">
+            <div className="flex items-center justify-between border-b border-line pb-2">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setActiveLessonTab('write')}
                   className={`px-3 py-1 text-xs font-semibold rounded ${
                     activeLessonTab === 'write'
-                      ? 'bg-primary-50 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
+                      ? 'bg-primary-50 text-primary-700'
                       : 'text-muted hover:text-ink'
                   }`}
                 >
@@ -1254,7 +1254,7 @@ export default function AdminCourses() {
                   onClick={() => setActiveLessonTab('preview')}
                   className={`px-3 py-1 text-xs font-semibold rounded ${
                     activeLessonTab === 'preview'
-                      ? 'bg-primary-50 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
+                      ? 'bg-primary-50 text-primary-700'
                       : 'text-muted hover:text-ink'
                   }`}
                 >
@@ -1272,7 +1272,7 @@ export default function AdminCourses() {
                         content_md: prev.content_md + '\n\n## Section Title\n',
                       }))
                     }
-                    className="rounded px-1.5 py-0.5 text-2xs text-muted hover:bg-canvas dark:hover:bg-[#1C222B]"
+                    className="rounded px-1.5 py-0.5 text-2xs text-muted hover:bg-canvas"
                   >
                     +H2
                   </button>
@@ -1285,7 +1285,7 @@ export default function AdminCourses() {
                           prev.content_md + '\n\n```sql\nSELECT * FROM table;\n```\n',
                       }))
                     }
-                    className="rounded px-1.5 py-0.5 text-2xs text-muted hover:bg-canvas dark:hover:bg-[#1C222B]"
+                    className="rounded px-1.5 py-0.5 text-2xs text-muted hover:bg-canvas"
                   >
                     +SQL
                   </button>
@@ -1306,8 +1306,8 @@ export default function AdminCourses() {
                   required
                 />
               ) : (
-                <div className="max-h-[380px] min-h-[250px] overflow-y-auto rounded border border-line bg-canvas p-4 text-xs leading-relaxed dark:border-[#242B35] dark:bg-[#1C222B]">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                <div className="max-h-[380px] min-h-[250px] overflow-y-auto rounded border border-line bg-canvas p-4 text-xs leading-relaxed">
+                  <div className="prose prose-sm max-w-none">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {lessonForm.content_md}
                     </ReactMarkdown>

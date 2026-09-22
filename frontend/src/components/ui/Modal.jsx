@@ -36,9 +36,9 @@ export default function Modal({
         aria-label={title}
         className={`card relative z-10 w-full ${SIZES[size] ?? SIZES.md} animate-fade-in p-5 shadow-modal ${className}`}
       >
-        {title && <h2 className="mb-3 border-b border-line pb-3 text-lg font-semibold dark:border-[#242B35]">{title}</h2>}
-        <div className="text-sm text-body dark:text-[#C6CDD6]">{children}</div>
-        {footer && <div className="mt-5 flex justify-end gap-2 border-t border-line pt-4 dark:border-[#242B35]">{footer}</div>}
+        {title && <h2 className="mb-3 border-b border-line pb-3 text-lg font-semibold">{title}</h2>}
+        <div className="text-sm text-body">{children}</div>
+        {footer && <div className="mt-5 flex justify-end gap-2 border-t border-line pt-4">{footer}</div>}
       </div>
     </div>
   );

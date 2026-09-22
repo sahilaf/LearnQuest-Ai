@@ -167,8 +167,8 @@ export default function Dashboard() {
     return (
       <div className="py-8">
         <PageHeader title="Dashboard" subtitle="Track your learning progress and performance." />
-        <Card className="mt-4 border-rose-200 bg-rose-50/50 p-6 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
-          <p className="text-sm font-medium text-rose-800 dark:text-rose-300">{error}</p>
+        <Card className="mt-4 border-hard/30 bg-hard-bg/50 p-6 text-center">
+          <p className="text-sm font-medium text-hard-fg">{error}</p>
           <Button variant="primary" size="sm" onClick={loadDashboardData} className="mt-4">
             Retry
           </Button>
@@ -199,24 +199,24 @@ export default function Dashboard() {
           </Card>
 
           <Card className="flex items-center gap-3 p-3.5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-lg dark:bg-emerald-950/60">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-easy-bg text-lg">
               ⏱️
             </span>
             <div className="min-w-0">
-              <div className="text-xs font-medium text-slate-500">Time Spent</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <div className="text-xs font-medium text-muted">Time Spent</div>
+              <div className="text-lg font-bold text-ink">
                 {formatDuration(stats.total_learning_seconds)}
               </div>
             </div>
           </Card>
 
           <Card className="flex items-center gap-3 p-3.5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-lg dark:bg-blue-950/60">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-info-bg text-lg">
               📚
             </span>
             <div className="min-w-0">
-              <div className="text-xs font-medium text-slate-500">Active Tracks</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <div className="text-xs font-medium text-muted">Active Tracks</div>
+              <div className="text-lg font-bold text-ink">
                 {progressItems.length} {progressItems.length === 1 ? 'track' : 'tracks'}
               </div>
             </div>
@@ -226,21 +226,21 @@ export default function Dashboard() {
 
       {/* 2. Next Action Hero Banner */}
       {nextAction.type === 'resume' && (
-        <Card className="border-primary-200 bg-gradient-to-r from-primary-50/70 to-white p-6 dark:border-primary-900/40 dark:from-primary-950/30 dark:to-slate-900">
+        <Card className="border-primary-200 bg-gradient-to-r from-primary-50/70 to-surface p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1.5 max-w-xl">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center rounded bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
                   NEXT ACTION
                 </span>
-                <span className="text-xs font-medium text-slate-500">
+                <span className="text-xs font-medium text-muted">
                   {nextAction.courseTitle} • {nextAction.percentage}% complete
                 </span>
               </div>
-              <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+              <h2 className="text-xl font-bold tracking-tight text-ink">
                 {nextAction.title}
               </h2>
-              <p className="text-sm text-slate-600 dark:text-slate-300">
+              <p className="text-sm text-body">
                 Continue your learning flow. Read the concept notes and test yourself on practice quizzes.
               </p>
             </div>
@@ -262,13 +262,13 @@ export default function Dashboard() {
       )}
 
       {nextAction.type === 'completed' && (
-        <Card className="border-emerald-200 bg-emerald-50/50 p-6 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+        <Card className="border-easy/30 bg-easy-bg/50 p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-emerald-900 dark:text-emerald-100">
+              <h2 className="text-lg font-bold text-easy-fg">
                 🎉 All Enrolled Tracks Completed!
               </h2>
-              <p className="text-sm text-emerald-800 dark:text-emerald-300">
+              <p className="text-sm text-easy-fg">
                 You have completed all lessons in your active tracks. Expand your skills with another track.
               </p>
             </div>
@@ -283,10 +283,10 @@ export default function Dashboard() {
 
       {nextAction.type === 'empty' && (
         <Card className="p-8 text-center">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+          <h2 className="text-xl font-bold text-ink">
             Welcome to LearnQuest AI
           </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-slate-300">
+          <p className="mx-auto mt-2 max-w-md text-sm text-body">
             You are not enrolled in any tracks yet. Choose a learning track to start reading lessons and taking quizzes.
           </p>
           <div className="mt-5">
@@ -303,16 +303,16 @@ export default function Dashboard() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-lg font-bold text-ink">
               Enrolled Tracks & Progress
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted">
               Track your module completion rate and continue current tracks.
             </p>
           </div>
           <Link
             to="/courses"
-            className="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400"
+            className="text-xs font-semibold text-primary-600 hover:text-primary-700"
           >
             Browse All Tracks →
           </Link>
@@ -340,7 +340,7 @@ export default function Dashboard() {
               return (
                 <Card
                   key={track.course_id}
-                  className="flex flex-col justify-between gap-4 p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                  className="flex flex-col justify-between gap-4 p-5 hover:border-line-strong transition-colors"
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-2">
@@ -353,7 +353,7 @@ export default function Dashboard() {
                             {track.difficulty || 'beginner'}
                           </Badge>
                         </div>
-                        <h3 className="mt-1.5 font-bold text-slate-900 dark:text-slate-100">
+                        <h3 className="mt-1.5 font-bold text-ink">
                           {track.course_title}
                         </h3>
                       </div>
@@ -363,7 +363,7 @@ export default function Dashboard() {
                     </div>
 
                     <div className="space-y-1">
-                      <div className="flex justify-between text-xs text-slate-500">
+                      <div className="flex justify-between text-xs text-muted">
                         <span>Progress</span>
                         <span>
                           {track.completed_lessons} of {track.total_lessons} lessons ({pct}%)
@@ -373,17 +373,17 @@ export default function Dashboard() {
                     </div>
 
                     {track.next_lesson_title && !isDone && (
-                      <div className="rounded bg-slate-50 p-2 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">Up next:</span>{' '}
+                      <div className="rounded bg-raised p-2 text-xs text-body">
+                        <span className="font-semibold text-ink">Up next:</span>{' '}
                         {track.next_lesson_title}
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+                  <div className="flex items-center justify-between border-t border-line pt-3">
                     <Link
                       to={`/courses/${track.course_slug}`}
-                      className="text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                      className="text-xs font-semibold text-muted hover:text-ink"
                     >
                       Track Details
                     </Link>
@@ -414,23 +414,23 @@ export default function Dashboard() {
         <div className="space-y-4 lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <h2 className="text-lg font-bold text-ink">
                 Recent Learning Activity
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted">
                 Your latest completed lessons and practice quiz results.
               </p>
             </div>
             <Link
               to="/history"
-              className="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400"
+              className="text-xs font-semibold text-primary-600 hover:text-primary-700"
             >
               Full History →
             </Link>
           </div>
 
           {historyItems.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-slate-500">
+            <Card className="p-6 text-center text-sm text-muted">
               No recent activity recorded yet. Start reading a lesson to begin your timeline.
             </Card>
           ) : (
@@ -442,14 +442,14 @@ export default function Dashboard() {
                 return (
                   <Card
                     key={`${item.item_type}-${item.id}`}
-                    className="flex flex-col gap-3 p-3.5 transition-colors hover:border-slate-300 dark:hover:border-slate-700 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-3 p-3.5 transition-colors hover:border-line-strong sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex items-start gap-3">
                       <span
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
                           isLesson
-                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                            : 'bg-primary-50 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
+                            ? 'bg-info-bg text-info-fg'
+                            : 'bg-primary-50 text-primary-700'
                         }`}
                       >
                         {isLesson ? '📖' : '⚡'}
@@ -457,7 +457,7 @@ export default function Dashboard() {
 
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          <span className="text-sm font-semibold text-ink">
                             {item.title}
                           </span>
                           {isLesson && (
@@ -478,7 +478,7 @@ export default function Dashboard() {
                           )}
                         </div>
 
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-muted">
                           {item.course_title && <span>{item.course_title} • </span>}
                           {formatDate(item.completed_at)}
                         </div>
@@ -511,24 +511,24 @@ export default function Dashboard() {
         {/* Right Col: Explore Other Tracks */}
         <div className="space-y-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-lg font-bold text-ink">
               Explore Tracks
             </h2>
-            <p className="text-xs text-slate-500">Expand into new computer science subjects.</p>
+            <p className="text-xs text-muted">Expand into new computer science subjects.</p>
           </div>
 
           <div className="space-y-3">
             {availableCourses.slice(0, 3).map((c) => (
               <Card key={c.id} className="space-y-2 p-3.5">
                 <div className="flex items-start justify-between gap-2">
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  <h4 className="text-sm font-bold text-ink">
                     {c.title}
                   </h4>
                   <Badge tone={getDifficultyTone(c.difficulty)} className="text-[10px]">
                     {c.difficulty || 'beginner'}
                   </Badge>
                 </div>
-                <p className="line-clamp-2 text-xs text-slate-500">{c.description}</p>
+                <p className="line-clamp-2 text-xs text-muted">{c.description}</p>
                 <div className="flex justify-end pt-1">
                   <Link to={`/courses/${c.slug}`}>
                     <Button variant="secondary" size="sm" className="text-xs">

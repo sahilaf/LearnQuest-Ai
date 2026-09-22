@@ -1,22 +1,23 @@
 /** Shared UI kit. OWNER: Member 2. Everyone imports these - plan.md 4.5. */
 
-// Status chips: quiet tinted text, never heavy solid blocks. Difficulty tones
-// map 1:1 to the words users read. See docs/DESIGN_GUIDELINES.md.
+// Status chips: tinted text on a deep, low-chroma backing - never heavy solid
+// blocks. Difficulty tones map 1:1 to the words users read.
+// See docs/DESIGN_GUIDELINES.md.
 const TONES = {
-  default: 'bg-canvas text-muted dark:bg-[#1C222B] dark:text-[#8A94A2]',
-  neutral: 'bg-canvas text-muted dark:bg-[#1C222B] dark:text-[#8A94A2]',
-  primary: 'bg-primary-50 text-primary-700 dark:bg-primary-900/25 dark:text-primary-300',
-  info: 'bg-info-bg text-info-fg dark:bg-info/15 dark:text-info',
+  default: 'bg-raised text-muted',
+  neutral: 'bg-raised text-muted',
+  primary: 'bg-primary-500/15 text-primary-300',
+  info: 'bg-info-bg text-info-fg',
 
   // Difficulty & status. `success` is an alias for `easy` - same green,
   // different meaning (passed vs low difficulty). Both are used in the app;
   // collapsing them to one key is what caused the duplicate-key bug.
-  easy: 'bg-easy-bg text-easy-fg dark:bg-easy/15 dark:text-easy',
-  success: 'bg-easy-bg text-easy-fg dark:bg-easy/15 dark:text-easy',
-  medium: 'bg-medium-bg text-medium-fg dark:bg-medium/15 dark:text-medium',
-  warning: 'bg-medium-bg text-medium-fg dark:bg-medium/15 dark:text-medium',
-  hard: 'bg-hard-bg text-hard-fg dark:bg-hard/15 dark:text-hard',
-  danger: 'bg-hard-bg text-hard-fg dark:bg-hard/15 dark:text-hard',
+  easy: 'bg-easy-bg text-easy-fg',
+  success: 'bg-easy-bg text-easy-fg',
+  medium: 'bg-medium-bg text-medium-fg',
+  warning: 'bg-medium-bg text-medium-fg',
+  hard: 'bg-hard-bg text-hard-fg',
+  danger: 'bg-hard-bg text-hard-fg',
 };
 
 export default function Badge({ tone = 'default', children, className = '' }) {

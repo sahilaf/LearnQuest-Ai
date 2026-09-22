@@ -208,11 +208,11 @@ export default function AdminUsers() {
                   <tr key={u.id}>
                     <td>
                       <div className="flex items-center gap-2.5">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-canvas text-2xs font-semibold text-muted dark:bg-[#1C222B]">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-canvas text-2xs font-semibold text-muted">
                           {initialsOf(u.full_name, u.email)}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-semibold text-ink dark:text-white">
+                          <div className="font-semibold text-ink">
                             {u.full_name || 'Anonymous User'}
                           </div>
                           <div className="text-2xs text-muted">{u.email}</div>
@@ -270,7 +270,7 @@ export default function AdminUsers() {
 
         {/* Pagination Bar */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-line px-4 py-3 dark:border-[#242B35]">
+          <div className="flex items-center justify-between border-t border-line px-4 py-3">
             <span className="text-2xs text-muted">
               Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total} users
             </span>

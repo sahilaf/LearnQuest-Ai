@@ -61,7 +61,7 @@ function QuestNode({ node, index, isLast, onComplete, busy }) {
   const ring = {
     completed: 'bg-easy border-easy text-white',
     available: 'bg-primary-600 border-primary-700 text-white',
-    locked: 'bg-line border-line text-faint dark:bg-[#242B35] dark:border-[#242B35]',
+    locked: 'bg-line border-line text-faint',
   }[status];
 
   return (
@@ -82,7 +82,7 @@ function QuestNode({ node, index, isLast, onComplete, busy }) {
         {!isLast && (
           <span
             className={`w-1 flex-1 rounded-pill ${
-              status === 'completed' ? 'bg-easy' : 'bg-line dark:bg-[#242B35]'
+              status === 'completed' ? 'bg-easy' : 'bg-line'
             }`}
           />
         )}
@@ -90,7 +90,7 @@ function QuestNode({ node, index, isLast, onComplete, busy }) {
 
       <Card
         className={`mb-5 flex-1 ${status === 'locked' ? 'opacity-70' : ''} ${
-          status === 'available' ? 'border-primary-300 dark:border-primary-800' : ''
+          status === 'available' ? 'border-primary-300' : ''
         }`}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -103,12 +103,12 @@ function QuestNode({ node, index, isLast, onComplete, busy }) {
 
             <h3 className="text-lg font-semibold leading-snug">{node.title}</h3>
             {node.summary && (
-              <p className="mt-1.5 text-sm font-semibold leading-relaxed text-muted dark:text-[#8A94A2]">
+              <p className="mt-1.5 text-sm font-semibold leading-relaxed text-muted">
                 {node.summary}
               </p>
             )}
 
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-wide text-muted dark:text-[#8A94A2]">
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-wide text-muted">
               <span className="inline-flex items-center gap-1.5">
                 <Zap className="h-4 w-4 text-medium-fg" />
                 {node.xp_reward} XP
@@ -168,7 +168,7 @@ function GoalForm({ onGenerate, generating, error }) {
       </div>
 
       <h2 className="text-2xl font-semibold">What do you want to achieve?</h2>
-      <p className="mt-2 font-semibold leading-relaxed text-muted dark:text-[#8A94A2]">
+      <p className="mt-2 font-semibold leading-relaxed text-muted">
         Describe your goal and Nova will build a personalised quest path from the
         real lessons in the catalogue — ordered around what you already know.
       </p>
@@ -183,7 +183,7 @@ function GoalForm({ onGenerate, generating, error }) {
         <div>
           <label
             htmlFor="goal"
-            className="mb-2 block text-xs font-semibold uppercase tracking-wide text-muted dark:text-[#8A94A2]"
+            className="mb-2 block text-xs font-semibold uppercase tracking-wide text-muted"
           >
             Your goal
           </label>
@@ -203,7 +203,7 @@ function GoalForm({ onGenerate, generating, error }) {
               key={preset}
               type="button"
               onClick={() => setGoal(preset)}
-              className="rounded-pill border-2 border-line px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-800 dark:border-[#242B35] dark:text-[#8A94A2]"
+              className="rounded-pill border-2 border-line px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-800"
             >
               {preset}
             </button>
@@ -213,7 +213,7 @@ function GoalForm({ onGenerate, generating, error }) {
         <div>
           <label
             htmlFor="weeks"
-            className="mb-2 block text-xs font-semibold uppercase tracking-wide text-muted dark:text-[#8A94A2]"
+            className="mb-2 block text-xs font-semibold uppercase tracking-wide text-muted"
           >
             Time available: {weeks} weeks
           </label>
@@ -360,9 +360,9 @@ export default function RoadmapPage() {
             <div>
               <p className="text-2xl font-semibold leading-none">
                 {progress.completed}
-                <span className="text-muted dark:text-[#8A94A2]">/{progress.total}</span>
+                <span className="text-muted">/{progress.total}</span>
               </p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted dark:text-[#8A94A2]">
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted">
                 Quests complete
               </p>
             </div>
@@ -374,7 +374,7 @@ export default function RoadmapPage() {
             </span>
             <div>
               <p className="text-2xl font-semibold leading-none">{progress.xp_earned}</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted dark:text-[#8A94A2]">
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted">
                 of {progress.xp_available} XP
               </p>
             </div>
@@ -423,11 +423,11 @@ export default function RoadmapPage() {
       </ol>
 
       {progress.percent === 100 && (
-        <Card className="mt-2 border-easy bg-easy text-center dark:border-easy dark:bg-easy/20">
-          <h3 className="text-xl font-semibold text-easy dark:text-easy">
+        <Card className="mt-2 border-easy bg-easy text-center">
+          <h3 className="text-xl font-semibold text-easy">
             Path complete — {progress.xp_earned} XP earned
           </h3>
-          <p className="mt-2 font-semibold text-muted dark:text-[#8A94A2]">
+          <p className="mt-2 font-semibold text-muted">
             Set a new goal to keep going.
           </p>
           <div className="mt-5 flex justify-center">

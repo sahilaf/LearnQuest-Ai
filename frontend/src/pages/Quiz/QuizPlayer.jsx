@@ -168,18 +168,18 @@ export default function QuizPlayer() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4 dark:border-[#242B35]">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
         <div>
           <div className="flex items-center gap-2">
             <Link
               to={quiz.lesson_id ? `/lessons/${quiz.lesson_id}` : '/courses'}
-              className="inline-flex items-center gap-1 text-xs text-muted hover:text-body dark:hover:text-white"
+              className="inline-flex items-center gap-1 text-xs text-muted hover:text-body"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               {quiz.lesson_id ? 'Back to Lesson' : 'Back to Courses'}
             </Link>
           </div>
-          <h1 className="mt-1 text-2xl font-semibold text-ink dark:text-white">
+          <h1 className="mt-1 text-2xl font-semibold text-ink">
             {quiz.title || 'Practice Quiz'}
           </h1>
         </div>
@@ -189,7 +189,7 @@ export default function QuizPlayer() {
             {quiz.difficulty ? quiz.difficulty.toUpperCase() : 'PRACTICE'}
           </Badge>
           <span className="text-xs text-muted">
-            Question <span className="font-semibold text-body dark:text-white">{currentIndex + 1}</span> of {totalQuestions}
+            Question <span className="font-semibold text-body">{currentIndex + 1}</span> of {totalQuestions}
           </span>
         </div>
       </div>
@@ -206,7 +206,7 @@ export default function QuizPlayer() {
       </div>
 
       {/* Question Selector Palette (Dense HackerRank Style) */}
-      <div className="flex flex-wrap items-center gap-1.5 rounded border border-line bg-surface p-2.5 dark:border-[#242B35] dark:bg-[#171C23]">
+      <div className="flex flex-wrap items-center gap-1.5 rounded border border-line bg-surface p-2.5">
         <span className="mr-2 text-2xs font-semibold uppercase tracking-wider text-muted">
           Questions:
         </span>
@@ -222,8 +222,8 @@ export default function QuizPlayer() {
                 isCurrent
                   ? 'bg-primary-600 text-white ring-2 ring-primary-500/50'
                   : hasAnswer
-                  ? 'border border-easy bg-easy-bg text-easy-fg dark:bg-easy/15 dark:text-easy'
-                  : 'border border-line bg-canvas text-muted hover:border-line-strong hover:text-body dark:border-[#2D3643] dark:bg-[#1C222B] dark:hover:text-white'
+                  ? 'border border-easy bg-easy-bg text-easy-fg'
+                  : 'border border-line bg-canvas text-muted hover:border-line-strong hover:text-body'
               }`}
             >
               {idx + 1}
@@ -234,7 +234,7 @@ export default function QuizPlayer() {
 
       {/* Main Question Card */}
       <Card className="p-6">
-        <div className="mb-4 flex items-center justify-between gap-4 border-b border-line pb-3 dark:border-[#242B35]">
+        <div className="mb-4 flex items-center justify-between gap-4 border-b border-line pb-3">
           <div className="flex items-center gap-2">
             <span className="label">
               Question {currentIndex + 1}
@@ -257,7 +257,7 @@ export default function QuizPlayer() {
         </div>
 
         {/* Prompt */}
-        <div className="mb-6 text-base font-medium leading-relaxed text-ink dark:text-white">
+        <div className="mb-6 text-base font-medium leading-relaxed text-ink">
           {currentQuestion.prompt}
         </div>
 
@@ -275,15 +275,15 @@ export default function QuizPlayer() {
                     onClick={() => handleSelectAnswer(currentQuestion.id, option)}
                     className={`flex w-full items-start gap-3 rounded border p-3.5 text-left text-sm transition-colors ${
                       selected
-                        ? 'border-primary-600 bg-primary-50 font-medium text-primary-900 ring-1 ring-primary-600 dark:border-primary-500 dark:bg-primary-950/30 dark:text-primary-200'
-                        : 'border-line-strong bg-surface hover:border-muted hover:bg-canvas dark:border-[#2D3643] dark:bg-[#171C23] dark:hover:bg-[#1C222B]'
+                        ? 'border-primary-600 bg-primary-50 font-medium text-primary-900 ring-1 ring-primary-600'
+                        : 'border-line-strong bg-surface hover:border-muted hover:bg-canvas'
                     }`}
                   >
                     <span
                       className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
                         selected
                           ? 'border-primary-600 bg-primary-600 text-white'
-                          : 'border-line-strong text-muted dark:border-[#3E4C5E]'
+                          : 'border-line-strong text-muted'
                       }`}
                     >
                       {String.fromCharCode(65 + optIdx)}
@@ -309,8 +309,8 @@ export default function QuizPlayer() {
                     onClick={() => handleSelectAnswer(currentQuestion.id, choice)}
                     className={`flex items-center justify-center rounded border p-4 text-sm font-semibold transition-colors ${
                       selected
-                        ? 'border-primary-600 bg-primary-50 text-primary-700 ring-1 ring-primary-600 dark:bg-primary-900/30 dark:text-primary-300'
-                        : 'border-line-strong bg-surface hover:border-muted hover:bg-canvas dark:border-[#2D3643] dark:bg-[#171C23]'
+                        ? 'border-primary-600 bg-primary-50 text-primary-700 ring-1 ring-primary-600'
+                        : 'border-line-strong bg-surface hover:border-muted hover:bg-canvas'
                     }`}
                   >
                     {choice}
@@ -335,7 +335,7 @@ export default function QuizPlayer() {
           {/* Short / Free Response */}
           {currentQuestion.type === 'short_answer' && (
             <div className="space-y-1.5">
-              <label className="mb-1 block text-sm font-medium text-body dark:text-[#C6CDD6]">
+              <label className="mb-1 block text-sm font-medium text-body">
                 Your Explanation / Free Response
               </label>
               <textarea
@@ -353,7 +353,7 @@ export default function QuizPlayer() {
         </div>
 
         {/* Navigation Actions within Card */}
-        <div className="mt-8 flex items-center justify-between border-t border-line pt-4 dark:border-[#242B35]">
+        <div className="mt-8 flex items-center justify-between border-t border-line pt-4">
           <Button
             variant="secondary"
             size="md"
@@ -389,7 +389,7 @@ export default function QuizPlayer() {
       </Card>
 
       {/* Bottom Floating Bar */}
-      <div className="flex items-center justify-between rounded-lg border border-line bg-surface px-4 py-3 dark:border-[#242B35] dark:bg-[#171C23]">
+      <div className="flex items-center justify-between rounded-lg border border-line bg-surface px-4 py-3">
         <div className="flex items-center gap-2 text-xs text-muted">
           <HelpCircle className="h-4 w-4 text-primary-600" />
           <span>

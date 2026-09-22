@@ -6,7 +6,7 @@ export default function Spinner({ size = 'md', label = 'Loading' }) {
     <span
       role="status"
       aria-label={label}
-      className={`inline-block animate-spin rounded-full border-line border-t-primary-600 dark:border-[#2D3643] dark:border-t-primary-400 ${sizes[size] ?? sizes.md}`}
+      className={`inline-block animate-spin rounded-full border-line border-t-primary-600 ${sizes[size] ?? sizes.md}`}
     />
   );
 }

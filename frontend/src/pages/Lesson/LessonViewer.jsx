@@ -287,11 +287,11 @@ export default function LessonViewer() {
   return (
     <div className="space-y-6 pb-20">
       {/* Top Breadcrumb & Progress Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4 dark:border-slate-800">
-        <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
+        <div className="flex items-center gap-2 text-sm text-muted">
           <Link
             to="/courses"
-            className="hover:text-slate-900 dark:hover:text-slate-100"
+            className="hover:text-ink"
           >
             Courses
           </Link>
@@ -300,14 +300,14 @@ export default function LessonViewer() {
               <span>/</span>
               <Link
                 to={`/courses/${courseSlug}`}
-                className="hover:text-slate-900 dark:hover:text-slate-100"
+                className="hover:text-ink"
               >
                 {course.title}
               </Link>
             </>
           )}
           <span>/</span>
-          <span className="font-medium text-slate-800 dark:text-slate-200">
+          <span className="font-medium text-ink">
             Lesson {lesson.order_index ?? 1}
           </span>
         </div>
@@ -316,7 +316,7 @@ export default function LessonViewer() {
           {isCompleted ? (
             <Badge tone="easy">✓ Completed</Badge>
           ) : (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-muted">
               <span>{scrollProgress}% read</span>
               <div className="w-24">
                 <ProgressBar value={scrollProgress} max={100} />
@@ -339,13 +339,13 @@ export default function LessonViewer() {
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge tone="primary">Lesson {lesson.order_index ?? 1}</Badge>
               {lesson.estimated_minutes && (
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted">
                   ⏱ {lesson.estimated_minutes} min read
                 </span>
               )}
             </div>
 
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
+            <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
               {lesson.title}
             </h1>
 
@@ -380,7 +380,7 @@ export default function LessonViewer() {
 
           {/* Markdown Content */}
           {lesson.content_md ? (
-            <div className="prose prose-slate max-w-none dark:prose-invert">
+            <div className="prose prose-slate max-w-none">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -389,7 +389,7 @@ export default function LessonViewer() {
                     return (
                       <h1
                         id={hId}
-                        className="mt-8 mb-4 scroll-mt-24 text-2xl font-bold text-slate-900 dark:text-slate-100"
+                        className="mt-8 mb-4 scroll-mt-24 text-2xl font-bold text-ink"
                         {...props}
                       >
                         {children}
@@ -401,7 +401,7 @@ export default function LessonViewer() {
                     return (
                       <h2
                         id={hId}
-                        className="mt-7 mb-3 scroll-mt-24 text-xl font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 pb-2 dark:border-slate-800"
+                        className="mt-7 mb-3 scroll-mt-24 text-xl font-bold text-ink border-b border-line pb-2"
                         {...props}
                       >
                         {children}
@@ -413,7 +413,7 @@ export default function LessonViewer() {
                     return (
                       <h3
                         id={hId}
-                        className="mt-6 mb-2 scroll-mt-24 text-lg font-semibold text-slate-800 dark:text-slate-200"
+                        className="mt-6 mb-2 scroll-mt-24 text-lg font-semibold text-ink"
                         {...props}
                       >
                         {children}
@@ -422,7 +422,7 @@ export default function LessonViewer() {
                   },
                   p: ({ children, ...props }) => (
                     <p
-                      className="my-3 leading-relaxed text-slate-700 dark:text-slate-300"
+                      className="my-3 leading-relaxed text-body"
                       {...props}
                     >
                       {children}
@@ -430,7 +430,7 @@ export default function LessonViewer() {
                   ),
                   ul: ({ children, ...props }) => (
                     <ul
-                      className="my-3 list-disc list-inside space-y-1 text-slate-700 dark:text-slate-300"
+                      className="my-3 list-disc list-inside space-y-1 text-body"
                       {...props}
                     >
                       {children}
@@ -438,7 +438,7 @@ export default function LessonViewer() {
                   ),
                   ol: ({ children, ...props }) => (
                     <ol
-                      className="my-3 list-decimal list-inside space-y-1 text-slate-700 dark:text-slate-300"
+                      className="my-3 list-decimal list-inside space-y-1 text-body"
                       {...props}
                     >
                       {children}
@@ -447,13 +447,13 @@ export default function LessonViewer() {
                   code: ({ inline, className, children, ...props }) => {
                     return inline ? (
                       <code
-                        className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-primary-700 dark:bg-slate-800 dark:text-primary-300"
+                        className="rounded bg-raised px-1.5 py-0.5 font-mono text-xs text-primary-700"
                         {...props}
                       >
                         {children}
                       </code>
                     ) : (
-                      <pre className="my-4 overflow-x-auto rounded-xl bg-slate-900 p-4 font-mono text-xs text-slate-100 dark:bg-slate-950">
+                      <pre className="my-4 overflow-x-auto rounded-xl bg-canvas p-4 font-mono text-xs text-ink">
                         <code className={className} {...props}>
                           {children}
                         </code>
@@ -462,7 +462,7 @@ export default function LessonViewer() {
                   },
                   blockquote: ({ children, ...props }) => (
                     <blockquote
-                      className="my-4 border-l-4 border-primary-500 bg-primary-50/40 py-2 pl-4 italic text-slate-700 dark:bg-primary-950/20 dark:text-slate-300"
+                      className="my-4 border-l-4 border-primary-500 bg-primary-50/40 py-2 pl-4 italic text-body"
                       {...props}
                     >
                       {children}
@@ -482,13 +482,13 @@ export default function LessonViewer() {
 
           {/* Completion Celebration Card */}
           {isCompleted && (
-            <Card className="border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+            <Card className="border-easy/30 bg-easy-bg/60 p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="font-semibold text-emerald-900 dark:text-emerald-200">
+                  <h3 className="font-semibold text-easy-fg">
                     🎉 Lesson Completed!
                   </h3>
-                  <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                  <p className="text-xs text-easy-fg">
                     You have finished reading this lesson. Ready to test your understanding with a quiz?
                   </p>
                 </div>
@@ -519,7 +519,7 @@ export default function LessonViewer() {
           )}
 
           {/* Bottom Navigation Buttons */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6 dark:border-slate-800">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
             {prevLesson ? (
               <Link to={`/lessons/${prevLesson.id}`}>
                 <Button variant="secondary">
@@ -566,7 +566,7 @@ export default function LessonViewer() {
             {/* Outline Card */}
             {outline.length > 0 && (
               <Card className="p-5">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">
                   On this page
                 </h3>
                 <nav className="space-y-1 text-sm max-h-[50vh] overflow-y-auto pr-1">
@@ -575,12 +575,12 @@ export default function LessonViewer() {
                       key={i}
                       type="button"
                       onClick={() => scrollToHeading(item.id)}
-                      className={`block w-full text-left transition-colors hover:text-primary-600 dark:hover:text-primary-400 ${
+                      className={`block w-full text-left transition-colors hover:text-primary-600 ${
                         item.level === 1
-                          ? 'font-medium text-slate-800 dark:text-slate-200 py-1'
+                          ? 'font-medium text-ink py-1'
                           : item.level === 2
-                          ? 'pl-3 text-xs text-slate-600 dark:text-slate-400 py-0.5'
-                          : 'pl-6 text-[11px] text-slate-500 py-0.5'
+                          ? 'pl-3 text-xs text-body py-0.5'
+                          : 'pl-6 text-[11px] text-muted py-0.5'
                       }`}
                     >
                       {item.text}
@@ -592,15 +592,15 @@ export default function LessonViewer() {
 
             {/* Practice Quiz Card */}
             {lesson?.quiz_id && (
-              <Card className="border-line bg-surface p-5 dark:border-[#242B35] dark:bg-[#171C23]">
+              <Card className="border-line bg-surface p-5">
                 <div className="space-y-2">
-                  <span className="label text-easy-fg dark:text-easy">
+                  <span className="label text-easy-fg">
                     Assessment
                   </span>
-                  <h4 className="text-base font-semibold text-ink dark:text-white">
+                  <h4 className="text-base font-semibold text-ink">
                     Lesson Practice Quiz
                   </h4>
-                  <p className="text-xs leading-relaxed text-muted dark:text-[#8A94A2]">
+                  <p className="text-xs leading-relaxed text-muted">
                     Test your understanding of the concepts covered in this lesson.
                   </p>
                   <Link to={`/quiz/${lesson.quiz_id}`} className="block pt-1">
@@ -613,13 +613,13 @@ export default function LessonViewer() {
             )}
 
             {/* Tutor Shortcut Card */}
-            <Card className="bg-primary-50 p-5 dark:bg-primary-900/20">
+            <Card className="bg-primary-50 p-5">
               <div className="space-y-2">
-                <span className="label text-primary-700 dark:text-primary-300">
+                <span className="label text-primary-700">
                   Personal AI tutor
                 </span>
                 <h4 className="text-base font-semibold">Need clarification?</h4>
-                <p className="text-xs font-semibold leading-relaxed text-muted dark:text-[#8A94A2]">
+                <p className="text-xs font-semibold leading-relaxed text-muted">
                   Highlight any text on the page, then ask Nova to break it down for you.
                 </p>
                 <Button size="sm" onClick={handleOpenTutor} className="mt-2 w-full">
@@ -631,7 +631,7 @@ export default function LessonViewer() {
             {/* Course Syllabus Drawer / Sibling Lessons */}
             {course?.lessons && course.lessons.length > 0 && (
               <Card className="p-5">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">
                   Course Lessons
                 </h3>
                 <div className="space-y-1.5 max-h-[35vh] overflow-y-auto text-xs pr-1">
@@ -643,8 +643,8 @@ export default function LessonViewer() {
                         to={`/lessons/${sibling.id}`}
                         className={`flex items-center justify-between rounded-lg px-2.5 py-2 transition-colors ${
                           isCurrent
-                            ? 'bg-primary-50 font-semibold text-primary-700 dark:bg-primary-950 dark:text-primary-300'
-                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                            ? 'bg-primary-50 font-semibold text-primary-700'
+                            : 'text-body hover:bg-raised'
                         }`}
                       >
                         <span className="truncate pr-2">
@@ -702,7 +702,7 @@ export default function LessonViewer() {
           <form onSubmit={handleAskTutorSubmit} className="space-y-3">
             <label
               htmlFor="tutor-question"
-              className="block text-xs font-semibold uppercase tracking-wide text-muted dark:text-[#8A94A2]"
+              className="block text-xs font-semibold uppercase tracking-wide text-muted"
             >
               {selectedText ? 'Your question (optional)' : 'Your question'}
             </label>
@@ -731,11 +731,11 @@ export default function LessonViewer() {
           </form>
 
           {tutorResponse && (
-            <div className="animate-fade-in rounded-lg border-2 border-primary-200 bg-primary-50 p-4 dark:border-primary-900 dark:bg-primary-900/20">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">
+            <div className="animate-fade-in rounded-lg border-2 border-primary-200 bg-primary-50 p-4">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700">
                 Nova explains
               </p>
-              <p className="text-sm font-semibold leading-relaxed text-body dark:text-white">
+              <p className="text-sm font-semibold leading-relaxed text-body">
                 {tutorResponse}
               </p>
             </div>

@@ -101,16 +101,16 @@ export default function QuizResult() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4 dark:border-[#242B35]">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
         <div>
           <Link
             to="/courses"
-            className="inline-flex items-center gap-1 text-xs text-muted hover:text-body dark:hover:text-white"
+            className="inline-flex items-center gap-1 text-xs text-muted hover:text-body"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to Course Catalog
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold text-ink dark:text-white">
+          <h1 className="mt-1 text-2xl font-semibold text-ink">
             {attempt.quiz_title || 'Quiz Results & Review'}
           </h1>
         </div>
@@ -130,8 +130,8 @@ export default function QuizResult() {
       {/* Summary Score Card */}
       <Card className="grid grid-cols-1 gap-6 p-6 md:grid-cols-3">
         {/* Score Column */}
-        <div className="flex flex-col items-center justify-center border-b border-line pb-6 text-center md:border-b-0 md:border-r md:pb-0 md:pr-6 dark:border-[#242B35]">
-          <div className="text-4xl font-bold tracking-tight text-ink dark:text-white">
+        <div className="flex flex-col items-center justify-center border-b border-line pb-6 text-center md:border-b-0 md:border-r md:pb-0 md:pr-6">
+          <div className="text-4xl font-bold tracking-tight text-ink">
             {score}%
           </div>
           <div className="mt-2">
@@ -149,21 +149,21 @@ export default function QuizResult() {
         {/* Stats Column */}
         <div className="space-y-4 md:col-span-2">
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded border border-line bg-canvas p-3 dark:border-[#2D3643] dark:bg-[#1C222B]">
+            <div className="rounded border border-line bg-canvas p-3">
               <span className="label">Accuracy</span>
               <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-xl font-semibold text-ink dark:text-white">
+                <span className="text-xl font-semibold text-ink">
                   {correct} / {total}
                 </span>
                 <span className="text-xs text-muted">questions</span>
               </div>
             </div>
 
-            <div className="rounded border border-line bg-canvas p-3 dark:border-[#2D3643] dark:bg-[#1C222B]">
+            <div className="rounded border border-line bg-canvas p-3">
               <span className="label">Time Taken</span>
               <div className="mt-1 flex items-center gap-1.5">
                 <Clock className="h-4 w-4 text-muted" />
-                <span className="text-xl font-semibold text-ink dark:text-white">
+                <span className="text-xl font-semibold text-ink">
                   {formattedDuration}
                 </span>
               </div>
@@ -185,7 +185,7 @@ export default function QuizResult() {
       {/* Detailed Question Review Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-ink dark:text-white">
+          <h2 className="text-lg font-semibold text-ink">
             Question Review ({total})
           </h2>
           <span className="text-xs text-muted">
@@ -229,12 +229,12 @@ export default function QuizResult() {
                   </div>
 
                   {/* Prompt */}
-                  <div className="mb-3 text-sm font-semibold text-ink dark:text-white">
+                  <div className="mb-3 text-sm font-semibold text-ink">
                     {item.prompt}
                   </div>
 
                   {/* User Answer vs Correct Answer */}
-                  <div className="mb-3 grid grid-cols-1 gap-2 rounded border border-line bg-canvas p-3 sm:grid-cols-2 dark:border-[#2D3643] dark:bg-[#1C222B]">
+                  <div className="mb-3 grid grid-cols-1 gap-2 rounded border border-line bg-canvas p-3 sm:grid-cols-2">
                     <div>
                       <span className="text-2xs font-semibold uppercase tracking-wider text-muted">
                         Your Answer:
@@ -242,8 +242,8 @@ export default function QuizResult() {
                       <p
                         className={`mt-0.5 text-sm ${
                           isCorrect
-                            ? 'font-medium text-easy dark:text-easy'
-                            : 'font-medium text-hard dark:text-hard'
+                            ? 'font-medium text-easy'
+                            : 'font-medium text-hard'
                         }`}
                       >
                         {item.user_answer ? item.user_answer : <span className="italic text-muted">(No answer provided)</span>}
@@ -255,7 +255,7 @@ export default function QuizResult() {
                         <span className="text-2xs font-semibold uppercase tracking-wider text-muted">
                           Correct Answer:
                         </span>
-                        <p className="mt-0.5 text-sm font-medium text-easy dark:text-easy">
+                        <p className="mt-0.5 text-sm font-medium text-easy">
                           {item.correct_answer}
                         </p>
                       </div>
@@ -264,8 +264,8 @@ export default function QuizResult() {
 
                   {/* Explanation */}
                   {item.explanation && (
-                    <div className="rounded border-l-2 border-primary-600 bg-primary-50/50 p-3 text-xs leading-relaxed text-body dark:bg-primary-950/20 dark:text-[#C6CDD6]">
-                      <span className="font-semibold text-primary-700 dark:text-primary-300">
+                    <div className="rounded border-l-2 border-primary-600 bg-primary-50/50 p-3 text-xs leading-relaxed text-body">
+                      <span className="font-semibold text-primary-700">
                         Explanation:{' '}
                       </span>
                       {item.explanation}
@@ -279,7 +279,7 @@ export default function QuizResult() {
       </div>
 
       {/* Bottom Action Footer */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6 dark:border-[#242B35]">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
         <Link to="/courses">
           <Button variant="secondary">
             ← Back to Courses

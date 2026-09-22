@@ -14,7 +14,7 @@ const Input = forwardRef(function Input(
       {label && (
         <label
           htmlFor={inputId}
-          className="mb-1.5 block text-sm font-medium text-body dark:text-[#C6CDD6]"
+          className="mb-2 block text-sm font-medium text-ink"
         >
           {label}
         </label>
@@ -25,17 +25,17 @@ const Input = forwardRef(function Input(
         aria-invalid={error ? 'true' : undefined}
         aria-describedby={describedBy}
         className={`field ${
-          error ? 'border-hard focus:border-hard focus:ring-hard/25' : ''
+          error ? 'border-hard focus:border-hard focus:ring-hard/30' : ''
         }`}
         {...props}
       />
       {error && (
-        <p id={`${inputId}-error`} className="mt-1.5 text-xs text-hard">
+        <p id={`${inputId}-error`} className="mt-2 text-sm text-hard">
           {error}
         </p>
       )}
       {!error && hint && (
-        <p id={`${inputId}-hint`} className="mt-1.5 text-xs text-muted">
+        <p id={`${inputId}-hint`} className="mt-2 text-sm text-muted">
           {hint}
         </p>
       )}

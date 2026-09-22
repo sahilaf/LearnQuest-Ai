@@ -24,7 +24,7 @@ export default function ProgressBar({
       {label && (
         <div className="mb-1 flex items-center justify-between">
           <span className="label">{label}</span>
-          {showValue && <span className="text-xs font-medium text-body dark:text-white">{Math.round(pct)}%</span>}
+          {showValue && <span className="text-xs font-medium text-body">{Math.round(pct)}%</span>}
         </div>
       )}
       <div
@@ -33,7 +33,7 @@ export default function ProgressBar({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={label || 'Progress'}
-        className="h-1.5 w-full overflow-hidden rounded-pill bg-line dark:bg-[#242B35]"
+        className="h-1.5 w-full overflow-hidden rounded-pill bg-line"
       >
         <div
           className={`h-full rounded-pill transition-[width] duration-300 ${TONES[tone] ?? TONES.primary}`}

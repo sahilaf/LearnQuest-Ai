@@ -195,7 +195,7 @@ export default function CourseCatalog() {
 
       {/* API Error State */}
       {error && (
-        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+        <div className="mb-6 rounded-xl border border-hard/30 bg-hard-bg p-4 text-sm text-hard-fg">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-semibold">Error Loading Courses</p>
@@ -253,17 +253,17 @@ export default function CourseCatalog() {
                       {isEnrolled && <Badge tone="easy">Enrolled</Badge>}
                     </div>
                     <Link to={`/courses/${course.slug || course.id}`}>
-                      <h2 className="text-lg font-semibold text-slate-900 transition-colors hover:text-primary-600 dark:text-slate-100 dark:hover:text-primary-400">
+                      <h2 className="text-lg font-semibold text-ink transition-colors hover:text-primary-600">
                         {course.title}
                       </h2>
                     </Link>
-                    <p className="mt-2 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">
+                    <p className="mt-2 line-clamp-3 text-sm text-body">
                       {course.description || 'No description provided.'}
                     </p>
                   </div>
 
-                  <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
-                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <div className="mt-6 flex items-center justify-between border-t border-line pt-4">
+                    <div className="flex items-center gap-2 text-xs text-muted">
                       <span>
                         {course.estimated_hours ? `${course.estimated_hours} hrs` : 'Self-paced'}
                       </span>
@@ -287,10 +287,10 @@ export default function CourseCatalog() {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="mt-8 flex items-center justify-between border-t border-slate-200 pt-4 dark:border-slate-800">
-              <p className="text-sm text-slate-500">
-                Showing page <span className="font-medium text-slate-800 dark:text-slate-200">{page}</span> of{' '}
-                <span className="font-medium text-slate-800 dark:text-slate-200">{totalPages}</span> ({total} total courses)
+            <div className="mt-8 flex items-center justify-between border-t border-line pt-4">
+              <p className="text-sm text-muted">
+                Showing page <span className="font-medium text-ink">{page}</span> of{' '}
+                <span className="font-medium text-ink">{totalPages}</span> ({total} total courses)
               </p>
               <div className="flex items-center gap-2">
                 <Button

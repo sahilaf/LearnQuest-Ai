@@ -40,7 +40,7 @@ const FEATURES = [
   },
   {
     icon: BookOpen,
-    color: 'bg-easy text-easy',
+    color: 'bg-easy-bg text-easy-fg',
     title: 'Courses that adapt',
     body: 'Lessons adjust to what you already know, and your weak topics carry across sessions.',
   },
@@ -100,15 +100,15 @@ function FeaturedCourses() {
   if (state.courses.length === 0) return null;
 
   return (
-    <section className="border-t-2 border-line bg-surface py-20 dark:border-[#242B35] dark:bg-[#171C23]">
+    <section className="border-t-2 border-line bg-surface py-20">
       <div className="mx-auto max-w-6xl px-4">
         <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
           <div>
             <span className="label">Live catalogue</span>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h2 className="display mt-2 text-3xl sm:text-4xl">
               Start with one of these
             </h2>
-            <p className="mt-2 font-semibold text-muted dark:text-[#8A94A2]">
+            <p className="mt-2 font-semibold text-muted">
               {state.total} {state.total === 1 ? 'course' : 'courses'} published and ready to learn.
             </p>
           </div>
@@ -140,11 +140,11 @@ function FeaturedCourses() {
               </div>
               <h3 className="text-lg font-semibold leading-snug">{course.title}</h3>
               {course.description && (
-                <p className="mt-2 line-clamp-3 text-sm font-semibold leading-relaxed text-muted dark:text-[#8A94A2]">
+                <p className="mt-2 line-clamp-3 text-sm font-semibold leading-relaxed text-muted">
                   {course.description}
                 </p>
               )}
-              <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-400">
+              <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700">
                 View course
                 <ArrowRight className="h-4 w-4" />
               </span>
@@ -170,12 +170,12 @@ export default function Landing() {
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   return (
-    <div className="min-h-full bg-canvas dark:bg-[#12161C]">
+    <div className="min-h-full bg-canvas">
       {/* ---------- Nav ---------- */}
-      <header className="sticky top-0 z-30 border-b-2 border-line bg-surface dark:border-[#242B35] dark:bg-[#12161C]">
+      <header className="sticky top-0 z-30 border-b-2 border-line bg-surface">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white shadow-[0_3px_0_0_theme(colors.primary.700)]">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white">
               <Sparkles className="h-5 w-5" />
             </span>
             <span className="text-xl font-semibold tracking-tight text-primary-600">LearnQuest</span>
@@ -195,12 +195,12 @@ export default function Landing() {
       <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 lg:grid-cols-2 lg:py-24">
         <div>
           <span className="label">Free · AI avatar tutor</span>
-          <h1 className="mt-3 text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+          <h1 className="display mt-4 text-4xl leading-[1.05] sm:text-5xl lg:text-6xl">
             The free, fun way to
             <span className="text-primary-600"> actually learn it</span>
           </h1>
 
-          <p className="mt-6 max-w-xl text-lg font-semibold leading-relaxed text-muted dark:text-[#8A94A2]">
+          <p className="mt-6 max-w-xl text-lg font-semibold leading-relaxed text-muted">
             Bite-sized lessons, a talking AI tutor that explains things your way, and streaks that
             keep you coming back. Learning that feels like a game, because it is one.
           </p>
@@ -222,7 +222,7 @@ export default function Landing() {
             {['Always free', 'No card needed', 'Unlimited questions'].map((item) => (
               <li
                 key={item}
-                className="flex items-center gap-2 text-sm font-bold text-muted dark:text-[#8A94A2]"
+                className="flex items-center gap-2 text-sm font-medium text-muted"
               >
                 <Check className="h-4 w-4 shrink-0 text-easy" strokeWidth={3} />
                 {item}
@@ -234,20 +234,20 @@ export default function Landing() {
         {/* The real tutor component, idle - the product demoing itself. */}
         <div className="relative mx-auto w-full max-w-md">
           <div className="card p-5">
-            <div className="mb-4 flex items-center gap-2 border-b-2 border-line pb-3 dark:border-[#242B35]">
+            <div className="mb-4 flex items-center gap-2 border-b-2 border-line pb-3">
               <span className="h-2.5 w-2.5 rounded-full bg-primary-600" />
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted dark:text-[#8A94A2]">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Nova · your tutor
               </span>
             </div>
             <div className="mx-auto w-full max-w-[280px] animate-bob">
-              <AvatarStage expression="encouraging" visemes={[]} isSpeaking={false} audioMuted />
+              <AvatarStage preview />
             </div>
             <div className="mt-5 space-y-2.5">
-              <div className="ml-auto w-fit max-w-[85%] rounded-lg rounded-br-md bg-info px-4 py-2.5 text-sm font-bold text-white">
+              <div className="ml-auto w-fit max-w-[85%] rounded-lg rounded-br-md bg-primary-600 px-4 py-2.5 text-sm text-white">
                 Why does recursion need a base case?
               </div>
-              <div className="w-fit max-w-[90%] rounded-lg rounded-bl-md border-2 border-line bg-canvas px-4 py-2.5 text-sm font-bold text-body dark:border-[#242B35] dark:bg-[#1C222B] dark:text-white">
+              <div className="w-fit max-w-[90%] rounded-lg rounded-bl-md border border-line bg-surface px-4 py-2.5 text-sm text-body">
                 Good question — what do you think happens without one?
               </div>
             </div>
@@ -256,13 +256,13 @@ export default function Landing() {
       </section>
 
       {/* ---------- Features ---------- */}
-      <section className="border-t-2 border-line bg-surface py-20 dark:border-[#242B35] dark:bg-[#171C23]">
+      <section className="border-t-2 border-line bg-surface py-20">
         <div className="mx-auto max-w-6xl px-4">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h2 className="display text-3xl sm:text-4xl">
               Everything you need to actually finish
             </h2>
-            <p className="mt-3 font-semibold text-muted dark:text-[#8A94A2]">
+            <p className="mt-3 font-semibold text-muted">
               Most courses are a video and a hope. This one watches how you are doing and adjusts.
             </p>
           </div>
@@ -274,7 +274,7 @@ export default function Landing() {
                   <Icon className="h-6 w-6" />
                 </div>
                 <h3 className="text-base font-semibold">{title}</h3>
-                <p className="mt-2 text-sm font-semibold leading-relaxed text-muted dark:text-[#8A94A2]">
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-muted">
                   {body}
                 </p>
               </div>
@@ -290,8 +290,8 @@ export default function Landing() {
       <section className="py-20">
         <div className="mx-auto max-w-6xl px-4">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">How it works</h2>
-            <p className="mt-3 font-semibold text-muted dark:text-[#8A94A2]">
+            <h2 className="display text-3xl sm:text-4xl">How it works</h2>
+            <p className="mt-3 font-semibold text-muted">
               Three steps, then you are learning.
             </p>
           </div>
@@ -299,11 +299,11 @@ export default function Landing() {
           <div className="mt-14 grid gap-5 md:grid-cols-3">
             {STEPS.map(({ n, title, body }) => (
               <div key={n} className="card p-6 text-center">
-                <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-2xl font-semibold text-white shadow-[0_4px_0_0_theme(colors.primary.700)]">
+                <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-2xl font-semibold text-white">
                   {n}
                 </span>
                 <h3 className="text-lg font-semibold">{title}</h3>
-                <p className="mt-2 text-sm font-semibold leading-relaxed text-muted dark:text-[#8A94A2]">
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-muted">
                   {body}
                 </p>
               </div>
@@ -314,12 +314,12 @@ export default function Landing() {
 
       {/* ---------- Final CTA ---------- */}
       <section className="px-4 pb-20">
-        <div className="mx-auto max-w-4xl rounded-lg border-2 border-primary-700 bg-primary-600 px-6 py-14 text-center shadow-[0_6px_0_0_theme(colors.primary.800)]">
+        <div className="mx-auto max-w-4xl rounded-xl border border-primary-500/40 bg-primary-600 px-6 py-14 text-center">
           <Zap className="mx-auto h-12 w-12 text-white" strokeWidth={2.5} />
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+          <h2 className="display mt-4 text-3xl text-white sm:text-4xl">
             Your tutor is waiting
           </h2>
-          <p className="mx-auto mt-3 max-w-xl font-bold text-primary-100">
+          <p className="mx-auto mt-3 max-w-xl text-lg text-primary-100">
             Create an account and ask your first question in under a minute.
           </p>
           <div className="mt-8 flex justify-center">
@@ -333,15 +333,15 @@ export default function Landing() {
       </section>
 
       {/* ---------- Footer ---------- */}
-      <footer className="border-t-2 border-line py-8 dark:border-[#242B35]">
+      <footer className="border-t-2 border-line py-8">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary-600 text-white">
               <Sparkles className="h-4 w-4" />
             </span>
-            <span className="font-semibold text-body dark:text-white">LearnQuest AI</span>
+            <span className="font-semibold text-body">LearnQuest AI</span>
           </div>
-          <div className="flex flex-wrap items-center gap-5 text-xs font-semibold uppercase tracking-wide text-muted dark:text-[#8A94A2]">
+          <div className="flex flex-wrap items-center gap-5 text-xs font-semibold uppercase tracking-wide text-muted">
             <Link to="/courses" className="transition-colors hover:text-primary-600">Courses</Link>
             <Link to="/login" className="transition-colors hover:text-primary-600">Sign in</Link>
             <Link to="/register" className="transition-colors hover:text-primary-600">Get started</Link>

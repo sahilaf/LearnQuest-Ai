@@ -147,20 +147,20 @@ export default function AdminOverview() {
                   <span className="text-2xs font-semibold uppercase tracking-wider text-muted">
                     {card.label}
                   </span>
-                  <div className="mt-1 text-2xl font-semibold text-ink dark:text-white">
+                  <div className="mt-1 text-2xl font-semibold text-ink">
                     {loading ? <Skeleton className="h-8 w-16" /> : card.value.toLocaleString()}
                   </div>
                 </div>
-                <div className="flex h-8 w-8 items-center justify-center rounded bg-canvas text-muted dark:bg-[#1C222B]">
+                <div className="flex h-8 w-8 items-center justify-center rounded bg-canvas text-muted">
                   <Icon className="h-4 w-4" />
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-2.5 text-xs text-muted dark:border-[#242B35]">
+              <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-2.5 text-xs text-muted">
                 <Badge tone={card.tone}>{card.badge}</Badge>
                 <Link
                   to={card.link}
-                  className="inline-flex items-center gap-1 font-medium hover:text-ink dark:hover:text-white"
+                  className="inline-flex items-center gap-1 font-medium hover:text-ink"
                 >
                   View <ArrowRight className="h-3 w-3" />
                 </Link>
@@ -175,14 +175,14 @@ export default function AdminOverview() {
         {/* Recent Courses Panel */}
         <div className="lg:col-span-2">
           <Card className="p-0">
-            <div className="flex items-center justify-between border-b border-line px-4 py-3 dark:border-[#242B35]">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <div className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-primary-600" />
-                <h2 className="text-sm font-semibold text-ink dark:text-white">Courses overview</h2>
+                <h2 className="text-sm font-semibold text-ink">Courses overview</h2>
               </div>
               <Link
                 to="/admin/courses"
-                className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                className="text-xs font-medium text-primary-600 hover:text-primary-700"
               >
                 View all courses &rarr;
               </Link>
@@ -216,7 +216,7 @@ export default function AdminOverview() {
                     recentCourses.map((c) => (
                       <tr key={c.id}>
                         <td>
-                          <div className="font-medium text-ink dark:text-white">{c.title}</div>
+                          <div className="font-medium text-ink">{c.title}</div>
                           <div className="text-2xs text-muted">{c.subject}</div>
                         </td>
                         <td>
@@ -258,30 +258,30 @@ export default function AdminOverview() {
         {/* System & Access Status */}
         <div className="space-y-4">
           <Card className="p-4">
-            <div className="flex items-center gap-2 border-b border-line pb-3 dark:border-[#242B35]">
+            <div className="flex items-center gap-2 border-b border-line pb-3">
               <ShieldCheck className="h-4 w-4 text-easy" />
-              <h2 className="text-sm font-semibold text-ink dark:text-white">Admin Privileges</h2>
+              <h2 className="text-sm font-semibold text-ink">Admin Privileges</h2>
             </div>
             <p className="mt-3 text-xs leading-relaxed text-muted">
-              You are authenticated with role <span className="font-semibold text-ink dark:text-white">admin</span>. You can manage courses, edit lessons, review registered students, and update access permissions.
+              You are authenticated with role <span className="font-semibold text-ink">admin</span>. You can manage courses, edit lessons, review registered students, and update access permissions.
             </p>
-            <div className="mt-4 rounded bg-canvas p-2.5 text-2xs text-muted dark:bg-[#1C222B]">
+            <div className="mt-4 rounded bg-canvas p-2.5 text-2xs text-muted">
               <div className="flex items-center justify-between">
                 <span>Database host:</span>
-                <span className="font-mono text-ink dark:text-white">Supabase Cloud</span>
+                <span className="font-mono text-ink">Supabase Cloud</span>
               </div>
               <div className="mt-1 flex items-center justify-between">
                 <span>Auth mode:</span>
-                <span className="font-mono text-ink dark:text-white">Asymmetric JWKS</span>
+                <span className="font-mono text-ink">Asymmetric JWKS</span>
               </div>
             </div>
           </Card>
 
           <Card className="p-4">
-            <div className="flex items-center justify-between border-b border-line pb-3 dark:border-[#242B35]">
+            <div className="flex items-center justify-between border-b border-line pb-3">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary-600" />
-                <h2 className="text-sm font-semibold text-ink dark:text-white">Recent Users</h2>
+                <h2 className="text-sm font-semibold text-ink">Recent Users</h2>
               </div>
               <Link
                 to="/admin/users"
@@ -291,7 +291,7 @@ export default function AdminOverview() {
               </Link>
             </div>
 
-            <div className="mt-3 divide-y divide-line dark:divide-[#242B35]">
+            <div className="mt-3 divide-y divide-line">
               {loading ? (
                 <div className="py-3 text-center text-xs text-muted">Loading users...</div>
               ) : recentUsers.length === 0 ? (
@@ -300,7 +300,7 @@ export default function AdminOverview() {
                 recentUsers.slice(0, 4).map((u) => (
                   <div key={u.id} className="flex items-center justify-between py-2 text-xs">
                     <div className="min-w-0 pr-2">
-                      <div className="truncate font-medium text-ink dark:text-white">
+                      <div className="truncate font-medium text-ink">
                         {u.full_name || 'Anonymous User'}
                       </div>
                       <div className="truncate text-2xs text-muted">{u.email}</div>

@@ -2,9 +2,9 @@
 
 export default function EmptyState({ title, description, action, icon = null }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-12 text-center dark:border-[#2D3643] dark:bg-[#171C23]">
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface px-6 py-12 text-center">
       {icon && (
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-canvas text-faint dark:bg-[#1C222B]">
+        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-canvas text-faint">
           {icon}
         </div>
       )}
