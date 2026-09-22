@@ -24,6 +24,28 @@ logger = logging.getLogger("learnquest.progress")
 router = APIRouter(prefix="/api/me", tags=["progress"])
 
 
+def _progress_by_lesson(db: Session, user_uuid: uuid.UUID) -> dict[uuid.UUID, str]:
+    """Every lesson this user has touched, mapped to its status.
+
+    One query, whatever they are enrolled in. The endpoints below used to run a
+    LessonProgress query per enrolled course inside their loop, which is an N+1:
+    measured 2026-09-22, ten enrolled courses meant eleven round trips, and a
+    round trip to Supabase's pooler costs ~75 ms - roughly 825 ms of pure
+    network for one endpoint.
+
+    Fetching the user's whole progress set is cheaper than an `IN` over every
+    lesson id: the row count is bounded by lessons they have actually started,
+    not by the size of the catalogue, and it avoids sending a huge id list.
+    Only the two columns that are needed are selected.
+    """
+    rows = (
+        db.query(LessonProgress.lesson_id, LessonProgress.status)
+        .filter(LessonProgress.user_id == user_uuid)
+        .all()
+    )
+    return {lesson_id: status for lesson_id, status in rows}
+
+
 @router.get("/enrollments", response_model=dict[str, Any])
 def my_enrollments(
     user: CurrentUser,
@@ -47,6 +69,8 @@ def my_enrollments(
             .all()
         )
 
+        progress_by_lesson = _progress_by_lesson(db, user_uuid)
+
         items: list[dict[str, Any]] = []
         for enr in enrollments:
             course = enr.course
@@ -57,18 +81,11 @@ def my_enrollments(
             total_lessons = len(lessons)
             lesson_ids = [l.id for l in lessons]
 
-            completed_set: set[uuid.UUID] = set()
-            if lesson_ids:
-                completed_progress = (
-                    db.query(LessonProgress)
-                    .filter(
-                        LessonProgress.user_id == user_uuid,
-                        LessonProgress.lesson_id.in_(lesson_ids),
-                        LessonProgress.status == "completed",
-                    )
-                    .all()
-                )
-                completed_set = {lp.lesson_id for lp in completed_progress}
+            completed_set = {
+                lesson_id
+                for lesson_id in lesson_ids
+                if progress_by_lesson.get(lesson_id) == "completed"
+            }
 
             completed_count = len(completed_set)
             percentage = (
@@ -134,6 +151,8 @@ def my_progress(
             .all()
         )
 
+        progress_by_lesson = _progress_by_lesson(db, user_uuid)
+
         items: list[dict[str, Any]] = []
         for enr in enrollments:
             course = enr.course
@@ -144,19 +163,18 @@ def my_progress(
             total_lessons = len(lessons)
             lesson_ids = [l.id for l in lessons]
 
-            completed_ids: list[str] = []
-            in_progress_ids: list[str] = []
-            if lesson_ids:
-                user_lps = (
-                    db.query(LessonProgress)
-                    .filter(
-                        LessonProgress.user_id == user_uuid,
-                        LessonProgress.lesson_id.in_(lesson_ids),
-                    )
-                    .all()
-                )
-                completed_ids = [str(lp.lesson_id) for lp in user_lps if lp.status == "completed"]
-                in_progress_ids = [str(lp.lesson_id) for lp in user_lps if lp.status == "in_progress"]
+            # Built from `lesson_ids`, so both lists come out in lesson order
+            # rather than in whatever order the database returned rows.
+            completed_ids = [
+                str(lesson_id)
+                for lesson_id in lesson_ids
+                if progress_by_lesson.get(lesson_id) == "completed"
+            ]
+            in_progress_ids = [
+                str(lesson_id)
+                for lesson_id in lesson_ids
+                if progress_by_lesson.get(lesson_id) == "in_progress"
+            ]
 
             completed_set = set(completed_ids)
             completed_count = len(completed_set)
