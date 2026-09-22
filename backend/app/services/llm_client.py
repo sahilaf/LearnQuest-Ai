@@ -236,6 +236,19 @@ class GeminiClient(LLMClient):
         self.model = raw_model.removeprefix("models/")
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
 
+    def _headers(self) -> dict[str, str]:
+        """Auth goes in a header, never in the query string.
+
+        Gemini accepts `?key=...`, and that is how this client used to send it -
+        which meant httpx put the full URL into every error it raised, so a
+        single 429 wrote the API key into the application log in plain text.
+        A header is never echoed back in an exception message.
+        """
+        return {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key,
+        }
+
     def _supports_thinking(self) -> bool:
         """True for Gemini families that accept generationConfig.thinkingConfig."""
         legacy = ("1.0", "1.5", "2.0")
@@ -298,7 +311,7 @@ class GeminiClient(LLMClient):
         json_mode: bool = False,
     ) -> str:
         body = self._prepare_payload(messages, temperature, max_tokens, json_mode)
-        endpoint = f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}"
+        endpoint = f"{self.base_url}/models/{self.model}:generateContent"
 
         last_error: Exception | None = None
         for attempt in range(settings.llm_max_retries + 1):
@@ -306,7 +319,7 @@ class GeminiClient(LLMClient):
                 http = get_http_client()
                 resp = await http.post(
                     endpoint,
-                    headers={"Content-Type": "application/json"},
+                    headers=self._headers(),
                     json=body,
                 )
                 resp.raise_for_status()
@@ -344,14 +357,14 @@ class GeminiClient(LLMClient):
         max_tokens: int = 800,
     ) -> AsyncIterator[str]:
         body = self._prepare_payload(messages, temperature, max_tokens, False)
-        endpoint = f"{self.base_url}/models/{self.model}:streamGenerateContent?alt=sse&key={self.api_key}"
+        endpoint = f"{self.base_url}/models/{self.model}:streamGenerateContent?alt=sse"
 
         try:
             http = get_http_client()
             async with http.stream(
                 "POST",
                 endpoint,
-                headers={"Content-Type": "application/json"},
+                headers=self._headers(),
                 json=body,
             ) as resp:
                 resp.raise_for_status()

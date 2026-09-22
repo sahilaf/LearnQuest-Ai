@@ -6,7 +6,7 @@ Covers:
 - Conversation CRUD operations
 - Tutor chat messaging with MockLLMClient
 - Selection explanation endpoint
-- Avatar speak and config endpoints
+- Avatar status and config endpoints
 """
 
 import unittest
@@ -25,7 +25,6 @@ from app.services.llm_client import MockLLMClient, get_llm
 from app.services.prompts import (
     build_tutor_context,
     generate_conversation_title,
-    text_to_visemes,
 )
 
 
@@ -90,22 +89,11 @@ class TestTutorAI(unittest.TestCase):
         self.db.close()
         Base.metadata.drop_all(self.engine)
 
-    def test_text_to_visemes_generates_valid_timeline(self):
-        text = "Hello! Today we learn about SQL joins."
-        timeline = text_to_visemes(text)
+    def test_speech_synthesis_reports_availability(self):
+        """Availability is a plain config check, so it must not make a call."""
+        from app.services.tts import is_available
 
-        self.assertIsInstance(timeline, list)
-        self.assertGreater(len(timeline), 2)
-        # Starts with silence
-        self.assertEqual(timeline[0]["v"], "sil")
-        self.assertEqual(timeline[0]["t"], 0.0)
-        # Ends with silence
-        self.assertEqual(timeline[-1]["v"], "sil")
-
-        for entry in timeline:
-            self.assertIn("t", entry)
-            self.assertIn("v", entry)
-            self.assertIn(entry["v"], ["sil", "AA", "E", "I", "O", "U", "M", "F", "L", "S"])
+        self.assertIsInstance(is_available(), bool)
 
     def test_generate_conversation_title(self):
         title1 = generate_conversation_title("How do SQL joins work in PostgreSQL?")
@@ -167,7 +155,6 @@ class TestTutorAI(unittest.TestCase):
             role="assistant",
             content="An outer join retains rows even if there is no match.",
             tokens=12,
-            visemes=[{"t": 0.0, "v": "sil"}, {"t": 0.1, "v": "AA"}],
         )
         self.db.add(assistant_msg)
         self.db.commit()
@@ -181,7 +168,6 @@ class TestTutorAI(unittest.TestCase):
         self.assertEqual(len(messages), 2)
         self.assertEqual(messages[0].role, "user")
         self.assertEqual(messages[1].role, "assistant")
-        self.assertIsNotNone(messages[1].visemes)
 
     async def _run_async_mock(self):
         llm = MockLLMClient()
@@ -194,7 +180,7 @@ class TestTutorAI(unittest.TestCase):
         asyncio.run(self._run_async_mock())
 
     async def _run_async_endpoint_tests(self):
-        from app.routers.avatar import avatar_config, avatar_status, speak, SpeakRequest
+        from app.routers.avatar import avatar_config, avatar_status
         from app.routers.tutor import (
             create_conversation,
             delete_conversation,
@@ -238,8 +224,6 @@ class TestTutorAI(unittest.TestCase):
         )
         self.assertEqual(msg_res["role"], "assistant")
         self.assertTrue(len(msg_res["content"]) > 0)
-        self.assertIsInstance(msg_res["visemes"], list)
-        self.assertGreater(len(msg_res["visemes"]), 0)
 
         # 5. List messages
         history_res = list_messages(conversation_id=conv_id, user=user_dict, db=self.db)
@@ -257,20 +241,22 @@ class TestTutorAI(unittest.TestCase):
             db=self.db,
         )
         self.assertTrue(len(explain_res["explanation"]) > 0)
-        self.assertIsInstance(explain_res["visemes"], list)
 
         # 7. Avatar endpoints
-        status_res = avatar_status()
-        self.assertIn("tier", status_res)
+        # avatar_status is async: it probes the SyncTalk service's /health
+        # before reporting the avatar online.
+        status_res = await avatar_status()
+        self.assertIn("online", status_res)
+        self.assertIn("speech", status_res)
+        # No AVATAR_SERVICE_URL in the test env, so it must report offline
+        # and say why - the frontend renders that reason.
+        self.assertFalse(status_res["online"])
+        self.assertIn("AVATAR_SERVICE_URL", status_res["reason"])
+
         config_res = avatar_config()
         self.assertIn("expressions", config_res)
-        self.assertIn("visemes", config_res)
-
-        speak_res = await speak(
-            body=SpeakRequest(text="Welcome to LearnQuest!"),
-            user=user_dict,
-        )
-        self.assertGreater(len(speak_res["visemes"]), 0)
+        self.assertIn("stream", config_res)
+        self.assertEqual(config_res["stream"]["sample_rate"], 24000)
 
         # 8. Delete conversation
         del_res = delete_conversation(conversation_id=conv_id, user=user_dict, db=self.db)

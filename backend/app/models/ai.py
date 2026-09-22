@@ -35,6 +35,9 @@ class Conversation(Base):
     """A chat thread between a student and the AI tutor."""
 
     __tablename__ = "conversations"
+    __table_args__ = (
+        UniqueConstraint("user_id", "number", name="uq_conversations_user_number"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -45,6 +48,11 @@ class Conversation(Base):
         nullable=False,
         index=True,
     )
+    # The conversation's public identifier, counting from 1 per user, so the
+    # tutor lives at /tutor/7 rather than at a 36-character primary key. The
+    # UUID stays the real key - this is only what the URL shows, and because it
+    # is scoped to one user it leaks nothing about anyone else's activity.
+    number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     title: Mapped[str] = mapped_column(
         String(255), nullable=False, default="New conversation"
     )
@@ -85,6 +93,7 @@ class Conversation(Base):
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": str(self.id),
+            "number": self.number,
             "user_id": str(self.user_id),
             "title": self.title,
             "context_lesson_id": str(self.context_lesson_id) if self.context_lesson_id else None,
@@ -308,3 +317,97 @@ class Recommendation(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
+
+
+class TeachBackSession(Base):
+    """One Teach-Back round: the student teaches Nova out of their own misconception.
+
+    The protege effect, made literal. Nova is seeded with the false belief this
+    student actually holds, argues from it, and then re-takes the question they
+    got wrong. Nova's score on that retry is the student's grade - you have only
+    taught something when the learner can use it without you.
+
+    State lives in one row rather than in the chat transcript because the grade
+    has to be reconstructible: `question_prompt` and `question_correct_answer`
+    are snapshotted at start so a later edit to the question cannot change a
+    grade that was already awarded.
+    """
+
+    __tablename__ = "teachback_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    topic_tag: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+
+    # Snapshot of the misconception as it read when the session opened. The
+    # TopicMastery row may be cleared or overwritten before this session ends.
+    misconception: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # The question Nova will re-take, snapshotted for the same reason.
+    question_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    question_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    question_correct_answer: Mapped[str] = mapped_column(Text, nullable=False)
+    question_options: Mapped[list[str] | None] = mapped_column(
+        JSON_VARIANT, nullable=True
+    )
+
+    # teaching | passed | failed | abandoned
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="teaching", index=True
+    )
+
+    # [{"role": "nova" | "student", "content": "...", "at": "iso8601"}]
+    turns: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON_VARIANT, nullable=False, default=list
+    )
+
+    # Result of the most recent retake.
+    nova_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nova_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nova_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retakes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    def to_dict(self, include_answer: bool = False) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "id": str(self.id),
+            "topic_tag": self.topic_tag,
+            "misconception": self.misconception,
+            "question_prompt": self.question_prompt,
+            "question_options": self.question_options,
+            "status": self.status,
+            "turns": self.turns or [],
+            "nova_answer": self.nova_answer,
+            "nova_score": self.nova_score,
+            "nova_reasoning": self.nova_reasoning,
+            "retakes": self.retakes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
+        }
+        # The correct answer is the thing the student is being asked to teach.
+        # Showing it mid-session turns teaching into copying, so it is released
+        # only once the session is over.
+        if include_answer or self.status in ("passed", "failed"):
+            data["question_correct_answer"] = self.question_correct_answer
+        return data

@@ -320,6 +320,51 @@ def misconception_status(row) -> str:
 # --------------------------------------------------------------------------- #
 
 
+def _load_answers_from_attempt(db, attempt_id) -> list[dict[str, Any]]:
+    """Rebuild the `answers` list by reading `attempt_answers` for this attempt.
+
+    M2's submit endpoint emits only the counts (quiz_id / attempt_id / score /
+    correct / total). That is enough for XP but carries nothing to reason about,
+    so without this the misconception engine would receive an empty list and
+    silently do nothing on every submission.
+
+    The rows already hold everything needed: `attempt_answers.user_answer`,
+    `.is_correct` and `.topic_tag` (copied at submit time), and the joined
+    `questions` row supplies the prompt and the correct answer. Reading them
+    here keeps the fix inside M1's own file - M2's router does not change.
+    """
+    aid = _as_uuid(attempt_id)
+    if aid is None or db is None:
+        return []
+
+    try:
+        from app.models.quiz import AttemptAnswer, Question
+
+        rows = (
+            db.query(AttemptAnswer, Question)
+            .outerjoin(Question, Question.id == AttemptAnswer.question_id)
+            .filter(AttemptAnswer.attempt_id == aid)
+            .all()
+        )
+    except Exception as exc:  # noqa: BLE001 - a submission must never fail here
+        logger.warning("Could not load attempt_answers for %s: %s", attempt_id, exc)
+        return []
+
+    answers: list[dict[str, Any]] = []
+    for answer, question in rows:
+        answers.append(
+            {
+                "topic_tag": answer.topic_tag
+                or (question.topic_tag if question is not None else None),
+                "prompt": question.prompt if question is not None else "",
+                "correct_answer": question.correct_answer if question is not None else "",
+                "user_answer": answer.user_answer or "",
+                "is_correct": bool(answer.is_correct),
+            }
+        )
+    return answers
+
+
 def _run_coroutine_blocking(coro):
     """Run an async coroutine from a synchronous event handler.
 
@@ -383,12 +428,23 @@ def handle_quiz_submitted(db, user_id, payload: dict[str, Any]) -> dict[str, Any
           ]
         }
 
-    `answers` is optional - without it mastery still updates from the counts, but
-    no misconception can be identified because there is nothing to reason about.
+    `answers` is optional. When it is absent but `attempt_id` is present we read
+    the rows back from `attempt_answers` ourselves, so the engine works whether or
+    not the emitter includes them.
     """
     answers = payload.get("answers") or payload.get("questions") or []
     if not isinstance(answers, list):
         answers = []
+
+    if not answers and payload.get("attempt_id"):
+        answers = _load_answers_from_attempt(db, payload["attempt_id"])
+        if answers:
+            logger.info(
+                "quiz.submitted carried no answers; loaded %d from attempt_answers "
+                "(attempt_id=%s)",
+                len(answers),
+                payload["attempt_id"],
+            )
 
     # --- mastery, per topic ---
     per_topic: dict[str, list[int]] = {}
@@ -407,20 +463,33 @@ def handle_quiz_submitted(db, user_id, payload: dict[str, Any]) -> dict[str, Any
         except Exception as exc:  # noqa: BLE001
             logger.warning("update_mastery failed for %s: %s", tag, exc)
 
-    # --- decay existing misconceptions on correct answers ---
-    for item in answers:
-        if isinstance(item, dict) and item.get("is_correct") and item.get("topic_tag"):
-            try:
-                register_correct_answer(db, user_id, item["topic_tag"])
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("register_correct_answer failed: %s", exc)
-
     # --- capture misconceptions for wrong answers ---
     wrong = [
         item
         for item in answers
         if isinstance(item, dict) and not item.get("is_correct") and item.get("topic_tag")
-    ][:MAX_MISCONCEPTIONS_PER_SUBMISSION]
+    ]
+    wrong_topics = {item["topic_tag"] for item in wrong}
+    wrong = wrong[:MAX_MISCONCEPTIONS_PER_SUBMISSION]
+
+    # --- decay existing misconceptions on correct answers ---
+    #
+    # A topic the learner also got WRONG in this same submission is skipped. A
+    # four-question quiz on one topic would otherwise run the decay three times
+    # off the questions they happened to get right and clear the very
+    # misconception the fourth question just revealed - and if the re-capture
+    # call then fails, the belief is marked "overcome" on the evidence of a
+    # quiz they did not pass. Getting one wrong is not mastery.
+    for item in answers:
+        if not (isinstance(item, dict) and item.get("is_correct")):
+            continue
+        tag = item.get("topic_tag")
+        if not tag or tag in wrong_topics:
+            continue
+        try:
+            register_correct_answer(db, user_id, tag)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("register_correct_answer failed: %s", exc)
 
     captured: list[str] = []
     if wrong:

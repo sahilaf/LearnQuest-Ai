@@ -67,15 +67,6 @@ MAX_LESSON_TOKENS = 2000
 MAX_VERBATIM_TURNS = 8
 SUMMARISE_AFTER_MESSAGES = 16
 
-# Standard visemes supported by Tier A avatar
-VISEME_MAP = {
-    "a": "AA", "e": "E", "i": "I", "o": "O", "u": "U",
-    "m": "M", "b": "M", "p": "M",
-    "f": "F", "v": "F",
-    "l": "L", "r": "L",
-    "s": "S", "c": "S", "z": "S", "t": "S", "d": "S",
-}
-
 
 def build_tutor_context(
     db: Session | None,
@@ -187,33 +178,6 @@ def build_tutor_context(
         context_messages.append({"role": msg.role, "content": msg.content})
 
     return context_messages
-
-
-def text_to_visemes(text: str) -> list[dict[str, Any]]:
-    """Generate a realistic Tier A viseme timeline from text.
-
-    Contract: [{"t": 0.00, "v": "sil"}, {"t": 0.08, "v": "AA"}, ...]
-    Average speaking rate: ~140 wpm -> ~0.08s to 0.18s per syllable.
-    """
-    cleaned = re.sub(r"[^\w\s]", "", text.lower())
-    words = cleaned.split()
-    timeline: list[dict[str, Any]] = [{"t": 0.0, "v": "sil"}]
-
-    if not words:
-        return timeline
-
-    current_time = 0.06
-    for word in words:
-        # Sample key phonemes in word
-        for char in word:
-            v = VISEME_MAP.get(char)
-            if v and v != timeline[-1]["v"]:
-                timeline.append({"t": round(current_time, 2), "v": v})
-                current_time += 0.08
-        current_time += 0.05  # slight gap between words
-
-    timeline.append({"t": round(current_time + 0.1, 2), "v": "sil"})
-    return timeline
 
 
 def generate_conversation_title(user_message: str) -> str:
