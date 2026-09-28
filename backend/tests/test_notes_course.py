@@ -14,7 +14,7 @@ import unittest
 import uuid
 from unittest.mock import patch
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -106,6 +106,14 @@ class Base_(unittest.TestCase):
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
+
+        # Enforce foreign keys like Postgres does. Without this SQLite accepts
+        # review_items pointing at lessons not yet inserted - the bug that
+        # failed a real upload on 2026-09-29 while every test here passed.
+        @event.listens_for(cls.engine, "connect")
+        def _fk_on(dbapi_connection, _record):
+            dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
         Base.metadata.create_all(bind=cls.engine)
         cls.Session = sessionmaker(bind=cls.engine, autoflush=False)
 

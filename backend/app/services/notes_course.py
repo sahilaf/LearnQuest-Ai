@@ -343,6 +343,14 @@ def persist_course(
         lessons.append(lesson)
         first_lesson_for.setdefault(item["topic_tag"], lesson.id)
 
+    # Write the lessons before anything that points at them. `ReviewItem` has a
+    # foreign key to lessons but no relationship(), so the unit of work does
+    # not know to order the inserts - and on 2026-09-29 Postgres rejected a
+    # real upload at the very last step because review_items went first.
+    # (SQLite does not enforce foreign keys by default, so tests missed it;
+    # tests/test_notes_course.py now switches enforcement on.)
+    db.flush()
+
     db.add(Enrollment(id=uuid.uuid4(), user_id=user_id, course_id=course.id, enrolled_at=_now()))
 
     # Seed the review queue (plan.md 6.13): each topic comes back tomorrow.
