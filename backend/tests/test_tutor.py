@@ -30,6 +30,15 @@ from app.services.prompts import (
 
 class TestTutorAI(unittest.TestCase):
     def setUp(self):
+        # get_llm() caches one client for the process. Without this, whether
+        # these tests hit the real Gemini API depended on which test had created
+        # that client first - so the suite spent quota and needed the network,
+        # but only when run in full, never in isolation.
+        from app.services import llm_client
+
+        self._saved_client = llm_client._client
+        llm_client._client = MockLLMClient()
+
         self.engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(self.engine)
         self.SessionLocal = sessionmaker(bind=self.engine)
@@ -86,6 +95,9 @@ class TestTutorAI(unittest.TestCase):
         self.db.commit()
 
     def tearDown(self):
+        from app.services import llm_client
+
+        llm_client._client = self._saved_client
         self.db.close()
         Base.metadata.drop_all(self.engine)
 

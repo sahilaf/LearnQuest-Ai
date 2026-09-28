@@ -37,6 +37,7 @@ import {
   Spinner,
 } from '../../components/ui';
 import { StreakFlame, XPBar, DailyChallenges } from '../../components/game';
+import ForYouPanel from '../../components/tutor/ForYouPanel';
 
 const N_LESSONS_OPTIONS = [
   { value: '3', label: '3 Lessons (Quick intro)' },
@@ -388,6 +389,9 @@ export default function Dashboard() {
           </div>
         </Card>
       )}
+
+      {/* 2.25 M1: next roadmap step, today's plan, recommendations (G3) */}
+      <ForYouPanel />
 
       {/* 2.5 Daily Challenges */}
       <DailyChallenges onClaimed={() => myStats().then(setStats).catch(() => {})} />

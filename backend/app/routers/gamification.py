@@ -7,13 +7,14 @@ real implementations - keep the paths, they are the contract other members code 
 """
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import CurrentUser
-from app.models.gamification import Badge, UserBadge, UserStats
+from app.models.gamification import Badge, UserBadge, UserStats, XPEvent
 from app.services import badge_checker, xp_engine  # noqa: F401
 from app.services.badge_checker import get_badge_progress
 from app.services.xp_engine import xp_for_level
@@ -187,6 +188,10 @@ def claim_challenge_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+LEADERBOARD_SIZE = 50
+WEEK = 7
+
+
 @router.get("/leaderboard")
 def leaderboard(
     user: CurrentUser,
@@ -194,7 +199,25 @@ def leaderboard(
     period: str = "weekly",
     db: Session | None = Depends(get_db),
 ) -> dict:
-    """Top 50 plus the caller's own rank, pinned even when outside the top 50."""
+    """Top 50 plus the caller's own rank, pinned even when outside the top 50.
+
+    period  weekly - XP earned in the last 7 days, summed from xp_events. This
+                     is why every award must write an event row: the weekly
+                     board is computed from them.
+            all    - lifetime XP from user_stats.
+
+    Three things this used to get wrong:
+      - `period` was accepted and echoed back but never applied, so "this week"
+        and "all time" returned identical rankings;
+      - each row looked its user's name up separately - up to fifty queries, a
+        few seconds against the remote database;
+      - `preferences.leaderboard_opt_out` was not honoured, so a learner who
+        asked not to be ranked publicly still was.
+    """
+    from sqlalchemy import func
+
+    from app.models.user import User as UserModel
+
     user_uuid = None
     if user and "id" in user:
         try:
@@ -205,50 +228,67 @@ def leaderboard(
     if not db:
         return {"items": [], "me": None, "scope": scope, "period": period}
 
-    # Query top users by XP
-    top_stats = (
-        db.query(UserStats)
-        .order_by(UserStats.xp.desc())
-        .limit(50)
-        .all()
+    weekly = period != "all"
+
+    if weekly:
+        since = datetime.now(timezone.utc) - timedelta(days=WEEK)
+        totals = dict(
+            db.query(XPEvent.user_id, func.coalesce(func.sum(XPEvent.xp_awarded), 0))
+            .filter(XPEvent.created_at >= since)
+            .group_by(XPEvent.user_id)
+            .all()
+        )
+    else:
+        totals = dict(db.query(UserStats.user_id, UserStats.xp).all())
+
+    # One query for everyone's name, level, streak and privacy preference -
+    # not one per row.
+    people = {
+        u.id: u
+        for u in db.query(UserModel).filter(UserModel.id.in_(list(totals) or [None])).all()
+    }
+    stats = {
+        s.user_id: s
+        for s in db.query(UserStats).filter(UserStats.user_id.in_(list(totals) or [None])).all()
+    }
+
+    def opted_out(uid) -> bool:
+        prefs = getattr(people.get(uid), "preferences", None) or {}
+        return bool(prefs.get("leaderboard_opt_out"))
+
+    ranked = sorted(
+        ((uid, int(xp or 0)) for uid, xp in totals.items() if int(xp or 0) > 0),
+        key=lambda pair: pair[1],
+        reverse=True,
     )
 
-    items = []
-    for rank, s in enumerate(top_stats, start=1):
-        u_name = "Learner"
-        try:
-            from app.models.user import User as UserModel
-            u = db.query(UserModel).filter(UserModel.id == s.user_id).first()
-            if u and u.full_name:
-                u_name = u.full_name
-        except Exception:
-            pass
-
-        items.append({
+    def entry(rank, uid, xp):
+        person, stat = people.get(uid), stats.get(uid)
+        return {
             "rank": rank,
-            "user_id": str(s.user_id),
-            "name": u_name,
-            "xp": s.xp,
-            "level": s.level,
-            "streak": s.current_streak,
-        })
+            "user_id": str(uid),
+            "name": (person.full_name if person and person.full_name else "Learner"),
+            "xp": xp,
+            "level": stat.level if stat else 1,
+            "streak": stat.current_streak if stat else 0,
+        }
 
-    # Caller's own rank
+    public = [(uid, xp) for uid, xp in ranked if not opted_out(uid)]
+    items = [entry(rank, uid, xp) for rank, (uid, xp) in enumerate(public[:LEADERBOARD_SIZE], 1)]
+
+    # The caller always sees their own rank - including when they have opted
+    # out of the public board, since hiding you from others is not hiding you
+    # from yourself.
     me_entry = None
-    if user_uuid:
-        caller_stat = db.query(UserStats).filter(UserStats.user_id == user_uuid).first()
-        if caller_stat:
-            better_count = db.query(UserStats).filter(UserStats.xp > caller_stat.xp).count()
-            me_entry = {
-                "rank": better_count + 1,
-                "user_id": str(user_uuid),
-                "name": user.get("full_name") or "You",
-                "xp": caller_stat.xp,
-                "level": caller_stat.level,
-                "streak": caller_stat.current_streak,
-            }
+    if user_uuid is not None:
+        mine = int(totals.get(user_uuid, 0) or 0)
+        better = sum(1 for uid, xp in public if xp > mine and uid != user_uuid)
+        me_entry = entry(better + 1, user_uuid, mine)
+        if not people.get(user_uuid):
+            me_entry["name"] = user.get("full_name") or "You"
+        me_entry["opted_out"] = opted_out(user_uuid)
 
-    return {"items": items, "me": me_entry, "scope": scope, "period": period}
+    return {"items": items, "me": me_entry, "scope": scope, "period": "weekly" if weekly else "all"}
 
 
 @router.get("/notifications")

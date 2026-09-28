@@ -17,6 +17,33 @@ from app.schemas.user import UserProfileResponse, UserResponse, UserUpdate
 router = APIRouter(prefix="/api", tags=["users"])
 
 
+def _stats_for(db: Session | None, user_id: Any) -> dict[str, Any] | None:
+    """The gamification block for a profile, or None when there is none.
+
+    This used to be hardcoded to None, so every profile rendered zero XP, level
+    one and no streak - values that look like real data and are not. None is
+    returned only when the learner genuinely has no stats row yet.
+    """
+    if db is None:
+        return None
+    try:
+        from app.models.gamification import UserStats
+
+        row = db.query(UserStats).filter(UserStats.user_id == uuid.UUID(str(user_id))).first()
+    except Exception:  # noqa: BLE001 - a profile must still load without stats
+        return None
+    if row is None:
+        return None
+    return {
+        "xp": row.xp,
+        "level": row.level,
+        "coins": row.coins,
+        "current_streak": row.current_streak,
+        "longest_streak": row.longest_streak,
+        "total_learning_seconds": row.total_learning_seconds,
+    }
+
+
 @router.get("/me", response_model=UserProfileResponse)
 def get_me(
     user: CurrentUser,
@@ -34,7 +61,10 @@ def get_me(
     else:
         user_data = user
 
-    return {"user": UserResponse.model_validate(user_data), "stats": None}
+    return {
+        "user": UserResponse.model_validate(user_data),
+        "stats": _stats_for(db if database_is_configured() else None, user["id"]),
+    }
 
 
 @router.patch("/me", response_model=UserProfileResponse)
@@ -75,7 +105,7 @@ def update_me(
         if payload.preferences is not None:
             user_data["preferences"] = {**(user_data.get("preferences") or {}), **payload.preferences}
 
-    return {"user": UserResponse.model_validate(user_data), "stats": None}
+    return {"user": UserResponse.model_validate(user_data), "stats": _stats_for(db if database_is_configured() else None, user["id"])}
 
 
 @router.get("/me/enrollments")

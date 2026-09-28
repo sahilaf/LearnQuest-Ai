@@ -1,101 +1,34 @@
 /**
- * Spaced-Repetition Review Queue API.
- * OWNER: Member 1 (AI / Scheduler backend) consumed by Member 2 (UI).
+ * Spaced-repetition review queue. OWNER: Member 1 (scheduler) / Member 2 (UI).
+ * All requests go through the shared client. See plan.md 6.12.
  *
- * Contract (plan.md §6.12):
- * - GET  /api/review/today             -> list of review items due today (interleaved topics)
- * - POST /api/review/{item_id}/answer  -> grade, reschedule, update mastery & misconception
+ * The queue schedules TOPICS, not questions: each review draws a question for
+ * the topic, preferring one not shown last time, so a learner cannot memorise
+ * the item instead of the idea. Items are interleaved so the same topic never
+ * appears twice in a row.
  *
- * Note: If backend /api/review endpoints are pending, DEV_FALLBACK_REVIEWS serves
- * as an isolated, removable client fallback for development.
+ * There is deliberately NO client-side fallback. The one that used to be here
+ * marked any answer longer than three characters correct - typing "asdf" earned
+ * "Clear and conceptually accurate answer" - and attached the same hardcoded
+ * misconception about superkeys to every wrong answer, whatever the topic.
+ * That directly contradicted what this project claims to do, so an honest error
+ * is shown instead.
  */
-
 import client from './client';
 
-// ============================================================================
-// ISOLATED DEV FALLBACK DATA (Removable once M1 review router lands)
-// ============================================================================
-const DEV_FALLBACK_REVIEWS = [
-  {
-    id: 'rev-01',
-    topic_tag: 'dbms.sql_joins',
-    topic_name: 'SQL Joins & Grouping',
-    type: 'mcq',
-    prompt: 'Which join type returns all rows from the left table, and matching rows from the right table, filling with NULL when no match exists?',
-    options: ['INNER JOIN', 'LEFT OUTER JOIN', 'FULL OUTER JOIN', 'CROSS JOIN'],
-    due_at: new Date().toISOString(),
-  },
-  {
-    id: 'rev-02',
-    topic_tag: 'dbms.relational_algebra',
-    topic_name: 'Relational Algebra',
-    type: 'true_false',
-    prompt: 'The projection operator (π) in classical relational algebra permits duplicate rows in the final result relation.',
-    options: ['True', 'False'],
-    due_at: new Date().toISOString(),
-  },
-  {
-    id: 'rev-03',
-    topic_tag: 'dbms.indexing',
-    topic_name: 'Indexing & Query Plans',
-    type: 'short_answer',
-    prompt: 'Why does placing a low-cardinality boolean column first in a composite B-Tree index often degrade range scan efficiency on subsequent columns?',
-    options: null,
-    due_at: new Date().toISOString(),
-  },
-  {
-    id: 'rev-04',
-    topic_tag: 'dbms.er_model',
-    topic_name: 'ER Models & Keys',
-    type: 'short_answer',
-    prompt: 'In your own words, what distinguishes a superkey from a candidate key in relational schema design?',
-    options: null,
-    due_at: new Date().toISOString(),
-  },
-];
+/** {items: [{id, topic_tag, topic_name, type, prompt, options, due_at,
+ *            interval_days, streak}], total_due, next_due_at} */
+export const getTodayReview = () => client.get('/api/review/today');
 
-// ============================================================================
-// API METHODS
-// ============================================================================
-
-export const getTodayReview = async () => {
-  try {
-    const res = await client.get('/api/review/today');
-    return res?.data || res;
-  } catch (err) {
-    if (err?.response?.status === 404 || err?.status === 404 || err?.code === 'ERR_BAD_RESPONSE') {
-      return {
-        items: DEV_FALLBACK_REVIEWS,
-        total_due: DEV_FALLBACK_REVIEWS.length,
-      };
-    }
-    throw err;
-  }
-};
-
-export const submitReviewAnswer = async (itemId, { answer }) => {
-  try {
-    const res = await client.post(`/api/review/${itemId}/answer`, { answer });
-    return res?.data || res;
-  } catch (err) {
-    if (err?.response?.status === 404 || err?.status === 404) {
-      // Contract-compatible simulated grading for development
-      const isBlank = !answer || String(answer).trim().length === 0;
-      const isCorrect = !isBlank && String(answer).trim().length > 3;
-
-      return {
-        item_id: itemId,
-        is_correct: isCorrect,
-        score_0_1: isCorrect ? 1.0 : 0.0,
-        feedback: isCorrect
-          ? 'Clear and conceptually accurate answer. Demonstrated solid understanding of the underlying principle.'
-          : 'The answer missed key relational criteria. Review the formal definition and re-check how nulls and candidate keys interact.',
-        misconception: isCorrect
-          ? null
-          : 'Equating superkeys directly with candidate keys without verifying minimal irreducibility.',
-        next_due_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-      };
-    }
-    throw err;
-  }
-};
+/**
+ * Grade an answer, reschedule the topic, and update mastery.
+ *
+ * {item_id, is_correct, score_0_1, verdict, feedback, needs_review,
+ *  misconception, next_due_at, interval_days, correct_answer}
+ *
+ * `needs_review` means the answer could not be graded confidently - it is NOT
+ * marked wrong and the schedule is left alone. `misconception` is set only when
+ * a wrong typed answer revealed a specific false belief; otherwise it is null.
+ */
+export const submitReviewAnswer = (itemId, { answer }) =>
+  client.post(`/api/review/${itemId}/answer`, { answer });

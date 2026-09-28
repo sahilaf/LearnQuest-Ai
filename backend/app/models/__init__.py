@@ -11,3 +11,4 @@ from app.models import progress, quiz      # M2
 from app.models import ai                  # M1
 from app.models import roadmap             # M1
 from app.models import gamification        # M4
+from app.models import practice            # M2 UI / M1 runner

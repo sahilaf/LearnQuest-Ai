@@ -23,9 +23,11 @@ from app.routers import (
     jobs,
     lessons,
     mastery,
+    practice,
     progress,
     quizzes,
     recommendations,
+    review,
     roadmap,
     tutor,
     users,
@@ -54,6 +56,8 @@ app = FastAPI(
         {"name": "roadmap", "description": "AI-generated learning roadmaps. (M1)"},
         {"name": "mastery", "description": "Topic mastery and misconceptions. (M1)"},
         {"name": "jobs", "description": "Background AI generation jobs. (M1)"},
+        {"name": "review", "description": "Spaced-repetition review queue. (M1)"},
+        {"name": "practice", "description": "SQL practice problems, graded by running them. (M2/M1)"},
         {"name": "avatar", "description": "Avatar speech and lipsync payloads. (M1)"},
         {"name": "recommendations", "description": "Personalized recommendations. (M1)"},
         {"name": "gamification", "description": "XP, badges, streaks, challenges. (M4)"},
@@ -79,6 +83,8 @@ app.include_router(progress.router)          # M2
 app.include_router(quizzes.router)           # M2 attempts + M1 generation
 app.include_router(mastery.router)           # M1
 app.include_router(jobs.router)              # M1
+app.include_router(review.router)            # M1
+app.include_router(practice.router)          # M2 UI / M1 runner
 app.include_router(roadmap.router)           # M1
 app.include_router(tutor.router)             # M1
 app.include_router(avatar.router)            # M1

@@ -25,7 +25,26 @@ to teach it out of the mistake. Its score on the retry is your grade.
 
 ---
 
-## ⚠️ Read this after you pull — 2026-09-28
+## ⚠️ Read this after you pull — 2026-09-29
+
+Migration head is now **`0010`** (review items + practice problems), and the
+practice problems need seeding once:
+
+```bash
+cd backend && .venv/Scripts/python.exe -m alembic upgrade head
+cd backend && .venv/Scripts/python.exe -m app.seed.practice_problems
+```
+
+Without the seed `/practice` shows an empty list. The seed is idempotent - run
+it again whenever you like.
+
+**Everything except the avatar is now wired end to end.** Practice and Review
+were running on fake frontend fallbacks (any answer over 15 characters
+"passed"); those fallbacks are gone and both talk to real backends. Leaderboard
+and Profile are real pages, and the Dashboard shows the next roadmap step,
+today's plan and ranked recommendations (G3 closed).
+
+## Earlier pull notes — 2026-09-28
 
 Ten commits landed since `0d788ba`. Two of them will break your local setup if
 you skip these.
@@ -94,32 +113,37 @@ check these before you branch off them:
 
 ---
 
-## Where we actually are — audited 2026-09-28
+## Where we actually are — audited 2026-09-29
 
-Every `[x]` below was re-checked against the code, not trusted.
+Every `[x]` below was re-checked against the code, not trusted. Counted per
+slot owner (M4's earlier total of 28 was a miscount; it owns 23 items).
 
 | Member | Done | In progress | Open | Total |
 |---|---|---|---|---|
-| **M1** (AI) | 27 | 0 | 15 | 42 |
+| **M1** (AI) | 36 | 0 | 8 | 44 |
 | **M2** (Learning) | 29 | 0 | 6 | 35 |
-| **M3** (Users) | 13 | 1 | 8 | 22 |
-| **M4** (Game) | 22 | 0 | 6 | 28 |
-| **Total** | **91** | **1** | **35** | **127** |
+| **M3** (Users) | 14 | 1 | 7 | 22 |
+| **M4** (Game) | 23 | 0 | 0 | 23 |
+| **Total** | **102** | **1** | **21** | **124** |
+
+M1's 8 open items: 5 are Week 4 hardening (Slot 13, two of them avatar/TTS
+latency), and 3 are standing ⚠️ risks on generated content — no reviewer,
+the daily quota, and 503s from the model — kept open so nobody forgets them.
 
 Plus 4 shared dry-run items in Days 26-28.
 
-**M1's backend work is largely done.** The misconception engine fires,
+**M1's backend work is done.** The misconception engine fires,
 Teach-Back runs end to end, the avatar speaks, and quizzes and courses are
-generated per student. What is left for M1 is Week 3's review queue and
-free-response grading (Slot 9).
+generated per student. Slot 9 (free-response grading + the review queue),
+recommendations and the daily plan landed 2026-09-29.
 
 **The bottleneck is now the frontend.** Almost everything M1 shipped has no UI:
 generated quizzes, generated courses, the misconception map. Slots 9D (M2) and
 9E (M4) are the highest-value work left in the project, because they are what
 makes the novel part visible to anyone who is not reading a database.
 
-G1, G4 and G6 are closed. **G2** (Google sign-in), **G3** (the dashboard never
-calls the roadmap) and **G5** (anonymous access is not fail-closed) remain — see
+G1, G3, G4, G5 and G6 are closed. **G2** (Google sign-in) is the only open
+gap, and it is a Supabase dashboard fix, not a code fix — see
 [Open gaps](#open-gaps).
 
 **There is one avatar.** Tier A — the SVG avatar and its Web Speech voice — was
@@ -179,12 +203,13 @@ G5 is done — anonymous access now fails closed.
 - **G2:** Google sign-in still fails at the token exchange. The client secret in
   Supabase does not match the client id. This is the last thing stopping a
   stranger signing up, and it is a dashboard fix, not a code fix.
-- `Profile.jsx` is still 11 lines.
+- ~~`Profile.jsx` is still 11 lines.~~ Built 2026-09-29: stats, name, daily
+  goal, leaderboard opt-out.
 
-### 🔵 M1 (AI) — **Slot 9**
+### 🔵 M1 (AI) — **Slot 13**
 
-Free-response grading and the spaced-repetition review queue. `review_items`
-has been sitting in the schema since migration `0003`, indexed and unused.
+Slot 9 is done. Next is the Week 4 hardening pass: timeouts, rate limits and
+latency numbers. The avatar is deliberately excluded until then.
 
 ---
 
@@ -269,7 +294,7 @@ appears for a wrong answer.
 - [ ] Fix the Google token exchange — **see [G2]** — @, 2026-__-__
 - [ ] Add Supabase redirect URLs for **both 5173 and 5174** (Vite falls back) — @, 2026-__-__
 - [ ] Verify sign-up creates a `public.users` row — @, 2026-__-__
-- [ ] `Profile.jsx` — name, email, avatar (still an 11-line placeholder) — @, 2026-__-__
+- [x] `Profile.jsx` — stats, name, email (read-only), daily goal, leaderboard opt-out; `/api/me` now returns real stats — @sahilaf, 2026-09-29
 
 **✅ Hand off when:** a stranger can sign up with Google and see their profile.
 **→ Push, then tell M4.**
@@ -284,7 +309,7 @@ appears for a wrong answer.
 - [x] Streak counter — @rhossain222308-del, 2026-09-21
 - [x] "Continue learning" — uses M2's `/api/me/progress` — @rhossain222308-del, 2026-09-21
 - [x] Header streak/XP in `AppLayout.jsx` wired to `myStats()` — @rhossain222308-del, 2026-09-21
-- [ ] "Next quest" from `GET /api/roadmap/me` — **see [G3]**, not wired — @, 2026-__-__
+- [x] "Next quest" from `GET /api/roadmap/me` — `ForYouPanel` on the Dashboard, closes [G3] — @sahilaf, 2026-09-29
 
 **✅ Week 1 is done when:** sign up → dashboard shows real numbers → take a quiz →
 get one wrong → the app names your misconception.
@@ -372,13 +397,12 @@ Nova → Nova passes. *(Verified 2026-09-22: 15 tests in
 
 - [x] Seed badges + `GET /api/me/badges` → `Achievements.jsx` — @rhossain222308-del, 2026-09-21
 - [x] `History.jsx` from M2's `/api/me/history` — @rhossain222308-del, 2026-09-21
-- [ ] Add **History** to `NAV` in `AppLayout.jsx` — the page is built and routed but
-      reachable only from a single Dashboard link — @, 2026-__-__
-- [ ] `Stats.jsx` + **misconception map** — use M1's `GET /api/mastery/me` and
-      `GET /api/mastery/me/misconceptions`, which return real data.
-      **Not** `analytics.py`'s `/mastery/me`, which is a stub — @, 2026-__-__
-- [ ] `GET /api/leaderboard` — currently returns `{items: [], me: null}` → `Leaderboard.jsx` — @, 2026-__-__
-- [ ] Add each page to `NAV` as it stops being a placeholder — @, 2026-__-__
+- [x] Add **History** to `NAV` in `AppLayout.jsx` — verified in `NAV`, 2026-09-29
+- [x] `Stats.jsx` + **misconception map** — built on M1's `/api/mastery/*` (see
+      Slot 9E) — @oni, 2026-09-28
+- [x] `GET /api/leaderboard` — weekly (from `xp_events`) / all-time, one bulk query, honours opt-out, caller's rank always pinned → `Leaderboard.jsx`, in `NAV` — @sahilaf, 2026-09-29
+- [x] Add each page to `NAV` as it stops being a placeholder — every built page is
+      in `NAV` (Review and Leaderboard added) — @sahilaf, 2026-09-29
 
 **✅ Hand off when:** no nav link is a dead end, and no built page is unreachable.
 
@@ -535,17 +559,27 @@ Free text is **Tier 1 in plan.md** and matters more than it looks: the misconcep
 engine currently only sees multiple-choice answers, the weakest possible signal for
 inferring a false belief. Typed answers are where it actually works.
 
-- [ ] `POST /api/quizzes/attempts/{id}/grade-open` — LLM grades a typed answer against
-      the expected one → correct / partial / incorrect + written feedback
-      *(the route exists as a stub today)* — @, 2026-__-__
-- [ ] Feed the typed answer into `capture_misconception()` (much richer input) — @, 2026-__-__
-- [ ] Guard: never mark correct on the model's word alone — require the rubric match,
-      abstain to "needs review" when unsure — @, 2026-__-__
-- [ ] **Review queue generation** on the `review_items` table — it exists in
-      `models/ai.py:214` and migration `0003`, with `due_at` indexed, and is unused — @, 2026-__-__
-- [ ] `GET /api/review/today` — what is due now, weakest and most overdue first — @, 2026-__-__
-- [ ] `POST /api/review/{id}/answer` — grade, reschedule, update mastery — @, 2026-__-__
-- [ ] **Interleave**: a review session mixes topics rather than blocking one topic — @, 2026-__-__
+- [x] `POST /api/quizzes/attempts/{id}/grade-open` — `services/open_grader.py`;
+      correct / partial / incorrect + written feedback — @sahilaf, 2026-09-29
+- [x] Feed the typed answer into `capture_misconception()` (much richer input) — @sahilaf, 2026-09-29
+- [x] Guard: never mark correct on the model's word alone — empty is wrong, a
+      containment match is right without the model, the model's verdict only
+      counts when confident (≥0.6) and consistent with its score; otherwise
+      `needs_review` and the schedule is left alone — @sahilaf, 2026-09-29
+- [x] **Review queue generation** on `review_items` — every topic a submitted quiz
+      touches is enrolled (`quiz.submitted` handler in `services/scheduler.py`);
+      migration `0010` adds `question_id` — @sahilaf, 2026-09-29
+- [x] `GET /api/review/today` — what is due now, bank questions first, at most two
+      generated per load — @sahilaf, 2026-09-29
+- [x] `POST /api/review/{id}/answer` — grade, reschedule (right ×2.5 up to 60d,
+      wrong → 2d), update mastery — @sahilaf, 2026-09-29
+- [x] **Interleave**: a review session mixes topics rather than blocking one topic — @sahilaf, 2026-09-29
+- [x] **Recommendations** — `GET /api/recommendations` ranks lessons by weakness,
+      prerequisites, recency and popularity, each with its reason; dismiss;
+      `GET /api/recommendations/daily-plan` fills the daily goal, review first — @sahilaf, 2026-09-29
+- [x] **Practice runner** — each submission runs in a fresh in-memory SQLite
+      database that allows SELECT only, with a 2s timeout; hidden cases never
+      leave the server. 6 seeded problems, 16 cases — @sahilaf, 2026-09-29
 
 **✅ Hand off when:** a wrong typed answer schedules a review, and it comes back
 on the right day mixed with other topics.
@@ -687,13 +721,22 @@ the authorised redirect URI in Google Cloud to
 `https://dkyvtuzutcblcpeerqeo.supabase.co/auth/v1/callback`.
 Email/password sign-in works today. *(Owner: M3, Slot 3.)*
 
-### [G3] — The dashboard never calls the roadmap
+### ~~[G3] — The dashboard never calls the roadmap~~ · **closed 2026-09-29**
+
+`components/tutor/ForYouPanel.jsx` loads `GET /api/roadmap/me` itself and is
+dropped into `Dashboard.jsx` at one line, so M4's page logic is untouched. It
+also shows today's plan and the ranked recommendations.
+
+<details><summary>the original report</summary>
+
 
 `Dashboard.jsx` imports `api/courses` and `api/gamification` only; its `nextAction`
 (line 128) is derived from enrollments + progress. `RoadmapPage.jsx` is the only
 consumer of `api/roadmap.js`. `GET /api/roadmap/me` is real — the dashboard just
 does not call it, so "AI plans your next step" is invisible on the first screen
 after login. *(Owner: M4, Slot 4.)*
+
+</details>
 
 ### ~~[G4] — SyncTalk Tier B renders the wrong transport~~ · **closed 2026-09-22**
 
@@ -735,16 +778,14 @@ anything is deployed. *(Owner: M3, Slots 7 and 15.)*
 
 ---
 
-## Repo state — audited 2026-09-28
+## Repo state — audited 2026-09-29
 
 Read from the code, not from the boxes above.
 
 ### Still a placeholder (11 lines each)
 
-**Leaderboard** · **Stats** · **Profile** — all routed in `App.jsx`, all dead
-ends if a nav link is added. `Stats` is the one worth building first: the
-misconception map is the screen that shows what this product actually does, and
-it finally has real data moving through it.
+None. Leaderboard and Profile were built 2026-09-29; Stats (with the
+misconception map) was built by M4 on 2026-09-28.
 
 `History` is built (301 lines) and routed but absent from `NAV`, so it is
 reachable only from a single Dashboard link.
@@ -757,19 +798,20 @@ both `/generate` routes) · `gamification` stats / badges / achievements ·
 all `roadmap` · all `mastery` · all `tutor` (7 + 5 Teach-Back) · all `avatar`
 (status / config / session / speech) · all `jobs`
 
-**Still stubs:** `analytics.py` (all 4 — M4, and `/mastery/me` there duplicates
-M1's working one) · `gamification` leaderboard + challenges + notifications (M4)
-· `quizzes` `grade-open` (M1, Slot 9) · `recommendations` (M1, Slot 12)
+Also real since 2026-09-29: `review` · `practice` · `recommendations` ·
+`quizzes` `grade-open` · `gamification` leaderboard.
+
+**Frontend fallbacks removed:** `api/practice.js` and `api/review.js` used to
+fake grading when the backend failed. They now surface the error instead.
 
 ### Migrations
 
-`0001` → `0009`, single linear chain, no branching heads. ✅
-Unused table still waiting for Slot 9: `review_items` (`models/ai.py`,
-migration `0003`).
+`0001` → `0010`, single linear chain, no branching heads. ✅
+`review_items` is in use; `0010` adds the three practice tables.
 
 ### Tests
 
-**156 backend tests, all passing** — green twice in a row, which it had not been all month. `test_teachback`, `test_tts`,
+**236 backend tests, all passing**, with zero real model calls (every LLM path is stubbed). `test_practice`, `test_review_and_recommendations` and `test_leaderboard` are new as of 2026-09-29. Earlier: `test_teachback`, `test_tts`,
 `test_topics_and_jobs`, `test_quiz_generator`, `test_course_planner` and
 `test_progress_queries` are new.
 
@@ -803,4 +845,4 @@ problems, interleaving, daily challenges.
 > Add a line the moment you are stuck. Do not stall silently — the next person
 > in the relay is waiting on you.
 
-- [ ] *(none logged — G2, G3, G5 and G6 above are tracked work, not stalls)*
+- [ ] *(none logged — G2 above is a dashboard action for M3, not a stall)*

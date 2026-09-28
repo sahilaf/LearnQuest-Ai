@@ -593,7 +593,77 @@ async def generate_adaptive_quiz(
 
 
 @router.post("/attempts/{attempt_id}/grade-open")
-async def grade_open_answer(attempt_id: str, user: CurrentUser, payload: dict) -> dict:
-    """LLM grading for short_answer questions only."""
-    # TODO(M1): return {is_correct, score_0_1, feedback}.
-    return {"is_correct": False, "score_0_1": 0.0, "feedback": ""}
+async def grade_open_answer(
+    attempt_id: str,
+    user: CurrentUser,
+    payload: dict,
+    db: Session | None = Depends(get_db),
+) -> dict:
+    """Grade one typed answer properly, with written feedback. (M1)
+
+    Body: {question_id, answer}
+    Returns: {is_correct, score_0_1, verdict, feedback, needs_review}
+
+    `submit` grades short answers with a fast string match so a quiz never waits
+    on a model. This is the careful version, for when a student wants to know
+    WHY: a model reads the meaning, not the wording - but it may only mark an
+    answer correct when it is confident and consistent, and otherwise abstains
+    with `needs_review` rather than guessing. See services/open_grader.py.
+
+    When the verdict is confident it also corrects the stored grade, so a right
+    answer in the student's own words stops counting against them.
+    """
+    from app.services.open_grader import grade_open
+
+    if db is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is not configured.",
+        )
+
+    try:
+        attempt_uuid = uuid.UUID(attempt_id)
+        user_uuid = uuid.UUID(str(user["id"]))
+        question_uuid = uuid.UUID(str((payload or {}).get("question_id")))
+    except (ValueError, KeyError, TypeError) as err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="attempt_id and question_id must be valid ids.",
+        ) from err
+
+    attempt = (
+        db.query(QuizAttempt)
+        .filter(QuizAttempt.id == attempt_uuid, QuizAttempt.user_id == user_uuid)
+        .first()
+    )
+    if attempt is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found.")
+
+    question = (
+        db.query(Question)
+        .filter(Question.id == question_uuid, Question.quiz_id == attempt.quiz_id)
+        .first()
+    )
+    if question is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="That question is not part of this attempt.",
+        )
+
+    answer = str((payload or {}).get("answer") or "")
+    result = await grade_open(question.prompt, question.correct_answer, answer)
+
+    if not result["needs_review"]:
+        stored = (
+            db.query(AttemptAnswer)
+            .filter(
+                AttemptAnswer.attempt_id == attempt.id,
+                AttemptAnswer.question_id == question.id,
+            )
+            .first()
+        )
+        if stored is not None and stored.is_correct != result["is_correct"]:
+            stored.is_correct = result["is_correct"]
+            db.commit()
+
+    return result

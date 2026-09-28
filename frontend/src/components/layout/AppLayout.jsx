@@ -14,6 +14,8 @@ import {
   BarChart3,
   History,
   UploadCloud,
+  RotateCcw,
+  Medal,
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
@@ -39,8 +41,12 @@ const NAV = [
   { to: '/courses', label: 'Courses', icon: BookOpen },
   { to: '/upload', label: 'Upload Notes', icon: UploadCloud },
   { to: '/practice', label: 'Practice', icon: Code2 },
+  // Review is a daily habit; burying it inside Practice meant most learners
+  // never found the queue that makes learning stick.
+  { to: '/review', label: 'Review', icon: RotateCcw },
   { to: '/tutor', label: 'AI Tutor', icon: Sparkles },
   { to: '/achievements', label: 'Achievements', icon: Trophy },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Medal },
   { to: '/stats', label: 'Stats', icon: BarChart3 },
   { to: '/history', label: 'History', icon: History },
 ];

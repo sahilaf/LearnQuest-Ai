@@ -249,6 +249,14 @@ class ReviewItem(Base):
         DateTime(timezone=True), nullable=False, index=True
     )
     interval_days: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # The question currently being asked for this topic. The queue schedules
+    # topics, not questions, so this changes between reviews; it is recorded so
+    # an answer is graded against the question that was actually shown.
+    question_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("questions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
