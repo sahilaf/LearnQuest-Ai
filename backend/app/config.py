@@ -42,9 +42,19 @@ class Settings(BaseSettings):
     llm_model: str = "llama-3.3-70b-versatile"
     llm_timeout_seconds: int = 30
     llm_max_retries: int = 2
+    # Comma-separated Gemini models tried in order when `llm_model` fails.
+    # A 503 ("overloaded") is per model and usually lasts minutes, so retrying
+    # the same model a few seconds later rarely helps - measured 2026-09-29, an
+    # upload failed on three 503s in 12s while other models answered in 2s.
+    # The free-tier daily quota is also per model, so this covers 429s too.
+    llm_fallback_models: str = ""
 
     # --- avatar (M1) ---
     avatar_service_url: str = ""
+
+    @property
+    def llm_fallback_model_list(self) -> list[str]:
+        return [m.strip() for m in self.llm_fallback_models.split(",") if m.strip()]
 
     @property
     def cors_origin_list(self) -> list[str]:

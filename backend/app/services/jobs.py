@@ -172,6 +172,8 @@ def _student_facing_error(exc: Exception) -> str:
     text = str(exc)
     if "429" in text or "quota" in text.lower():
         return "The AI is over its request limit right now. Try again in a few minutes."
+    if "503" in text or "unavailable" in text.lower() or "overloaded" in text.lower():
+        return "The AI service is busy right now. Nothing was lost - try again in a minute."
     if "timeout" in text.lower() or "timed out" in text.lower():
         return "Generating this took too long. Try again."
     return "Something went wrong while generating this. Try again."

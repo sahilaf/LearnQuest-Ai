@@ -495,9 +495,16 @@ quizzes on the same topic, and getting one wrong still produces a misconception.
       the whole course — but a learner still got two stubs. Caching lessons by
       `(topic, difficulty)` is the fix; it was deferred on 2026-09-27 in favour
       of fresh-every-time — @, 2026-__-__
-- [ ] ⚠️ `gemini-3.6-flash` returns **503 Service Unavailable** often enough to
-      fail a whole course through three retries. Widen the backoff, or fall back
-      to a second model, before this is demoed live — @, 2026-__-__
+- [x] ⚠️ `gemini-3.6-flash` returns **503 Service Unavailable** often enough to
+      fail a whole course through three retries. **Fixed:** `LLM_FALLBACK_MODELS`
+      — each attempt moves to the next model instead of re-asking the overloaded
+      one (a real upload failed on three 503s in 12s while other models answered
+      in 2s). Also covers per-model 429 quota. Streaming falls back only before
+      the first token. An empty 200 counts as a failure, not as "no study
+      material". Failed jobs now say "the AI service is busy" — @sahilaf, 2026-09-29
+
+> **Everyone:** add this to `backend/.env` (it is in `.env.example`):
+> `LLM_FALLBACK_MODELS=gemini-3.7-flash,gemini-2.5-flash,gemini-flash-latest`
 
 ---
 
@@ -837,7 +844,7 @@ fake grading when the backend failed. They now surface the error instead.
 
 ### Tests
 
-**259 backend tests, all passing**, with zero real model calls (every LLM path is stubbed). `test_practice`, `test_review_and_recommendations` and `test_leaderboard` are new as of 2026-09-29. Earlier: `test_teachback`, `test_tts`,
+**269 backend tests, all passing**, with zero real model calls (every LLM path is stubbed). `test_practice`, `test_review_and_recommendations` and `test_leaderboard` are new as of 2026-09-29. Earlier: `test_teachback`, `test_tts`,
 `test_topics_and_jobs`, `test_quiz_generator`, `test_course_planner` and
 `test_progress_queries` are new.
 

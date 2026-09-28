@@ -228,12 +228,27 @@ class GeminiClient(LLMClient):
     """Google Gemini client speaking the Generative Language REST API.
 
     Supports gemini-2.5-flash, gemini-2.5-pro, gemini-flash-latest, etc.
+
+    Fallback models
+    ---------------
+    `models` is the configured model followed by `LLM_FALLBACK_MODELS`. A 503
+    means *that model* is overloaded, and it tends to stay overloaded for
+    minutes; retrying it 1s, 2s and 4s later - what this client used to do -
+    failed a notes upload in 12 seconds while other models answered in two. So
+    each attempt moves to the next model, and only a full pass over all of
+    them waits before starting again. The free-tier daily quota is per model
+    too, so the same rotation gets past a 429.
     """
 
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, fallbacks: list[str] | None = None) -> None:
         self.api_key = api_key
         raw_model = model or "gemini-2.5-flash"
         self.model = raw_model.removeprefix("models/")
+        self.models: list[str] = []
+        for name in [self.model, *(fallbacks or [])]:
+            name = name.removeprefix("models/")
+            if name and name not in self.models:
+                self.models.append(name)
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
 
     def _headers(self) -> dict[str, str]:
@@ -249,10 +264,11 @@ class GeminiClient(LLMClient):
             "x-goog-api-key": self.api_key,
         }
 
-    def _supports_thinking(self) -> bool:
+    @staticmethod
+    def _supports_thinking(model: str) -> bool:
         """True for Gemini families that accept generationConfig.thinkingConfig."""
         legacy = ("1.0", "1.5", "2.0")
-        return not any(tag in self.model for tag in legacy)
+        return not any(tag in model for tag in legacy)
 
     def _prepare_payload(
         self,
@@ -260,6 +276,7 @@ class GeminiClient(LLMClient):
         temperature: float,
         max_tokens: int,
         json_mode: bool,
+        model: str | None = None,
     ) -> dict:
         contents = []
         system_instruction = None
@@ -286,7 +303,7 @@ class GeminiClient(LLMClient):
         # spends nearly the whole budget reasoning and the reply is truncated
         # mid-sentence with finishReason=MAX_TOKENS. Legacy 1.5/2.0 models do
         # not accept this field, so only send it where it applies.
-        if self._supports_thinking():
+        if self._supports_thinking(model or self.model):
             generation_config["thinkingConfig"] = {
                 "thinkingBudget": settings.llm_thinking_budget
             }
@@ -310,42 +327,52 @@ class GeminiClient(LLMClient):
         max_tokens: int = 800,
         json_mode: bool = False,
     ) -> str:
-        body = self._prepare_payload(messages, temperature, max_tokens, json_mode)
-        endpoint = f"{self.base_url}/models/{self.model}:generateContent"
-
         last_error: Exception | None = None
-        for attempt in range(settings.llm_max_retries + 1):
-            try:
-                http = get_http_client()
-                resp = await http.post(
-                    endpoint,
-                    headers=self._headers(),
-                    json=body,
-                )
-                resp.raise_for_status()
-                data = resp.json()
+        rounds = settings.llm_max_retries + 1
+        for round_ in range(rounds):
+            for model in self.models:
+                body = self._prepare_payload(messages, temperature, max_tokens, json_mode, model)
+                endpoint = f"{self.base_url}/models/{model}:generateContent"
+                try:
+                    http = get_http_client()
+                    resp = await http.post(endpoint, headers=self._headers(), json=body)
+                    resp.raise_for_status()
+                    data = resp.json()
 
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    raise LLMError(f"Gemini returned no candidates: {data}")
+                    candidates = data.get("candidates", [])
+                    if not candidates:
+                        raise LLMError(f"Gemini returned no candidates: {data}")
 
-                parts = candidates[0].get("content", {}).get("parts", [])
-                text = "".join(p.get("text", "") for p in parts)
-                usage = data.get("usageMetadata", {})
-                logger.info(
-                    "gemini complete model=%s tokens=%s",
-                    self.model,
-                    usage.get("totalTokenCount"),
-                )
-                return text
-            except Exception as exc:  # noqa: BLE001
-                last_error = exc
-                wait = 2**attempt
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    text = "".join(p.get("text", "") for p in parts)
+                    # A 200 with no text happens (seen 2026-09-29 on
+                    # gemini-3.7-flash). Returned as "", it reads downstream as
+                    # "the notes had no study material" - blaming the student's
+                    # file for a model hiccup. Treat it as a failure instead.
+                    if not text.strip():
+                        raise LLMError(
+                            "Gemini returned no text "
+                            f"(finishReason={candidates[0].get('finishReason')})"
+                        )
+                    usage = data.get("usageMetadata", {})
+                    logger.info(
+                        "gemini complete model=%s tokens=%s%s",
+                        model,
+                        usage.get("totalTokenCount"),
+                        "" if model == self.model else " (fallback)",
+                    )
+                    return text
+                except Exception as exc:  # noqa: BLE001
+                    last_error = exc
+                    logger.warning("gemini %s failed: %s", model, exc)
+
+            # Every model failed this round. Back off before going round again.
+            if round_ < rounds - 1:
+                wait = 2**round_
                 logger.warning(
-                    "gemini attempt %s failed: %s (retry in %ss)", attempt + 1, exc, wait
+                    "gemini: all %d model(s) failed, retry in %ss", len(self.models), wait
                 )
-                if attempt < settings.llm_max_retries:
-                    await asyncio.sleep(wait)
+                await asyncio.sleep(wait)
 
         raise LLMError(f"Gemini request failed after retries: {last_error}") from last_error
 
@@ -356,35 +383,46 @@ class GeminiClient(LLMClient):
         temperature: float = 0.7,
         max_tokens: int = 800,
     ) -> AsyncIterator[str]:
-        body = self._prepare_payload(messages, temperature, max_tokens, False)
-        endpoint = f"{self.base_url}/models/{self.model}:streamGenerateContent?alt=sse"
+        # Falls back only before the first token. Once text has reached the
+        # student, switching model would splice two different answers together.
+        last_error: Exception | None = None
+        for model in self.models:
+            body = self._prepare_payload(messages, temperature, max_tokens, False, model)
+            endpoint = f"{self.base_url}/models/{model}:streamGenerateContent?alt=sse"
+            started = False
+            try:
+                http = get_http_client()
+                async with http.stream(
+                    "POST",
+                    endpoint,
+                    headers=self._headers(),
+                    json=body,
+                ) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        chunk_str = line[6:].strip()
+                        if not chunk_str or chunk_str == "[DONE]":
+                            continue
+                        try:
+                            chunk_data = json.loads(chunk_str)
+                            candidates = chunk_data.get("candidates", [])
+                            if candidates:
+                                for part in candidates[0].get("content", {}).get("parts", []):
+                                    if text := part.get("text"):
+                                        started = True
+                                        yield text
+                        except (json.JSONDecodeError, KeyError, IndexError):
+                            continue
+                return
+            except Exception as exc:  # noqa: BLE001
+                if started:
+                    raise LLMError(f"Gemini stream failed: {exc}") from exc
+                last_error = exc
+                logger.warning("gemini stream %s failed before any output: %s", model, exc)
 
-        try:
-            http = get_http_client()
-            async with http.stream(
-                "POST",
-                endpoint,
-                headers=self._headers(),
-                json=body,
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    chunk_str = line[6:].strip()
-                    if not chunk_str or chunk_str == "[DONE]":
-                        continue
-                    try:
-                        chunk_data = json.loads(chunk_str)
-                        candidates = chunk_data.get("candidates", [])
-                        if candidates:
-                            for part in candidates[0].get("content", {}).get("parts", []):
-                                if text := part.get("text"):
-                                    yield text
-                    except (json.JSONDecodeError, KeyError, IndexError):
-                        continue
-        except Exception as exc:  # noqa: BLE001
-            raise LLMError(f"Gemini stream failed: {exc}") from exc
+        raise LLMError(f"Gemini stream failed: {last_error}") from last_error
 
 
 _client: LLMClient | None = None
@@ -407,7 +445,9 @@ def get_llm() -> LLMClient:
             PROVIDER_ENDPOINTS[provider], settings.llm_api_key, settings.llm_model
         )
     elif provider == "gemini":
-        _client = GeminiClient(settings.llm_api_key, settings.llm_model)
+        _client = GeminiClient(
+            settings.llm_api_key, settings.llm_model, settings.llm_fallback_model_list
+        )
     else:
         logger.error("Unknown LLM_PROVIDER %r - falling back to MockLLMClient.", provider)
         _client = MockLLMClient()
