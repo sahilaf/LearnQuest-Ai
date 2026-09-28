@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     # upload failed on three 503s in 12s while other models answered in 2s.
     # The free-tier daily quota is also per model, so this covers 429s too.
     llm_fallback_models: str = ""
+    # A second *provider*, tried when every model above has failed. OpenRouter
+    # speaks the OpenAI schema; the default is cheap (~$0.00005 per lesson,
+    # measured 2026-09-29), fast (~5s) and returned valid JSON first time.
+    # It is paid: the account needs credit. Empty key = no second provider.
+    openrouter_api_key: str = ""
+    openrouter_model: str = "inclusionai/ling-3.0-flash-vl"
 
     # --- avatar (M1) ---
     avatar_service_url: str = ""

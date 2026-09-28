@@ -506,6 +506,16 @@ quizzes on the same topic, and getting one wrong still produces a misconception.
 > **Everyone:** add this to `backend/.env` (it is in `.env.example`):
 > `LLM_FALLBACK_MODELS=gemini-3.7-flash,gemini-2.5-flash,gemini-flash-latest`
 
+- [x] **Second provider: OpenRouter** (`inclusionai/ling-3.0-flash-vl`), tried
+      when every Gemini model fails — an outage or daily quota at Gemini no
+      longer takes down every AI feature at once. Reasoning is switched off
+      (it ate 187 of 284 tokens and truncated JSON). Measured with Gemini
+      forced down: valid quiz JSON 3/3 at ~3.2s, streaming in 1.3s. **Paid but
+      tiny** (~$0.00005 per lesson) — the account needs a few dollars of credit.
+      Set `OPENROUTER_API_KEY` in `backend/.env` (the lead has one; never commit
+      it). Gemma 4 31B was tested and rejected: 40–60s per reply, ~2 in 5
+      failed, no streaming — @sahilaf, 2026-09-29
+
 ---
 
 ## 🟢 Slot 9D · Member 2 · Generated quizzes in the UI
@@ -844,7 +854,7 @@ fake grading when the backend failed. They now surface the error instead.
 
 ### Tests
 
-**269 backend tests, all passing**, with zero real model calls (every LLM path is stubbed). `test_practice`, `test_review_and_recommendations` and `test_leaderboard` are new as of 2026-09-29. Earlier: `test_teachback`, `test_tts`,
+**285 backend tests, all passing**, with zero real model calls (every LLM path is stubbed). `test_practice`, `test_review_and_recommendations` and `test_leaderboard` are new as of 2026-09-29. Earlier: `test_teachback`, `test_tts`,
 `test_topics_and_jobs`, `test_quiz_generator`, `test_course_planner` and
 `test_progress_queries` are new.
 
