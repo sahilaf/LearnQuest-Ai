@@ -83,7 +83,7 @@ export function AvatarPreview() {
           <span className="flex h-16 w-16 items-center justify-center rounded-pill border border-primary-500/40 bg-primary-500/10 text-primary-300">
             <Sparkles className="h-7 w-7" />
           </span>
-          <p className="mt-4 font-display text-xl text-ink">She explains it your way</p>
+          <p className="mt-4 text-xl font-semibold text-ink">She explains it your way</p>
           <p className="mt-1.5 max-w-[15rem] text-sm text-muted">
             A real face that answers out loud — and learns what you keep getting wrong.
           </p>

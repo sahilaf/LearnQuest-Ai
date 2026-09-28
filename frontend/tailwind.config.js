@@ -77,14 +77,13 @@ export default {
       },
 
       // One typeface for the whole UI - Inter - at the faculty's request
-      // (2026-09-29). `display` and `mono` are kept as names so existing
-      // classes keep working, but both resolve to Inter: page titles get their
-      // weight from `.display`, and figures stay aligned through
-      // `font-variant-numeric: tabular-nums` on `.font-mono` in index.css.
-      // Do not point these back at a second face.
+      // (2026-09-29). There is no `display` family any more: page titles are
+      // `.display` in index.css, which is Inter semibold. `mono` stays as a
+      // name because 48 elements use it for figures, but it resolves to Inter;
+      // tabular numerals on `.font-mono` (index.css) keep digits aligned.
+      // Do not add a second face here or in index.html.
       fontFamily: {
         sans: INTER,
-        display: INTER,
         mono: INTER,
       },
 

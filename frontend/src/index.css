@@ -215,12 +215,12 @@
    * read as labels rather than as shrunken headings.
    * ------------------------------------------------------------------ */
   .label {
-    @apply font-mono text-2xs font-medium uppercase tracking-[0.12em] text-muted;
+    @apply font-sans text-2xs font-medium uppercase tracking-[0.12em] text-muted;
   }
 
   /* Page title. Inter needs weight where the old serif had contrast. */
   .display {
-    @apply font-display font-semibold tracking-tight text-ink;
+    @apply font-sans font-semibold tracking-tight text-ink;
   }
 
   /* ------------------------------------------------------------------ *
