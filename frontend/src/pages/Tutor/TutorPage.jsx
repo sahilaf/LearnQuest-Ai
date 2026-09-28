@@ -65,7 +65,15 @@ export default function TutorPage() {
   const [activeMobileTab, setActiveMobileTab] = useState('chat');
 
   // Right-hand column: ask Nova, or teach her. Teach-Back is the novel mode.
-  const [rightMode, setRightMode] = useState('chat');
+  const modeParam = searchParams.get('mode');
+  const topicParam = searchParams.get('topic');
+  const [rightMode, setRightMode] = useState(modeParam === 'teachback' ? 'teachback' : 'chat');
+
+  useEffect(() => {
+    if (modeParam === 'teachback') {
+      setRightMode('teachback');
+    }
+  }, [modeParam]);
 
   // Sync route param with internal state
   useEffect(() => {
@@ -483,7 +491,10 @@ export default function TutorPage() {
                 rightMode === 'teachback' ? 'block' : 'hidden'
               }`}
             >
-              <TeachBackPanel onNovaSpeak={handleNovaSpeak} />
+              <TeachBackPanel
+                onNovaSpeak={handleNovaSpeak}
+                initialTopic={topicParam}
+              />
             </div>
           </div>
         </div>

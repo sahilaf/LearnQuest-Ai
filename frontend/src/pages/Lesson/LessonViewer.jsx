@@ -107,6 +107,14 @@ export default function LessonViewer() {
     }
   };
 
+  const handleStartQuiz = () => {
+    if (lesson?.quiz_id) {
+      navigate(`/quiz/${lesson.quiz_id}`);
+    } else {
+      handlePracticeThisLesson();
+    }
+  };
+
   // 1. Fetch lesson data
   const fetchLessonData = useCallback(() => {
     if (!currentLessonId) return;
@@ -585,25 +593,29 @@ export default function LessonViewer() {
                     You have finished reading this lesson. Ready to test your understanding with a quiz?
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {lesson?.quiz_id && (
-                    <Link to={`/quiz/${lesson.quiz_id}`}>
-                      <Button variant="primary" size="sm">
-                        Take Practice Quiz →
-                      </Button>
-                    </Link>
-                  )}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={generatingQuiz}
+                    disabled={generatingQuiz}
+                    onClick={handleStartQuiz}
+                  >
+                    {generatingQuiz ? 'Generating quiz (~8s)...' : 'Quiz me →'}
+                  </Button>
                   {nextLesson ? (
-                    <Link to={`/lessons/${nextLesson.id}`}>
-                      <Button variant="secondary" size="sm">
-                        Next Lesson →
-                      </Button>
+                    <Link
+                      to={`/lessons/${nextLesson.id}`}
+                      className="text-xs font-semibold text-muted hover:text-ink transition-colors"
+                    >
+                      Skip to next lesson →
                     </Link>
                   ) : (
-                    <Link to={`/courses/${courseSlug}`}>
-                      <Button variant="secondary" size="sm">
-                        Course Completed ✓
-                      </Button>
+                    <Link
+                      to={`/courses/${courseSlug}`}
+                      className="text-xs font-semibold text-muted hover:text-ink transition-colors"
+                    >
+                      Course Completed ✓
                     </Link>
                   )}
                 </div>
@@ -627,37 +639,24 @@ export default function LessonViewer() {
               </Link>
             )}
 
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start sm:justify-end">
+              {nextLesson && (
+                <Link
+                  to={`/lessons/${nextLesson.id}`}
+                  className="text-xs font-semibold text-muted hover:text-ink transition-colors mr-1"
+                >
+                  Skip to next lesson →
+                </Link>
+              )}
               <Button
-                variant="secondary"
+                variant="primary"
+                size="md"
                 loading={generatingQuiz}
-                disabled={generatingQuiz || (quota && quota.remaining <= 0)}
-                onClick={handlePracticeThisLesson}
+                disabled={generatingQuiz}
+                onClick={handleStartQuiz}
               >
-                {generatingQuiz ? 'Generating (~8s)...' : 'Practice this lesson 🎯'}
+                {generatingQuiz ? 'Generating (~8s)...' : 'Quiz me →'}
               </Button>
-
-              {lesson?.quiz_id && (
-                <Link to={`/quiz/${lesson.quiz_id}`}>
-                  <Button variant="secondary">
-                    Standard Quiz
-                  </Button>
-                </Link>
-              )}
-
-              {nextLesson ? (
-                <Link to={`/lessons/${nextLesson.id}`}>
-                  <Button variant="primary">
-                    Next: {nextLesson.title} →
-                  </Button>
-                </Link>
-              ) : (
-                <Link to={`/courses/${courseSlug}`}>
-                  <Button variant="secondary">
-                    Finish Course ✓
-                  </Button>
-                </Link>
-              )}
             </div>
           </div>
         </div>
@@ -729,19 +728,22 @@ export default function LessonViewer() {
                     variant="primary"
                     size="sm"
                     loading={generatingQuiz}
-                    disabled={generatingQuiz || (quota && quota.remaining <= 0)}
-                    onClick={handlePracticeThisLesson}
+                    disabled={generatingQuiz}
+                    onClick={handleStartQuiz}
                     className="w-full"
                   >
-                    {generatingQuiz ? 'Generating quiz (~8s)...' : 'Practice this lesson 🎯'}
+                    {generatingQuiz ? 'Generating quiz (~8s)...' : 'Quiz me →'}
                   </Button>
 
-                  {lesson?.quiz_id && (
-                    <Link to={`/quiz/${lesson.quiz_id}`} className="block">
-                      <Button variant="secondary" size="sm" className="w-full">
-                        Standard Quiz
-                      </Button>
-                    </Link>
+                  {nextLesson && (
+                    <div className="text-center pt-1">
+                      <Link
+                        to={`/lessons/${nextLesson.id}`}
+                        className="text-xs text-muted hover:text-ink transition-colors"
+                      >
+                        Skip to next lesson →
+                      </Link>
+                    </div>
                   )}
                 </div>
               </div>

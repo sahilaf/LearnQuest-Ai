@@ -3,7 +3,7 @@
  *
  * Email/password + Google sign-in via Supabase Auth.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, Sparkles, AlertCircle } from 'lucide-react';
 
@@ -19,6 +19,11 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    clearError?.();
+    setError(null);
+  }, []);
 
   // If already authenticated, redirect to dashboard
   if (isAuthenticated) {

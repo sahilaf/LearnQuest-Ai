@@ -249,7 +249,7 @@ function GoalForm({ onGenerate, generating, error }) {
 /* ------------------------------------------------------------------ *
  * Page
  * ------------------------------------------------------------------ */
-export default function RoadmapPage() {
+export default function RoadmapPage({ embedded = false }) {
   const [roadmap, setRoadmap] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -326,10 +326,12 @@ export default function RoadmapPage() {
   if (!roadmap) {
     return (
       <div>
-        <PageHeader
-          title="Your quest path"
-          subtitle="An AI-built roadmap through the catalogue, personalised to your goal and what you already know."
-        />
+        {!embedded && (
+          <PageHeader
+            title="Your quest path"
+            subtitle="An AI-built roadmap through the catalogue, personalised to your goal and what you already know."
+          />
+        )}
         <GoalForm onGenerate={handleGenerate} generating={generating} error={error} />
       </div>
     );
@@ -339,16 +341,26 @@ export default function RoadmapPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Your quest path"
-        subtitle={roadmap.goal}
-        action={
+      {!embedded ? (
+        <PageHeader
+          title="Your quest path"
+          subtitle={roadmap.goal}
+          action={
+            <Button variant="secondary" size="sm" loading={generating} onClick={handleReplan}>
+              <RefreshCw className="h-4 w-4" />
+              Re-plan
+            </Button>
+          }
+        />
+      ) : (
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm font-medium text-muted">Goal: <span className="text-ink font-semibold">{roadmap.goal}</span></p>
           <Button variant="secondary" size="sm" loading={generating} onClick={handleReplan}>
             <RefreshCw className="h-4 w-4" />
             Re-plan
           </Button>
-        }
-      />
+        </div>
+      )}
 
       {/* Progress summary */}
       <Card className="mb-7">

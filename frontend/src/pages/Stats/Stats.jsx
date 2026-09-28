@@ -53,7 +53,7 @@ function formatDate(isoStr) {
   }
 }
 
-export default function Stats() {
+export default function Stats({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -133,11 +133,12 @@ export default function Stats() {
 
   return (
     <div className="space-y-8 pb-16">
-      {/* Header */}
-      <PageHeader
-        title="Learning Analytics"
-        subtitle="Track your false belief recovery, review retention, and study momentum over time."
-      />
+      {!embedded && (
+        <PageHeader
+          title="Learning Analytics"
+          subtitle="Track your false belief recovery, review retention, and study momentum over time."
+        />
+      )}
 
       {loading && !summary ? (
         <div className="flex h-64 items-center justify-center">

@@ -51,7 +51,7 @@ const FILTER_TABS = [
   { id: 'quiz', label: 'Quizzes' },
 ];
 
-export default function History() {
+export default function History({ embedded = false }) {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -110,11 +110,12 @@ export default function History() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Page Header */}
-      <PageHeader
-        title="Learning History"
-        subtitle="Chronological record of every lesson completed and quiz attempted."
-      />
+      {!embedded && (
+        <PageHeader
+          title="Learning History"
+          subtitle="Chronological record of every lesson completed and quiz attempted."
+        />
+      )}
 
       {/* Filter Tabs & Total Count */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -1,30 +1,37 @@
-
 /**
- * Dashboard - OWNER: Member 2. See plan.md §7.2, §7.4.
- *
- * Information-dense learner dashboard showing:
- * - Next action hero banner
- * - M4 gamification stats summary (integrated gracefully)
- * - Current enrolled learning tracks with progress bars
- * - Recent learning activity feed (lessons, quizzes, results)
- * - Available tracks to explore
- * - Empty, loading, and error states
+ * Dashboard (Home) - Single loop, clear next step.
+ * Shows ONE big "Continue" card driven by the daily plan:
+ * Due reviews first -> Next lesson -> Quiz.
+ * Underneath: Today's short list, Slim streak/XP strip, and Misconception summary.
+ * Plus 3-step first-run onboarding for new learners.
  */
-
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  listCourses,
-  myEnrollments,
-  myProgress,
-  myHistory,
-  generateCourse,
-} from '../../api/courses';
-import { generateAdaptiveQuiz } from '../../api/quizzes';
-import { myQuota } from '../../api/jobs';
-import { myStats } from '../../api/gamification';
-import useGenerationJob from '../../hooks/useGenerationJob';
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  Clock,
+  Compass,
+  Flame,
+  GraduationCap,
+  HelpCircle,
+  Lightbulb,
+  Map,
+  RotateCcw,
+  Sparkles,
+  Target,
+  Zap,
+} from 'lucide-react';
+
 import { useAuth } from '../../context/AuthContext';
+import { dailyPlan } from '../../api/recommendations';
+import { getTodayReview } from '../../api/review';
+import { myProgress, listCourses } from '../../api/courses';
+import { myRoadmap, generateRoadmap } from '../../api/roadmap';
+import { myMisconceptions } from '../../api/mastery';
+import { myStats } from '../../api/gamification';
+
 import PageHeader from '../../components/layout/PageHeader';
 import {
   Badge,
@@ -33,21 +40,12 @@ import {
   EmptyState,
   Input,
   ProgressBar,
-  Select,
   Spinner,
 } from '../../components/ui';
-import { StreakFlame, XPBar, DailyChallenges } from '../../components/game';
-import ForYouPanel from '../../components/tutor/ForYouPanel';
-
-const N_LESSONS_OPTIONS = [
-  { value: '3', label: '3 Lessons (Quick intro)' },
-  { value: '4', label: '4 Lessons (Standard track)' },
-  { value: '5', label: '5 Lessons (Comprehensive)' },
-  { value: '6', label: '6 Lessons (Deep dive)' },
-];
+import { StreakFlame, XPBar } from '../../components/game';
 
 function formatDuration(seconds) {
-  if (!seconds || seconds <= 0) return '0 min';
+  if (!seconds || seconds <= 0) return '0m';
   const mins = Math.floor(seconds / 60);
   if (mins < 60) return `${mins}m`;
   const hours = Math.floor(mins / 60);
@@ -55,105 +53,88 @@ function formatDuration(seconds) {
   return remMins > 0 ? `${hours}h ${remMins}m` : `${hours}h`;
 }
 
-function formatDate(isoString) {
-  if (!isoString) return '';
-  try {
-    const d = new Date(isoString);
-    return d.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return '';
-  }
-}
-
-function getDifficultyTone(difficulty) {
-  switch (difficulty?.toLowerCase()) {
-    case 'beginner':
-      return 'easy';
-    case 'intermediate':
-      return 'warning';
-    case 'advanced':
-      return 'danger';
-    default:
-      return 'default';
-  }
-}
+const KIND_LABEL = {
+  revision: 'Review',
+  lesson: 'Lesson',
+  quiz: 'Quiz',
+};
 
 export default function Dashboard() {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [plan, setPlan] = useState(null);
+  const [reviewData, setReviewData] = useState(null);
   const [progressItems, setProgressItems] = useState([]);
-  const [historyItems, setHistoryItems] = useState([]);
-  const [availableCourses, setAvailableCourses] = useState([]);
+  const [roadmap, setRoadmap] = useState(null);
+  const [misconceptions, setMisconceptions] = useState([]);
   const [stats, setStats] = useState(null);
 
-  // Generation Quota & Actions (Slot 9D)
-  const [quota, setQuota] = useState(null);
+  // First-run onboarding state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(1);
+  const [popularCourses, setPopularCourses] = useState([]);
+  const [roadmapGoal, setRoadmapGoal] = useState('Get confident with databases and SQL');
+  const [dailyMinutes, setDailyMinutes] = useState(30);
+  const [onboardingBusy, setOnboardingBusy] = useState(false);
 
-  // Adaptive Quiz Generation State
-  const [generatingAdaptive, setGeneratingAdaptive] = useState(false);
-  const [adaptiveError, setAdaptiveError] = useState(null);
-
-  // Course Generation State (Job Polling)
-  const [courseGoal, setCourseGoal] = useState('');
-  const [nLessons, setNLessons] = useState(4);
-  const [courseGoalError, setCourseGoalError] = useState(null);
-  const courseJob = useGenerationJob();
-
-  // Route to the new course on success
-  useEffect(() => {
-    if (courseJob.status === 'succeeded' && courseJob.result?.slug) {
-      navigate(`/courses/${courseJob.result.slug}`);
-    }
-  }, [courseJob.status, courseJob.result, navigate]);
-
-  const loadDashboardData = useCallback(() => {
+  const loadData = useCallback(() => {
     let isMounted = true;
     setLoading(true);
     setError(null);
 
-    const progressPromise = myProgress().catch(() => ({ items: [] }));
-    const historyPromise = myHistory({ page_size: 5 }).catch(() => ({ items: [] }));
-    const catalogPromise = listCourses({ page_size: 4 }).catch(() => ({ items: [] }));
-    const statsPromise = myStats().catch(() => null);
-    const quotaPromise = myQuota().catch(() => null);
-
-    Promise.allSettled([progressPromise, historyPromise, catalogPromise, statsPromise, quotaPromise])
-      .then(([progRes, histRes, catRes, statsRes, quotaRes]) => {
+    Promise.allSettled([
+      dailyPlan().catch(() => null),
+      getTodayReview().catch(() => null),
+      myProgress().catch(() => []),
+      myRoadmap().catch(() => null),
+      myMisconceptions(false).catch(() => ({ items: [] })), // active only
+      myStats().catch(() => null),
+      listCourses({ page_size: 4 }).catch(() => ({ items: [] })),
+    ])
+      .then(([planRes, reviewRes, progRes, roadmapRes, miscRes, statsRes, coursesRes]) => {
         if (!isMounted) return;
 
+        if (planRes.status === 'fulfilled') setPlan(planRes.value);
+        if (reviewRes.status === 'fulfilled') setReviewData(reviewRes.value);
+
+        let prog = [];
         if (progRes.status === 'fulfilled') {
           const val = progRes.value;
-          setProgressItems(Array.isArray(val) ? val : val?.items || []);
+          prog = Array.isArray(val) ? val : val?.items || [];
+          setProgressItems(prog);
         }
 
-        if (histRes.status === 'fulfilled') {
-          const val = histRes.value;
-          setHistoryItems(Array.isArray(val) ? val : val?.items || []);
+        let rdmp = null;
+        if (roadmapRes.status === 'fulfilled') {
+          rdmp = roadmapRes.value?.roadmap ?? null;
+          setRoadmap(rdmp);
         }
 
-        if (catRes.status === 'fulfilled') {
-          const val = catRes.value;
-          setAvailableCourses(Array.isArray(val) ? val : val?.items || []);
+        if (miscRes.status === 'fulfilled') {
+          const items = miscRes.value?.items || [];
+          setMisconceptions(items.filter((m) => m.status === 'active' || m.status === 'fading'));
         }
 
-        if (statsRes.status === 'fulfilled') {
-          setStats(statsRes.value);
+        if (statsRes.status === 'fulfilled') setStats(statsRes.value);
+
+        if (coursesRes.status === 'fulfilled') {
+          const items = coursesRes.value?.items || (Array.isArray(coursesRes.value) ? coursesRes.value : []);
+          setPopularCourses(items);
         }
 
-        if (quotaRes.status === 'fulfilled' && quotaRes.value) {
-          setQuota(quotaRes.value);
+        // Check if first-run: 0 active progress, no roadmap, 0 stats completed
+        const hasDismissedOnboarding = localStorage.getItem('learnquest_onboarding_done');
+        if (!hasDismissedOnboarding && prog.length === 0 && !rdmp && (!statsRes.value || statsRes.value.total_learning_seconds === 0)) {
+          setShowOnboarding(true);
         }
       })
       .catch((err) => {
         if (!isMounted) return;
-        setError(err?.detail || 'Unable to load dashboard. Please try again.');
+        setError(err?.detail || 'Failed to load your learning plan.');
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -164,103 +145,141 @@ export default function Dashboard() {
     };
   }, []);
 
-  const handlePracticeWeakSpots = async () => {
-    if (generatingAdaptive) return;
-    if (quota && quota.remaining <= 0) {
-      setAdaptiveError("Today's generation limit has been reached.");
-      return;
-    }
-    setGeneratingAdaptive(true);
-    setAdaptiveError(null);
-    try {
-      const data = await generateAdaptiveQuiz();
-      if (data?.id) {
-        navigate(`/quiz/${data.id}`);
-      } else {
-        setAdaptiveError('Adaptive quiz was generated with an unexpected response shape.');
-      }
-    } catch (err) {
-      console.error('Adaptive quiz generation failed:', err);
-      if (err?.status === 429 || err?.response?.status === 429) {
-        setAdaptiveError("Today's generation limit has been reached.");
-      } else {
-        const msg =
-          err?.detail ||
-          err?.response?.data?.detail ||
-          'Could not generate adaptive quiz. Try completing some lessons or quizzes first.';
-        setAdaptiveError(msg);
-      }
-    } finally {
-      setGeneratingAdaptive(false);
-    }
-  };
-
-  const handleBuildCourseSubmit = async (e) => {
-    if (e) e.preventDefault();
-    const trimmed = courseGoal.trim();
-    if (trimmed.length < 4) {
-      setCourseGoalError('Tell us what you want to learn (at least 4 characters).');
-      return;
-    }
-    if (quota && quota.remaining <= 0) {
-      setCourseGoalError("Today's generation limit has been reached.");
-      return;
-    }
-    setCourseGoalError(null);
-    await courseJob.start(() => generateCourse(trimmed, Number(nLessons)));
-  };
-
   useEffect(() => {
-    const cancel = loadDashboardData();
-    return cancel;
-  }, [loadDashboardData]);
+    loadData();
+  }, [loadData]);
 
-  // Determine top next action
-  const nextAction = useMemo(() => {
-    // Look for first active track that is not 100% completed
+  // First-run finish handler
+  const handleCompleteOnboarding = async (chosenCourseId = null) => {
+    setOnboardingBusy(true);
+    try {
+      localStorage.setItem('learnquest_onboarding_done', 'true');
+      localStorage.setItem('learnquest_daily_minutes', String(dailyMinutes));
+
+      if (chosenCourseId) {
+        // Find course slug
+        const course = popularCourses.find((c) => c.id === chosenCourseId);
+        if (course?.slug) {
+          navigate(`/courses/${course.slug}`);
+          return;
+        }
+      } else if (roadmapGoal.trim()) {
+        try {
+          await generateRoadmap(roadmapGoal.trim());
+        } catch {
+          // Non-fatal
+        }
+      }
+      setShowOnboarding(false);
+      loadData();
+    } finally {
+      setOnboardingBusy(false);
+    }
+  };
+
+  // Determine THE ONE primary "Continue" card
+  const continueAction = useMemo(() => {
+    const dueCount = reviewData?.total_due ?? (Array.isArray(reviewData?.items) ? reviewData.items.length : 0);
+
+    // 1. Due Review First (The core loop requirement)
+    if (dueCount > 0) {
+      return {
+        type: 'review',
+        badge: 'DUE TODAY • SPACED REPETITION',
+        badgeTone: 'warning',
+        title: `Review ${dueCount} due topic${dueCount === 1 ? '' : 's'}`,
+        description:
+          'Spaced review prevents forgetting and makes learning stick. Complete your due items first before starting new lessons.',
+        buttonLabel: `Start Review (${dueCount * 3}m) →`,
+        link: '/review',
+      };
+    }
+
+    // 2. Next Lesson from Enrolled Progress or Roadmap
     const activeTrack = progressItems.find(
       (p) => (p.completion_percentage ?? 0) < 100 && p.next_lesson_id
     );
     if (activeTrack) {
       return {
-        type: 'resume',
-        track: activeTrack,
-        title: activeTrack.next_lesson_title || 'Next Lesson',
-        courseTitle: activeTrack.course_title,
-        lessonId: activeTrack.next_lesson_id,
-        courseSlug: activeTrack.course_slug,
-        percentage: activeTrack.completion_percentage,
+        type: 'lesson',
+        badge: `NEXT LESSON • ${activeTrack.course_title}`,
+        badgeTone: 'primary',
+        title: activeTrack.next_lesson_title || 'Continue Lesson',
+        description: `Pick up where you left off (${activeTrack.completion_percentage ?? 0}% completed). Read concept notes and take the quiz.`,
+        buttonLabel: 'Resume Lesson →',
+        link: `/lessons/${activeTrack.next_lesson_id}`,
       };
     }
 
-    if (progressItems.length > 0) {
-      // All enrolled are completed
+    // 3. Next step from Roadmap
+    const nextRoadmapNode = roadmap?.nodes?.find(
+      (n) => n.node_key === roadmap?.progress?.next_node_key
+    );
+    if (nextRoadmapNode) {
       return {
-        type: 'completed',
+        type: 'roadmap',
+        badge: `AI ROADMAP • +${nextRoadmapNode.xp_reward ?? 50} XP`,
+        badgeTone: 'info',
+        title: nextRoadmapNode.title,
+        description: nextRoadmapNode.summary || 'Your next recommended quest on your AI roadmap.',
+        buttonLabel: 'Start Quest →',
+        link: nextRoadmapNode.lesson_id ? `/lessons/${nextRoadmapNode.lesson_id}` : '/learn?tab=roadmap',
       };
     }
 
-    // No enrollments
+    // 4. Daily Plan First Item (if any)
+    const planFirstItem = plan?.items?.[0];
+    if (planFirstItem) {
+      return {
+        type: planFirstItem.kind,
+        badge: `TODAY'S PLAN • ${KIND_LABEL[planFirstItem.kind] || 'NEXT'}`,
+        badgeTone: 'primary',
+        title: planFirstItem.title,
+        description: planFirstItem.reason || 'Recommended by your personalized daily learning plan.',
+        buttonLabel: 'Continue →',
+        link: planFirstItem.link || '/learn',
+      };
+    }
+
+    // 5. If everything completed or no enrollments
+    if (progressItems.length > 0) {
+      return {
+        type: 'explore',
+        badge: 'ALL ACTIVE TRACKS COMPLETED 🎉',
+        badgeTone: 'easy',
+        title: 'Ready for your next skill?',
+        description: 'You have finished all active tracks. Explore the catalogue or set a new roadmap goal.',
+        buttonLabel: 'Browse Courses →',
+        link: '/learn?tab=browse',
+      };
+    }
+
     return {
       type: 'empty',
+      badge: 'GET STARTED',
+      badgeTone: 'primary',
+      title: 'Start your learning journey',
+      description: 'Choose a computer science track, build a roadmap, or upload your lecture notes.',
+      buttonLabel: 'Explore Catalog →',
+      link: '/learn',
     };
-  }, [progressItems]);
+  }, [reviewData, progressItems, roadmap, plan]);
 
   if (loading) {
     return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <Spinner size="lg" label="Loading your learning dashboard..." />
+      <div className="flex min-h-[450px] items-center justify-center">
+        <Spinner size="lg" label="Loading your personalized learning loop..." />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="py-8">
-        <PageHeader title="Dashboard" subtitle="Track your learning progress and performance." />
-        <Card className="mt-4 border-hard/30 bg-hard-bg/50 p-6 text-center">
+      <div className="py-8 space-y-4">
+        <PageHeader title="Home" subtitle="Pick up right where you left off." />
+        <Card className="border-hard/30 bg-hard-bg/50 p-6 text-center">
           <p className="text-sm font-medium text-hard-fg">{error}</p>
-          <Button variant="primary" size="sm" onClick={loadDashboardData} className="mt-4">
+          <Button variant="primary" size="sm" onClick={loadData} className="mt-4">
             Retry
           </Button>
         </Card>
@@ -269,14 +288,171 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-8 pb-16">
       {/* Page Header */}
       <PageHeader
-        title="Dashboard"
-        subtitle={`Welcome back${user?.full_name ? `, ${user.full_name}` : ''}. Pick up right where you left off.`}
+        title="Home"
+        subtitle={`Welcome back${user?.full_name ? `, ${user.full_name}` : ''}. One clear step at a time.`}
       />
 
-      {/* 1. M4 Gamification Stats Ribbon (Integrated gracefully) */}
+      {/* 3-Step First-Run Onboarding Modal / Banner */}
+      {showOnboarding && (
+        <Card className="border-primary-500/40 bg-gradient-to-r from-primary-500/15 via-surface to-surface p-6 sm:p-8">
+          <div className="max-w-2xl space-y-5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-pill bg-primary-600 text-xs font-bold text-white">
+                Step {onboardingStep} of 2
+              </span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-400">
+                Quick Setup
+              </span>
+            </div>
+
+            {onboardingStep === 1 && (
+              <div className="space-y-4">
+                <h2 className="text-2xl font-bold tracking-tight text-ink">
+                  What do you want to learn?
+                </h2>
+                <p className="text-sm text-body leading-relaxed">
+                  LearnQuest guides you through one continuous loop: learn a lesson, quiz your understanding, diagnose mistakes, and teach Nova to make concepts stick.
+                </p>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2">
+                  {popularCourses.slice(0, 2).map((course) => (
+                    <button
+                      key={course.id}
+                      type="button"
+                      onClick={() => handleCompleteOnboarding(course.id)}
+                      className="group flex flex-col justify-between rounded-lg border border-line bg-surface p-4 text-left transition-colors hover:border-primary-500 hover:bg-raised"
+                    >
+                      <div>
+                        <Badge tone="default" className="text-[10px]">Course</Badge>
+                        <h4 className="mt-2 text-sm font-bold text-ink group-hover:text-primary-400">
+                          {course.title}
+                        </h4>
+                        <p className="mt-1 line-clamp-2 text-xs text-muted">
+                          {course.description || 'Master core principles through guided lessons and quizzes.'}
+                        </p>
+                      </div>
+                      <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary-400">
+                        Start this track <ArrowRight className="h-3.5 w-3.5" />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                  <Link to="/upload" onClick={() => setShowOnboarding(false)} className="text-xs font-semibold text-muted hover:text-ink">
+                    📄 Or upload notes & slides
+                  </Link>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setOnboardingStep(2)}
+                  >
+                    Custom Goal →
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {onboardingStep === 2 && (
+              <div className="space-y-4">
+                <h2 className="text-2xl font-bold tracking-tight text-ink">
+                  How many minutes a day?
+                </h2>
+                <p className="text-sm text-body leading-relaxed">
+                  A small daily session beats weekend cramming every time. Spaced reviews schedule automatically based on your budget.
+                </p>
+
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  {[15, 30, 45].map((mins) => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setDailyMinutes(mins)}
+                      className={`flex flex-col items-center justify-center rounded-lg border p-4 text-center transition-colors ${
+                        dailyMinutes === mins
+                          ? 'border-primary-500 bg-primary-500/10 text-ink'
+                          : 'border-line bg-surface text-muted hover:text-ink'
+                      }`}
+                    >
+                      <span className="text-xl font-bold text-ink">{mins}m</span>
+                      <span className="text-xs text-muted">
+                        {mins === 15 ? 'Casual' : mins === 30 ? 'Recommended' : 'Deep focus'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Nova Introduction */}
+                <div className="rounded-lg border border-primary-500/30 bg-primary-500/5 p-3.5 text-xs text-body flex items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-primary-600 text-white">
+                    <Sparkles className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <span className="font-semibold text-ink">Meet Nova:</span> Your personal AI tutor who explains tough concepts, captures false beliefs behind wrong answers, and lets you teach her to achieve true mastery.
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setOnboardingStep(1)}
+                  >
+                    ← Back
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="md"
+                    loading={onboardingBusy}
+                    onClick={() => handleCompleteOnboarding(null)}
+                  >
+                    Let's Go →
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ============================================================ */}
+      {/* B. THE ONE BIG "CONTINUE" CARD                                */}
+      {/* ============================================================ */}
+      <Card className="border-primary-500/40 bg-gradient-to-r from-primary-500/15 via-raised to-surface p-7 sm:p-9 shadow-md transition-all hover:border-primary-500">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <Badge tone={continueAction.badgeTone || 'primary'} className="text-xs font-bold tracking-wide">
+                {continueAction.badge}
+              </Badge>
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink">
+              {continueAction.title}
+            </h2>
+
+            <p className="text-sm sm:text-base leading-relaxed text-body">
+              {continueAction.description}
+            </p>
+          </div>
+
+          <div className="shrink-0 flex items-center">
+            <Link to={continueAction.link} className="w-full sm:w-auto">
+              <Button variant="primary" size="lg" className="w-full sm:w-auto px-8 py-3.5 text-base font-semibold shadow-lg">
+                {continueAction.buttonLabel}
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </Card>
+
+      {/* ============================================================ */}
+      {/* SLIM STREAK / XP STRIP                                       */}
+      {/* ============================================================ */}
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card className="flex items-center p-3.5">
@@ -294,7 +470,7 @@ export default function Dashboard() {
               ⏱️
             </span>
             <div className="min-w-0">
-              <div className="text-xs font-medium text-muted">Time Spent</div>
+              <div className="text-xs font-medium text-muted">Study Time</div>
               <div className="text-lg font-bold text-ink">
                 {formatDuration(stats.total_learning_seconds)}
               </div>
@@ -315,505 +491,137 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 2. Next Action Hero Banner */}
-      {nextAction.type === 'resume' && (
-        <Card className="border-primary-500/30 bg-gradient-to-r from-primary-500/10 to-surface p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1.5 max-w-xl">
+      {/* ============================================================ */}
+      {/* TWO COLUMNS: TODAY'S SHORT LIST & MISCONCEPTION SUMMARY       */}
+      {/* ============================================================ */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Today's Short List */}
+        <Card className="p-5 flex flex-col justify-between space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-line pb-3">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center rounded bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
-                  NEXT ACTION
-                </span>
-                <span className="text-xs font-medium text-muted">
-                  {nextAction.courseTitle} • {nextAction.percentage}% complete
-                </span>
+                <Target className="h-4 w-4 text-primary-400" />
+                <h3 className="text-base font-bold text-ink">Today's Plan</h3>
               </div>
-              <h2 className="text-xl font-bold tracking-tight text-ink">
-                {nextAction.title}
-              </h2>
-              <p className="text-sm text-body">
-                Continue your learning flow. Read the concept notes and test yourself on practice quizzes.
-              </p>
+              {plan && (
+                <span className="font-mono text-xs text-muted">
+                  {plan.planned_minutes} of {plan.minutes || 30} mins
+                </span>
+              )}
             </div>
 
-            <div className="flex shrink-0 items-center gap-3">
-              <Link to={`/courses/${nextAction.courseSlug}`}>
-                <Button variant="secondary" size="sm">
-                  View Syllabus
-                </Button>
-              </Link>
-              <Link to={`/lessons/${nextAction.lessonId}`}>
-                <Button variant="primary" size="md">
-                  Resume Lesson →
-                </Button>
-              </Link>
-            </div>
+            {(!plan?.items || plan.items.length === 0) ? (
+              <p className="text-xs text-muted py-4 text-center">
+                Nothing is queued right now. Complete a lesson or take a quiz to let the app plan your daily loop.
+              </p>
+            ) : (
+              <ol className="space-y-2">
+                {plan.items.slice(0, 3).map((item, index) => (
+                  <li key={`${item.kind}-${index}`}>
+                    <Link
+                      to={item.link || '/dashboard'}
+                      className="row-interactive flex items-start gap-3 rounded-lg border border-line p-3 transition-colors hover:border-primary-500"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-pill bg-raised font-mono text-xs text-muted">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-ink">{item.title}</span>
+                          <Badge tone="default" className="text-[10px]">
+                            {KIND_LABEL[item.kind] || item.kind}
+                          </Badge>
+                        </span>
+                        <span className="mt-0.5 block text-xs text-muted line-clamp-1">
+                          {item.reason}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-mono text-xs text-faint">
+                        {item.minutes}m
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
-        </Card>
-      )}
 
-      {nextAction.type === 'completed' && (
-        <Card className="border-easy/30 bg-easy-bg/50 p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-easy-fg">
-                🎉 All Enrolled Tracks Completed!
-              </h2>
-              <p className="text-sm text-easy-fg">
-                You have completed all lessons in your active tracks. Expand your skills with another track.
-              </p>
-            </div>
-            <Link to="/courses">
-              <Button variant="primary" size="sm">
-                Explore Catalog →
-              </Button>
+          <div className="border-t border-line pt-3 flex items-center justify-between">
+            <span className="text-xs text-muted">Review comes first to protect memory.</span>
+            <Link to="/learn" className="text-xs font-semibold text-primary-400 hover:text-primary-300">
+              View all tracks →
             </Link>
           </div>
         </Card>
-      )}
 
-      {nextAction.type === 'empty' && (
-        <Card className="p-8 text-center">
-          <h2 className="text-xl font-bold text-ink">
-            Welcome to LearnQuest AI
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-body">
-            You are not enrolled in any tracks yet. Choose a learning track to start reading lessons and taking quizzes.
-          </p>
-          <div className="mt-5">
-            <Link to="/courses">
-              <Button variant="primary" size="md">
-                Browse Learning Tracks →
-              </Button>
-            </Link>
-          </div>
-        </Card>
-      )}
-
-      {/* 2.25 M1: next roadmap step, today's plan, recommendations (G3) */}
-      <ForYouPanel />
-
-      {/* 2.5 Daily Challenges */}
-      <DailyChallenges onClaimed={() => myStats().then(setStats).catch(() => {})} />
-      {/* AI Generative Learning: Practice Weak Spots & Build Me a Course (Slot 9D) */}
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-bold text-ink">
-              AI Practice & Learning
-            </h2>
-            <p className="text-xs text-muted">
-              Personalized practice tailored to your misconceptions and custom courses built to your goals.
-            </p>
-          </div>
-          {quota && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted">Generations today:</span>
-              <Badge tone={quota.remaining > 0 ? 'info' : 'medium'}>
-                {quota.remaining} of {quota.limit} remaining
+        {/* Misconception Summary */}
+        <Card className="p-5 flex flex-col justify-between space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-line pb-3">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="h-4 w-4 text-warning" />
+                <h3 className="text-base font-bold text-ink">Active Misconceptions</h3>
+              </div>
+              <Badge tone={misconceptions.length > 0 ? 'warning' : 'easy'} className="text-[10px]">
+                {misconceptions.length} recorded
               </Badge>
             </div>
-          )}
-        </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Practice My Weak Spots */}
-          <Card className="flex flex-col justify-between p-5">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Badge tone="primary" className="text-xs">Adaptive Practice</Badge>
-                {quota && (
-                  <span className="font-mono text-xs text-muted">
-                    {quota.remaining} gen{quota.remaining === 1 ? '' : 's'} left
-                  </span>
-                )}
+            {misconceptions.length === 0 ? (
+              <div className="py-6 text-center space-y-2">
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-pill bg-easy-bg text-lg">
+                  ✓
+                </div>
+                <h4 className="text-sm font-semibold text-ink">Mental Models are Clear</h4>
+                <p className="mx-auto max-w-sm text-xs text-muted leading-relaxed">
+                  You have no active false beliefs. When a quiz reveals a misconception, Nova captures the exact belief here so you can teach her out of it.
+                </p>
               </div>
-              <h3 className="text-base font-bold text-ink">
-                Practice my weak spots
-              </h3>
-              <p className="text-xs leading-relaxed text-body">
-                Generates a targeted practice quiz focusing on your weakest topics and actively
-                tests against known misconceptions recorded from your previous quiz attempts.
-              </p>
-
-              {adaptiveError && (
-                <div className="rounded border border-hard/40 bg-hard-bg p-2.5 text-xs text-hard-fg">
-                  {adaptiveError}
-                </div>
-              )}
-
-              {quota && quota.remaining <= 0 && !adaptiveError && (
-                <div className="rounded border border-medium/40 bg-medium-bg p-2.5 text-xs text-medium-fg">
-                  Today's generation limit has been reached.
-                </div>
-              )}
-            </div>
-
-            <div className="pt-4">
-              <Button
-                variant="secondary"
-                size="md"
-                loading={generatingAdaptive}
-                disabled={generatingAdaptive || (quota && quota.remaining <= 0)}
-                onClick={handlePracticeWeakSpots}
-                className="w-full"
-              >
-                {generatingAdaptive ? 'Generating adaptive quiz (~8s)...' : 'Practice my weak spots 🎯'}
-              </Button>
-            </div>
-          </Card>
-
-          {/* Build Me a Course */}
-          <Card className="flex flex-col justify-between p-5">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Badge tone="info" className="text-xs">Generative Course</Badge>
-                {courseJob.isRunning && (
-                  <span className="font-mono text-xs text-primary-400">
-                    {courseJob.progress}%
-                  </span>
-                )}
-              </div>
-              <h3 className="text-base font-bold text-ink">
-                Build me a course
-              </h3>
-              <p className="text-xs leading-relaxed text-body">
-                Describe a topic or goal you wish to learn. We'll generate an outline, structured lessons, and practice quizzes automatically.
-              </p>
-
-              {courseJob.isRunning ? (
-                <div className="space-y-2.5 py-2">
-                  <div className="flex items-center justify-between text-xs text-muted">
-                    <span>Generating course syllabus & lessons (~25s)...</span>
-                    <span className="font-mono font-semibold text-ink">{courseJob.progress}%</span>
-                  </div>
-                  <ProgressBar value={courseJob.progress} tone="default" size="sm" />
-                </div>
-              ) : (
-                <form onSubmit={handleBuildCourseSubmit} className="space-y-3">
-                  <Input
-                    id="course-goal-input"
-                    label="What do you want to learn?"
-                    placeholder="e.g. Distributed Consensus, SQL Query Optimization, Redis Caching"
-                    value={courseGoal}
-                    onChange={(e) => {
-                      setCourseGoal(e.target.value);
-                      if (courseGoalError) setCourseGoalError(null);
-                    }}
-                    disabled={courseJob.isRunning || (quota && quota.remaining <= 0)}
-                  />
-
-                  <Select
-                    id="course-lessons-select"
-                    label="Target Number of Lessons"
-                    value={String(nLessons)}
-                    onChange={(e) => setNLessons(Number(e.target.value))}
-                    options={N_LESSONS_OPTIONS}
-                    disabled={courseJob.isRunning || (quota && quota.remaining <= 0)}
-                  />
-
-                  {courseGoalError && (
-                    <div className="rounded border border-hard/40 bg-hard-bg p-2 text-xs text-hard-fg">
-                      {courseGoalError}
-                    </div>
-                  )}
-
-                  {courseJob.status === 'failed' && courseJob.error && (
-                    <div className="rounded border border-hard/40 bg-hard-bg p-2.5 text-xs text-hard-fg">
-                      {courseJob.error}
-                    </div>
-                  )}
-
-                  {quota && quota.remaining <= 0 && (
-                    <div className="rounded border border-medium/40 bg-medium-bg p-2.5 text-xs text-medium-fg">
-                      Today's generation limit has been reached.
-                    </div>
-                  )}
-
-                  <div className="pt-1">
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      size="md"
-                      loading={courseJob.isRunning}
-                      disabled={courseJob.isRunning || !courseGoal.trim() || (quota && quota.remaining <= 0)}
-                      className="w-full"
-                    >
-                      {courseJob.isRunning ? 'Building course...' : 'Build me a course ✨'}
-                    </Button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </Card>
-        </div>
-      </div>
-
-  {/* 3. In-Progress Learning Tracks (Course Progress) */ }
-  <div className="space-y-4">
-    <div className="flex items-center justify-between">
-      <div>
-        <h2 className="text-lg font-bold text-ink">
-          Enrolled Tracks & Progress
-        </h2>
-        <p className="text-xs text-muted">
-          Track your module completion rate and continue current tracks.
-        </p>
-      </div>
-      <Link
-        to="/courses"
-        className="text-xs font-semibold text-primary-600 hover:text-primary-700"
-      >
-        Browse All Tracks →
-      </Link>
-    </div>
-
-    {progressItems.length === 0 ? (
-      <EmptyState
-        title="No enrolled tracks"
-        description="Enroll in a track from the course catalog to start tracking your progress here."
-        action={
-          <Link to="/courses">
-            <Button variant="primary" size="sm">
-              Find a Track
-            </Button>
-          </Link>
-        }
-      />
-    ) : (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {progressItems.map((track) => {
-          const pct = track.completion_percentage ?? 0;
-          const isDone = pct >= 100;
-          const nextId = track.next_lesson_id;
-
-          return (
-            <Card
-              key={track.course_id}
-              className="flex flex-col justify-between gap-4 p-5 hover:border-line-strong transition-colors"
-            >
+            ) : (
               <div className="space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Badge tone="default" className="text-[10px]">
-                        {track.subject || 'Track'}
-                      </Badge>
-                      <Badge tone={getDifficultyTone(track.difficulty)} className="text-[10px]">
-                        {track.difficulty || 'beginner'}
-                      </Badge>
-                      {track.source === 'ai_generated' && (
-                        <Badge tone="info" className="text-[10px]">AI Generated</Badge>
-                      )}
-                    </div>
-                    <h3 className="mt-1.5 font-bold text-ink">
-                      {track.course_title}
-                    </h3>
-                  </div>
-                  <Badge tone={isDone ? 'easy' : 'default'}>
-                    {isDone ? 'Completed' : `${pct}%`}
-                  </Badge>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-muted">
-                    <span>Progress</span>
-                    <span>
-                      {track.completed_lessons} of {track.total_lessons} lessons ({pct}%)
-                    </span>
-                  </div>
-                  <ProgressBar value={pct} tone={isDone ? 'easy' : 'default'} size="sm" />
-                </div>
-
-                {track.next_lesson_title && !isDone && (
-                  <div className="rounded bg-raised p-2 text-xs text-body">
-                    <span className="font-semibold text-ink">Up next:</span>{' '}
-                    {track.next_lesson_title}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between border-t border-line pt-3">
-                <Link
-                  to={`/courses/${track.course_slug}`}
-                  className="text-xs font-semibold text-muted hover:text-ink"
-                >
-                  Track Details
-                </Link>
-                {nextId ? (
-                  <Link to={`/lessons/${nextId}`}>
-                    <Button variant={isDone ? 'secondary' : 'primary'} size="sm">
-                      {isDone ? 'Review' : 'Continue →'}
-                    </Button>
-                  </Link>
-                ) : (
-                  <Link to={`/courses/${track.course_slug}`}>
-                    <Button variant="secondary" size="sm">
-                      View Track
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-    )}
-  </div>
-
-  {/* 4. Two Column Layout: Recent Activity & Explore Tracks */ }
-  <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-    {/* Left 2 Cols: Recent Activity */}
-    <div className="space-y-4 lg:col-span-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-ink">
-            Recent Learning Activity
-          </h2>
-          <p className="text-xs text-muted">
-            Your latest completed lessons and practice quiz results.
-          </p>
-        </div>
-        <Link
-          to="/history"
-          className="text-xs font-semibold text-primary-600 hover:text-primary-700"
-        >
-          Full History →
-        </Link>
-      </div>
-
-      {historyItems.length === 0 ? (
-        <EmptyState
-          title="No recent activity"
-          description="Start reading a lesson or take a quiz to begin your learning timeline."
-          action={
-            <Link to="/courses">
-              <Button variant="secondary" size="sm">
-                Browse Tracks
-              </Button>
-            </Link>
-          }
-        />
-      ) : (
-        <div className="space-y-2.5">
-          {historyItems.map((item) => {
-            const isLesson = item.item_type === 'lesson';
-            const isQuiz = item.item_type === 'quiz';
-
-            return (
-              <Card
-                key={`${item.item_type}-${item.id}`}
-                className="flex flex-col gap-3 p-3.5 transition-colors hover:border-line-strong sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${isLesson
-                        ? 'bg-info-bg text-info-fg'
-                        : 'bg-primary-500/15 text-primary-600'
-                      }`}
+                {misconceptions.slice(0, 2).map((item) => (
+                  <div
+                    key={item.topic_tag}
+                    className="rounded-lg border border-line bg-surface p-3.5 space-y-2.5"
                   >
-                    {isLesson ? '📖' : '⚡'}
-                  </span>
-
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-ink">
-                        {item.title}
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-2xs font-semibold uppercase tracking-wider text-muted">
+                        You seem to believe:
                       </span>
-                      {isLesson && (
-                        <Badge
-                          tone={item.status === 'completed' ? 'easy' : 'default'}
-                          className="text-[10px]"
-                        >
-                          {item.status === 'completed' ? 'Completed' : 'In Progress'}
-                        </Badge>
-                      )}
-                      {isQuiz && (
-                        <Badge
-                          tone={item.passed ? 'easy' : 'danger'}
-                          className="text-[10px]"
-                        >
-                          {item.passed ? `Passed (${item.score}%)` : `Score: ${item.score}%`}
-                        </Badge>
-                      )}
+                      <Badge tone={item.status === 'active' ? 'hard' : 'medium'} className="text-[10px]">
+                        {item.status}
+                      </Badge>
                     </div>
 
-                    <div className="text-xs text-muted">
-                      {item.course_title && <span>{item.course_title} • </span>}
-                      {formatDate(item.completed_at)}
+                    <p className="text-xs italic font-medium text-ink">
+                      “{item.misconception}”
+                    </p>
+
+                    <div className="flex items-center justify-between border-t border-line/60 pt-2">
+                      <span className="font-mono text-[10px] text-muted">{item.topic_tag}</span>
+                      <Link
+                        to={`/tutor?topic=${encodeURIComponent(item.topic_tag)}&mode=teachback`}
+                      >
+                        <Button variant="secondary" size="sm" className="text-xs">
+                          <GraduationCap className="h-3.5 w-3.5 text-primary-400" />
+                          Teach Nova to fix it →
+                        </Button>
+                      </Link>
                     </div>
                   </div>
-                </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-                <div className="flex shrink-0 items-center justify-end">
-                  {isLesson && item.lesson_id && (
-                    <Link to={`/lessons/${item.lesson_id}`}>
-                      <Button variant="ghost" size="sm" className="text-xs">
-                        View Lesson
-                      </Button>
-                    </Link>
-                  )}
-                  {isQuiz && item.attempt_id && (
-                    <Link to={`/quiz/attempts/${item.attempt_id}`}>
-                      <Button variant="ghost" size="sm" className="text-xs">
-                        Review Attempt
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
-
-    {/* Right Col: Explore Other Tracks */}
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-ink">
-          Explore Tracks
-        </h2>
-        <p className="text-xs text-muted">Expand into new computer science subjects.</p>
+          <div className="border-t border-line pt-3 flex items-center justify-between">
+            <span className="text-xs text-muted">Explaining fixes misunderstandings.</span>
+            <Link to="/progress?tab=stats" className="text-xs font-semibold text-primary-400 hover:text-primary-300">
+              Misconception map →
+            </Link>
+          </div>
+        </Card>
       </div>
-
-      {availableCourses.length === 0 ? (
-        <EmptyState
-          title="No courses available"
-          description="New tracks will appear here once published."
-        />
-      ) : (
-        <div className="space-y-3">
-          {availableCourses.slice(0, 3).map((c) => (
-            <Card key={c.id} className="space-y-2 p-3.5">
-              <div className="flex items-start justify-between gap-2">
-                <h4 className="text-sm font-bold text-ink">
-                  {c.title}
-                </h4>
-                <div className="flex items-center gap-1.5">
-                  {c.source === 'ai_generated' && (
-                    <Badge tone="info" className="text-[10px]">AI Generated</Badge>
-                  )}
-                  <Badge tone={getDifficultyTone(c.difficulty)} className="text-[10px]">
-                    {c.difficulty || 'beginner'}
-                  </Badge>
-                </div>
-              </div>
-              <p className="line-clamp-2 text-xs text-muted">{c.description}</p>
-              <div className="flex justify-end pt-1">
-                <Link to={`/courses/${c.slug}`}>
-                  <Button variant="secondary" size="sm" className="text-xs">
-                    View Track →
-                  </Button>
-                </Link>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
     </div>
-  </div>
-    </div >
   );
 }
-

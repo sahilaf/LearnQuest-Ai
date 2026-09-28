@@ -15,7 +15,8 @@
  *   allowed to disagree with her and be proved right.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GraduationCap, Lightbulb, RotateCcw, Send, Trophy } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { GraduationCap, Lightbulb, RotateCcw, Send, Trophy, CheckCircle2 } from 'lucide-react';
 
 import { Badge, Button, EmptyState, Spinner } from '../../components/ui';
 import {
@@ -49,7 +50,7 @@ function TurnBubble({ turn }) {
   );
 }
 
-export default function TeachBackPanel({ onNovaSpeak = null }) {
+export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null }) {
   const [available, setAvailable] = useState([]);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
@@ -96,6 +97,12 @@ export default function TeachBackPanel({ onNovaSpeak = null }) {
       .catch((err) => setError(err?.detail || 'Could not start a Teach-Back session.'))
       .finally(() => setBusy(false));
   }, []);
+
+  useEffect(() => {
+    if (initialTopic && !session && !busy && available.length > 0) {
+      begin(initialTopic);
+    }
+  }, [initialTopic, begin, session, busy, available]);
 
   const send = useCallback(() => {
     const message = draft.trim();
@@ -266,9 +273,30 @@ export default function TeachBackPanel({ onNovaSpeak = null }) {
 
       <div className="border-t border-line p-3">
         {closed ? (
-          <Button variant="secondary" size="sm" onClick={reset} className="w-full">
-            Teach something else
-          </Button>
+          <div className="space-y-3 pt-1">
+            <div className="rounded-lg border border-easy/40 bg-easy-bg/30 p-3 text-center">
+              <span className="text-xs font-semibold text-easy-fg flex items-center justify-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4" /> Misconception Addressed
+              </span>
+              <p className="mt-1 text-xs text-muted">
+                This will come back for review in 2 days.
+              </p>
+            </div>
+
+            <Link to="/dashboard" className="block">
+              <Button variant="primary" size="md" className="w-full font-semibold">
+                Continue your course →
+              </Button>
+            </Link>
+
+            <button
+              type="button"
+              onClick={reset}
+              className="block w-full text-center text-xs text-muted hover:text-ink transition-colors pt-0.5"
+            >
+              Teach something else
+            </button>
+          </div>
         ) : (
           <>
             <div className="flex items-end gap-2">

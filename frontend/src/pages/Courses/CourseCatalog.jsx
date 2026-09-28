@@ -50,7 +50,7 @@ function getDifficultyTone(difficulty) {
   }
 }
 
-export default function CourseCatalog() {
+export default function CourseCatalog({ embedded = false }) {
   const { user, isAuthenticated } = useAuth();
   const [courses, setCourses] = useState([]);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState(new Set());
@@ -160,10 +160,12 @@ export default function CourseCatalog() {
 
   return (
     <div>
-      <PageHeader
-        title="Explore Courses"
-        subtitle="Browse available courses, filter by topic or difficulty, and start learning with AI support."
-      />
+      {!embedded && (
+        <PageHeader
+          title="Explore Courses"
+          subtitle="Browse available courses, filter by topic or difficulty, and start learning with AI support."
+        />
+      )}
 
       {/* Filter and Search Bar */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

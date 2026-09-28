@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 import AppLayout from './components/layout/AppLayout';
 import PrivateRoute from './components/layout/PrivateRoute';
@@ -9,6 +9,10 @@ import AdminRoute from './components/layout/AdminRoute';
 // main chunk. Everything else is split per route.
 import Landing from './pages/Landing/Landing';
 import NotFound from './pages/NotFound';
+
+// Unified Hubs
+const LearnHub = lazy(() => import('./pages/Learn/LearnHub'));
+const ProgressHub = lazy(() => import('./pages/Progress/ProgressHub'));
 
 // --- Member 3: auth, profile, admin ---
 const Login = lazy(() => import('./pages/Auth/Login'));
@@ -22,24 +26,15 @@ const UploadNotes = lazy(() => import('./pages/Upload/UploadNotes'));
 
 // --- Member 2: learning ---
 const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
-const CourseCatalog = lazy(() => import('./pages/Courses/CourseCatalog'));
 const CourseDetail = lazy(() => import('./pages/Courses/CourseDetail'));
 const LessonViewer = lazy(() => import('./pages/Lesson/LessonViewer'));
 const QuizPlayer = lazy(() => import('./pages/Quiz/QuizPlayer'));
 const QuizResult = lazy(() => import('./pages/Quiz/QuizResult'));
-const PracticeList = lazy(() => import('./pages/Practice/PracticeList'));
 const ProblemViewer = lazy(() => import('./pages/Practice/ProblemViewer'));
 const ReviewScreen = lazy(() => import('./pages/Review/ReviewScreen'));
-const History = lazy(() => import('./pages/History/History'));
 
 // --- Member 1: tutor & avatar ---
 const TutorPage = lazy(() => import('./pages/Tutor/TutorPage'));
-const RoadmapPage = lazy(() => import('./pages/Roadmap/RoadmapPage'));
-
-// --- Member 4: gamification & analytics ---
-const Achievements = lazy(() => import('./pages/Achievements/Achievements'));
-const Leaderboard = lazy(() => import('./pages/Leaderboard/Leaderboard'));
-const Stats = lazy(() => import('./pages/Stats/Stats'));
 
 /**
  * Shown while a route chunk downloads. Deliberately quiet: a full-page skeleton
@@ -74,27 +69,30 @@ export default function App() {
             </PrivateRoute>
           }
         >
-          {/* Member 2 */}
+          {/* Main 5 Primary Navigation Views */}
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/courses" element={<CourseCatalog />} />
+          <Route path="/home" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/learn" element={<LearnHub />} />
+          <Route path="/review" element={<ReviewScreen />} />
+          <Route path="/tutor" element={<TutorPage />} />
+          <Route path="/tutor/:conversationId" element={<TutorPage />} />
+          <Route path="/progress" element={<ProgressHub />} />
+
+          {/* Deep links & Learning details */}
           <Route path="/courses/:slug" element={<CourseDetail />} />
           <Route path="/lessons/:lessonId" element={<LessonViewer />} />
           <Route path="/quiz/:quizId" element={<QuizPlayer />} />
           <Route path="/quiz/attempts/:attemptId" element={<QuizResult />} />
-          <Route path="/practice" element={<PracticeList />} />
           <Route path="/practice/:problemId" element={<ProblemViewer />} />
-          <Route path="/review" element={<ReviewScreen />} />
-          <Route path="/history" element={<History />} />
 
-          {/* Member 1 */}
-          <Route path="/roadmap" element={<RoadmapPage />} />
-          <Route path="/tutor" element={<TutorPage />} />
-          <Route path="/tutor/:conversationId" element={<TutorPage />} />
-
-          {/* Member 4 */}
-          <Route path="/achievements" element={<Achievements />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
-          <Route path="/stats" element={<Stats />} />
+          {/* Legacy redirects into unified Hubs */}
+          <Route path="/courses" element={<Navigate to="/learn?tab=browse" replace />} />
+          <Route path="/roadmap" element={<Navigate to="/learn?tab=roadmap" replace />} />
+          <Route path="/practice" element={<Navigate to="/learn?tab=sql-challenges" replace />} />
+          <Route path="/stats" element={<Navigate to="/progress?tab=stats" replace />} />
+          <Route path="/achievements" element={<Navigate to="/progress?tab=achievements" replace />} />
+          <Route path="/leaderboard" element={<Navigate to="/progress?tab=leaderboard" replace />} />
+          <Route path="/history" element={<Navigate to="/progress?tab=history" replace />} />
 
           {/* Member 3 */}
           <Route path="/profile" element={<Profile />} />

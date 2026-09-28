@@ -47,7 +47,7 @@ function getDifficultyTone(difficulty) {
   }
 }
 
-export default function PracticeList() {
+export default function PracticeList({ embedded = false }) {
   const [problems, setProblems] = useState([]);
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -95,10 +95,12 @@ export default function PracticeList() {
 
   return (
     <div className="space-y-8 pb-12">
-      <PageHeader
-        title="Practice Problems"
-        subtitle="Work through hands-on technical problems with automated test case evaluation to verify core skills."
-      />
+      {!embedded && (
+        <PageHeader
+          title="SQL Challenges"
+          subtitle="Work through hands-on technical problems with automated test case evaluation to verify core skills."
+        />
+      )}
 
       {/* 1. Skill Verification Tracker Cards */}
       <div className="space-y-3">

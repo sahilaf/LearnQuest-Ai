@@ -22,7 +22,7 @@ function formatEarnedDate(isoStr) {
   }
 }
 
-export default function Achievements() {
+export default function Achievements({ embedded = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -67,11 +67,12 @@ export default function Achievements() {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* Page Header */}
-      <PageHeader
-        title="Achievements & Badges"
-        subtitle="Celebrate your learning milestones and track your next unlockable badges."
-      />
+      {!embedded && (
+        <PageHeader
+          title="Achievements & Badges"
+          subtitle="Celebrate your learning milestones and track your next unlockable badges."
+        />
+      )}
 
       {/* Summary Stats Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

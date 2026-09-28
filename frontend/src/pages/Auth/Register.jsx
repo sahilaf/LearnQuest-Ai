@@ -3,7 +3,7 @@
  *
  * Account creation via Supabase Auth.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserPlus, Sparkles, AlertCircle } from 'lucide-react';
 
@@ -21,6 +21,11 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    clearError?.();
+    setError(null);
+  }, []);
 
   if (isAuthenticated) {
     navigate('/dashboard', { replace: true });

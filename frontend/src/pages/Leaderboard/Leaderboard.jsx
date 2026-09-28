@@ -65,7 +65,7 @@ function Row({ entry, isMe }) {
   );
 }
 
-export default function Leaderboard() {
+export default function Leaderboard({ embedded = false }) {
   const [period, setPeriod] = useState('weekly');
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -88,18 +88,38 @@ export default function Leaderboard() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Compete"
-        title="Leaderboard"
-        subtitle="Ranked by XP. Every lesson, quiz and Teach-Back session counts."
-        action={
+      {!embedded ? (
+        <PageHeader
+          eyebrow="Compete"
+          title="Leaderboard"
+          subtitle="Ranked by XP. Every lesson, quiz and Teach-Back session counts."
+          action={
+            <div className="flex rounded-lg border border-line bg-surface p-1">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => setPeriod(p.value)}
+                  className={`rounded px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    period === p.value ? 'bg-primary-600 text-white' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          }
+        />
+      ) : (
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm font-medium text-muted">Ranked by XP earned.</p>
           <div className="flex rounded-lg border border-line bg-surface p-1">
             {PERIODS.map((p) => (
               <button
                 key={p.value}
                 type="button"
                 onClick={() => setPeriod(p.value)}
-                className={`rounded px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
                   period === p.value ? 'bg-primary-600 text-white' : 'text-muted hover:text-ink'
                 }`}
               >
@@ -107,8 +127,8 @@ export default function Leaderboard() {
               </button>
             ))}
           </div>
-        }
-      />
+        </div>
+      )}
 
       {loading && (
         <div className="flex justify-center py-16">

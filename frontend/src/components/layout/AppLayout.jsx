@@ -22,6 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { StreakFlame, XPBar, BadgeCelebrationModal } from '../game';
 import NotificationBell from './NotificationBell';
 import { myStats } from '../../api/gamification';
+import { getTodayReview } from '../../api/review';
 
 /**
  * Shell shape (docs/DESIGN_GUIDELINES.md): a full-height sidebar pinned to the
@@ -36,27 +37,14 @@ import { myStats } from '../../api/gamification';
  * (1600px, gutters that grow with the viewport).
  */
 const NAV = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/roadmap', label: 'Roadmap', icon: Map },
-  { to: '/courses', label: 'Courses', icon: BookOpen },
-  { to: '/upload', label: 'Upload Notes', icon: UploadCloud },
-  { to: '/practice', label: 'Practice', icon: Code2 },
-  // Review is a daily habit; burying it inside Practice meant most learners
-  // never found the queue that makes learning stick.
-  { to: '/review', label: 'Review', icon: RotateCcw },
-  { to: '/tutor', label: 'AI Tutor', icon: Sparkles },
-  { to: '/achievements', label: 'Achievements', icon: Trophy },
-  { to: '/leaderboard', label: 'Leaderboard', icon: Medal },
-  { to: '/stats', label: 'Stats', icon: BarChart3 },
-  { to: '/history', label: 'History', icon: History },
+  { to: '/dashboard', label: 'Home', icon: LayoutDashboard },
+  { to: '/learn', label: 'Learn', icon: BookOpen },
+  { to: '/review', label: 'Review', icon: RotateCcw, hasBadge: true },
+  { to: '/tutor', label: 'Tutor', icon: Sparkles },
+  { to: '/progress', label: 'Progress', icon: Trophy },
 ];
 
-
-// Restore these as each one is built (routes already exist in App.jsx):
-//   { to: '/history',      label: 'History',      icon: HistoryIcon }
-// A nav link to a placeholder page is a dead end; one to a missing route 404s.
-
-const MOBILE_NAV = NAV.slice(0, 5);
+const MOBILE_NAV = NAV;
 
 const ADMIN_NAV = [
   { to: '/admin', label: 'Overview', icon: Shield, end: true },
@@ -91,6 +79,7 @@ function tabLinkClass({ isActive }) {
 export default function AppLayout() {
   const { user, isAdmin, devMode, logout } = useAuth();
   const [stats, setStats] = useState(null);
+  const [reviewDueCount, setReviewDueCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -98,6 +87,15 @@ export default function AppLayout() {
       myStats()
         .then((res) => {
           if (isMounted && res) setStats(res);
+        })
+        .catch(() => {});
+
+      getTodayReview()
+        .then((res) => {
+          if (isMounted && res) {
+            const count = res.total_due ?? (Array.isArray(res.items) ? res.items.length : 0);
+            setReviewDueCount(count);
+          }
         })
         .catch(() => {});
     }
@@ -130,10 +128,15 @@ export default function AppLayout() {
 
           <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
             <span className="label px-3 pb-1 pt-2">Learn</span>
-            {NAV.map(({ to, label, icon: Icon }) => (
+            {NAV.map(({ to, label, icon: Icon, hasBadge }) => (
               <NavLink key={to} to={to} className={navLinkClass}>
                 <Icon className="h-[18px] w-[18px] shrink-0" />
-                {label}
+                <span className="flex-1">{label}</span>
+                {hasBadge && reviewDueCount > 0 && (
+                  <span className="inline-flex items-center justify-center rounded-pill bg-primary-600 px-1.5 py-0.5 text-2xs font-semibold text-white">
+                    {reviewDueCount}
+                  </span>
+                )}
               </NavLink>
             ))}
 
@@ -217,9 +220,16 @@ export default function AppLayout() {
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-2 py-1 lg:hidden">
         <div className="mx-auto flex max-w-lg items-center">
-          {MOBILE_NAV.map(({ to, label, icon: Icon }) => (
+          {MOBILE_NAV.map(({ to, label, icon: Icon, hasBadge }) => (
             <NavLink key={to} to={to} className={tabLinkClass}>
-              <Icon className="h-5 w-5" />
+              <div className="relative">
+                <Icon className="h-5 w-5" />
+                {hasBadge && reviewDueCount > 0 && (
+                  <span className="absolute -top-1 -right-2 flex h-4 min-w-4 items-center justify-center rounded-pill bg-primary-600 px-1 text-[10px] font-bold text-white">
+                    {reviewDueCount}
+                  </span>
+                )}
+              </div>
               {label}
             </NavLink>
           ))}

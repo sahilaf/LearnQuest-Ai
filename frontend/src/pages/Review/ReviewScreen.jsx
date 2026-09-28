@@ -154,16 +154,14 @@ export default function ReviewScreen() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <Link to="/practice">
-            <Button variant="primary" size="md">
-              Practice Problems →
+        <div className="flex flex-col items-center justify-center gap-3 pt-2">
+          <Link to="/dashboard">
+            <Button variant="primary" size="lg" className="px-8 font-semibold">
+              Continue your course →
             </Button>
           </Link>
-          <Link to="/dashboard">
-            <Button variant="secondary" size="md">
-              Back to Dashboard
-            </Button>
+          <Link to="/learn" className="text-xs text-muted hover:text-ink transition-colors pt-1">
+            Or browse all courses & challenges →
           </Link>
         </div>
       </div>

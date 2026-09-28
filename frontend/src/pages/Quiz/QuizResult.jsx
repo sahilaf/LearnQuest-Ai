@@ -6,7 +6,7 @@
  * post-submission following docs/DESIGN_GUIDELINES.md.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -15,7 +15,9 @@ import {
   CheckCircle2,
   Clock,
   GraduationCap,
+  Lightbulb,
   RotateCcw,
+  Sparkles,
   XCircle,
 } from 'lucide-react';
 
@@ -30,6 +32,8 @@ import {
   Spinner,
 } from '../../components/ui';
 import { getAttempt, getQuiz } from '../../api/quizzes';
+import { getLesson } from '../../api/lessons';
+import { myMisconceptions } from '../../api/mastery';
 
 export default function QuizResult() {
   const { attemptId } = useParams();
@@ -37,6 +41,8 @@ export default function QuizResult() {
 
   const [attempt, setAttempt] = useState(null);
   const [quizDetails, setQuizDetails] = useState(null);
+  const [lessonInfo, setLessonInfo] = useState(null);
+  const [misconceptions, setMisconceptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -52,10 +58,19 @@ export default function QuizResult() {
       if (data?.quiz_id) {
         getQuiz(data.quiz_id)
           .then((qRes) => {
-            setQuizDetails(qRes?.data || qRes);
+            const qData = qRes?.data || qRes;
+            setQuizDetails(qData);
+            if (qData?.lesson_id) {
+              getLesson(qData.lesson_id).then(setLessonInfo).catch(() => {});
+            }
           })
           .catch(() => {});
       }
+      myMisconceptions(false)
+        .then((mRes) => {
+          setMisconceptions(mRes?.items || []);
+        })
+        .catch(() => {});
     } catch (err) {
       console.error('Failed to load quiz attempt result:', err);
       const detail = err?.response?.data?.detail || err?.detail || 'Could not load quiz results.';
@@ -108,17 +123,42 @@ export default function QuizResult() {
   const durationSeconds = (attempt.duration_seconds || 0) % 60;
   const formattedDuration = `${durationMinutes}m ${durationSeconds < 10 ? '0' : ''}${durationSeconds}s`;
 
+  const wrongAnswers = useMemo(() => {
+    return (attempt?.answers || []).filter((a) => !a.is_correct);
+  }, [attempt]);
+
+  const primaryMisconception = useMemo(() => {
+    if (!wrongAnswers.length) return null;
+    const firstWrong = wrongAnswers[0];
+    const matched = misconceptions.find(
+      (m) => m.topic_tag === firstWrong.topic_tag && m.misconception
+    );
+    if (matched) {
+      return {
+        topic: firstWrong.topic_tag,
+        text: matched.misconception,
+      };
+    }
+    const cleanExpl = firstWrong.explanation
+      ? firstWrong.explanation.replace(/^Explanation:\s*/i, '').trim()
+      : null;
+    return {
+      topic: firstWrong.topic_tag || 'sql',
+      text: cleanExpl || `A conceptual misunderstanding regarding ${firstWrong.topic_tag || 'this topic'} was detected.`,
+    };
+  }, [wrongAnswers, misconceptions]);
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
         <div>
           <Link
-            to="/courses"
+            to="/learn"
             className="inline-flex items-center gap-1 text-xs text-muted hover:text-body"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Back to Course Catalog
+            Back to Courses
           </Link>
           <h1 className="mt-1 text-2xl font-semibold text-ink">
             {attempt.quiz_title || 'Quiz Results & Review'}
@@ -128,8 +168,8 @@ export default function QuizResult() {
         <div className="flex items-center gap-2">
           {attempt.quiz_id && (
             <Link to={`/quiz/${attempt.quiz_id}`}>
-              <Button variant="secondary" size="md">
-                <RotateCcw className="h-4 w-4" />
+              <Button variant="ghost" size="sm">
+                <RotateCcw className="h-3.5 w-3.5" />
                 Retake Quiz
               </Button>
             </Link>
@@ -191,6 +231,83 @@ export default function QuizResult() {
           </div>
         </div>
       </Card>
+
+      {/* PROMINENT NEXT STEP CARD (Requirement C) */}
+      {isPassing ? (
+        <Card className="border-easy/40 bg-gradient-to-r from-easy/10 via-surface to-surface p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Badge tone="easy" className="text-xs font-semibold">
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Quiz Passed
+                </Badge>
+              </div>
+              <h3 className="text-lg font-bold text-ink">
+                Concept Mastered! Ready for the next lesson.
+              </h3>
+              <p className="text-xs text-muted">
+                Keep your learning momentum going and proceed directly to your next lesson.
+              </p>
+            </div>
+
+            <div className="shrink-0">
+              {lessonInfo?.next_lesson_id ? (
+                <Link to={`/lessons/${lessonInfo.next_lesson_id}`}>
+                  <Button variant="primary" size="lg" className="font-semibold px-6">
+                    Next Lesson →
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/learn">
+                  <Button variant="primary" size="lg" className="font-semibold px-6">
+                    Continue Course →
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <Card className="border-warning/50 bg-gradient-to-r from-warning/15 via-surface to-surface p-6 sm:p-7 shadow-sm">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-warning" />
+              <span className="text-xs font-bold uppercase tracking-wider text-warning">
+                Misconception Detected
+              </span>
+            </div>
+
+            <div>
+              <span className="text-2xs font-semibold text-muted uppercase tracking-wider">
+                You seem to believe:
+              </span>
+              <p className="mt-1 text-base sm:text-lg font-bold text-ink italic leading-snug">
+                “{primaryMisconception?.text}”
+              </p>
+            </div>
+
+            <p className="text-xs text-body leading-relaxed max-w-xl">
+              Explaining this concept to someone else is the proven way to rewire your mental model.
+              Teach Nova why this belief is wrong — her score is your grade.
+            </p>
+
+            <div className="pt-1">
+              <Link
+                to={
+                  primaryMisconception?.topic
+                    ? `/tutor?topic=${encodeURIComponent(primaryMisconception.topic)}&mode=teachback`
+                    : '/tutor?mode=teachback'
+                }
+              >
+                <Button variant="primary" size="lg" className="font-semibold px-6">
+                  <GraduationCap className="h-4 w-4" />
+                  Teach Nova to fix it →
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Detailed Question Review Section */}
       <div className="space-y-4">
@@ -324,21 +441,70 @@ export default function QuizResult() {
         )}
       </div>
 
-      {/* Bottom Action Footer */}
+      {/* Bottom Action Footer (Requirement C: Exactly one main next step) */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
-        <Link to="/courses">
-          <Button variant="secondary">
-            ← Back to Courses
-          </Button>
-        </Link>
+        {isPassing ? (
+          <>
+            <Link to="/learn">
+              <Button variant="ghost">
+                ← Back to Courses
+              </Button>
+            </Link>
 
-        {attempt.quiz_id && (
-          <Link to={`/quiz/${attempt.quiz_id}`}>
-            <Button variant="primary">
-              <RotateCcw className="h-4 w-4" />
-              Retake This Quiz
-            </Button>
-          </Link>
+            <div className="flex items-center gap-3">
+              {attempt.quiz_id && (
+                <Link to={`/quiz/${attempt.quiz_id}`}>
+                  <Button variant="secondary">
+                    <RotateCcw className="h-4 w-4" />
+                    Retake Quiz
+                  </Button>
+                </Link>
+              )}
+              {lessonInfo?.next_lesson_id ? (
+                <Link to={`/lessons/${lessonInfo.next_lesson_id}`}>
+                  <Button variant="primary">
+                    Next Lesson →
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/learn">
+                  <Button variant="primary">
+                    Continue Learning →
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {attempt.quiz_id ? (
+              <Link to={`/quiz/${attempt.quiz_id}`}>
+                <Button variant="secondary">
+                  <RotateCcw className="h-4 w-4" />
+                  Retake This Quiz
+                </Button>
+              </Link>
+            ) : (
+              <Link to="/learn">
+                <Button variant="secondary">
+                  ← Back to Courses
+                </Button>
+              </Link>
+            )}
+
+            <Link
+              to={
+                primaryMisconception?.topic
+                  ? `/tutor?topic=${encodeURIComponent(primaryMisconception.topic)}&mode=teachback`
+                  : '/tutor?mode=teachback'
+              }
+            >
+              <Button variant="primary">
+                <GraduationCap className="h-4 w-4" />
+                Teach Nova to fix it →
+              </Button>
+            </Link>
+          </>
         )}
       </div>
     </div>
