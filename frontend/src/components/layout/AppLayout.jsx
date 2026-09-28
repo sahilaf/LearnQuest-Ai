@@ -13,6 +13,7 @@ import {
   Trophy,
   BarChart3,
   History,
+  UploadCloud,
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
@@ -36,12 +37,14 @@ const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/roadmap', label: 'Roadmap', icon: Map },
   { to: '/courses', label: 'Courses', icon: BookOpen },
+  { to: '/upload', label: 'Upload Notes', icon: UploadCloud },
   { to: '/practice', label: 'Practice', icon: Code2 },
   { to: '/tutor', label: 'AI Tutor', icon: Sparkles },
   { to: '/achievements', label: 'Achievements', icon: Trophy },
   { to: '/stats', label: 'Stats', icon: BarChart3 },
   { to: '/history', label: 'History', icon: History },
 ];
+
 
 // Restore these as each one is built (routes already exist in App.jsx):
 //   { to: '/history',      label: 'History',      icon: HistoryIcon }

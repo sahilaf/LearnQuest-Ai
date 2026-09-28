@@ -18,6 +18,7 @@ const Profile = lazy(() => import('./pages/Profile/Profile'));
 const AdminOverview = lazy(() => import('./pages/Admin/AdminOverview'));
 const AdminUsers = lazy(() => import('./pages/Admin/AdminUsers'));
 const AdminCourses = lazy(() => import('./pages/Admin/AdminCourses'));
+const UploadNotes = lazy(() => import('./pages/Upload/UploadNotes'));
 
 // --- Member 2: learning ---
 const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'));
@@ -97,6 +98,7 @@ export default function App() {
 
           {/* Member 3 */}
           <Route path="/profile" element={<Profile />} />
+          <Route path="/upload" element={<UploadNotes />} />
 
           {/* Member 3 - admin only */}
           <Route

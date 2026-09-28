@@ -559,58 +559,43 @@ async def upload_notes(
     file: UploadFile = File(...),
     db: Session | None = Depends(get_db),
 ) -> dict[str, Any]:
-    """File handling for upload-your-own-notes (plan.md §6.13, §8.1 Day 4).
+    """File handling for upload-your-own-notes (plan.md §6.13, §8.1 Day 4, §8.6 W3).
 
-    M3 handles file upload and initial text extraction.
-    Creates a private course shell ready for M1 splitting and question generation.
+    M3 handles file upload and document-to-course creation.
+    Creates a private course with lessons, topics, and review items seeded.
     """
     contents = await file.read()
     file_size = len(contents)
     filename = file.filename or "notes.txt"
     content_type = file.content_type or "text/plain"
 
-    # Extract text from plain text/markdown or handle binary (PDF)
-    extracted_text = ""
+    from app.services.notes_extractor import (
+        extract_text_from_file,
+        process_uploaded_notes,
+    )
+
     try:
-        extracted_text = contents.decode("utf-8", errors="replace")
-    except Exception:
-        extracted_text = f"Uploaded binary document: {filename} ({file_size} bytes)"
+        user_uuid = uuid.UUID(str(user["id"]))
+    except Exception as err:
+        raise HTTPException(status_code=401, detail="Invalid user.") from err
 
-    clean_title = re.sub(r"\.[^.]+$", "", filename).replace("_", " ").replace("-", " ").title()
+    extracted_text = extract_text_from_file(filename, contents, content_type)
 
-    course_draft = {
-        "title": clean_title,
-        "source": "uploaded",
-        "is_private": True,
-        "created_by": user["id"],
-        "description": f"Private course generated from {filename}",
-    }
-
-    # If DB is configured, create the private course container
+    course_result = None
     if db and database_is_configured():
-        user_uuid = uuid.UUID(user["id"])
-        slug = f"upload-{_slugify(clean_title)}-{uuid.uuid4().hex[:6]}"
-        course = Course(
-            title=clean_title,
-            slug=slug,
-            description=f"Personal notes course created from {filename}",
-            subject="Uploaded Notes",
-            difficulty="intermediate",
-            source="uploaded",
-            is_private=True,
-            is_published=False,
-            created_by=user_uuid,
+        course_result = process_uploaded_notes(
+            db=db,
+            user_id=user_uuid,
+            filename=filename,
+            content=contents,
+            content_type=content_type,
         )
-        db.add(course)
-        db.commit()
-        db.refresh(course)
-        course_draft["id"] = str(course.id)
-        course_draft["slug"] = course.slug
 
     return {
         "filename": filename,
         "content_type": content_type,
         "file_size_bytes": file_size,
         "extracted_text": extracted_text[:5000],  # first 5k characters preview
-        "course_draft": course_draft,
+        "course_draft": course_result.get("course") if course_result else None,
     }
+

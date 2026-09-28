@@ -26,3 +26,20 @@ export const myHistory = (params) => client.get('/api/me/history', { params });
  */
 export const generateCourse = (goal, nLessons = 4) =>
   client.post('/api/courses/generate', { goal, n_lessons: nLessons });
+
+/**
+ * Upload notes (PDF, Markdown, or text) to generate a private course. (M3)
+ * plan.md §6.13, §8.6, CHECKLIST.md Slot 11.
+ */
+export const uploadNotes = (formData, customTitle) =>
+  client.post('/api/courses/upload', formData, {
+    params: customTitle ? { custom_title: customTitle } : undefined,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+export const updateCourse = (courseId, body) =>
+  client.patch(`/api/courses/${courseId}`, body);
+
+export const updateLesson = (courseId, lessonId, body) =>
+  client.patch(`/api/courses/${courseId}/lessons/${lessonId}`, body);
+

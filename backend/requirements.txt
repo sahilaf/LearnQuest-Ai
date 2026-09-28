@@ -22,4 +22,8 @@ certifi>=2024.2.2
 # --- http / ai ---
 httpx>=0.28.1
 
+# --- document processing ---
+pypdf>=5.0.0
+
+
 

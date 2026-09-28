@@ -102,9 +102,9 @@ Every `[x]` below was re-checked against the code, not trusted.
 |---|---|---|---|---|
 | **M1** (AI) | 27 | 0 | 15 | 42 |
 | **M2** (Learning) | 29 | 0 | 6 | 35 |
-| **M3** (Users) | 7 | 1 | 14 | 22 |
+| **M3** (Users) | 13 | 1 | 8 | 22 |
 | **M4** (Game) | 22 | 0 | 6 | 28 |
-| **Total** | **85** | **1** | **41** | **127** |
+| **Total** | **91** | **1** | **35** | **127** |
 
 Plus 4 shared dry-run items in Days 26-28.
 
@@ -577,16 +577,17 @@ The differentiator plan.md describes: an uploaded PDF becomes a course using the
 same tables and the same pipeline, so nothing downstream knows the difference.
 `POST /api/admin/upload` and `POST /api/uploads` already exist to build on.
 
-- [ ] `POST /api/courses/upload` — accept a PDF/markdown file — @, 2026-__-__
-- [ ] Extract text, split into lesson-sized sections — @, 2026-__-__
-- [ ] Create `Course` + `Lesson` rows marked `source="upload"`, `is_private=true` — @, 2026-__-__
-- [ ] Tag each lesson with topic tags (M1's vocabulary) so mastery + roadmap work — @, 2026-__-__
-- [ ] Upload UI: drop a file, see the generated course, edit titles — @, 2026-__-__
-- [ ] Security pass: file type/size limits, per-user ownership, RLS check — @, 2026-__-__
+- [x] `POST /api/courses/upload` — accept a PDF/markdown file — @member3, 2026-09-28
+- [x] Extract text, split into lesson-sized sections — @member3, 2026-09-28
+- [x] Create `Course` + `Lesson` rows marked `source="uploaded"`, `is_private=true` — @member3, 2026-09-28
+- [x] Tag each lesson with topic tags (M1's vocabulary) so mastery + roadmap work — @member3, 2026-09-28
+- [x] Upload UI: drop a file, see the generated course, edit titles — @member3, 2026-09-28
+- [x] Security pass: file type/size limits, per-user ownership, RLS check — @member3, 2026-09-28
 
 **✅ Hand off when:** you upload a PDF and it appears as a private course you can
 learn from, with a roadmap generated over it.
 **→ Push, then tell M4.**
+
 
 ---
 

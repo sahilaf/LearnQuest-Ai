@@ -65,7 +65,7 @@ def seed_users(db: Session) -> tuple[User | None, User | None]:
                 (
                     '00000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
                     'admin@learnquest.ai', '$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012',
-                    NOW(), NOW(), NOW(), '{"provider":"email"}', '{"full_name":"Alex Mercer"}'
+                    NOW(), NOW(), NOW(), '{"provider":"email"}', '{"full_name":"Admin"}'
                 ),
                 (
                     '00000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated',
@@ -89,7 +89,7 @@ def seed_users(db: Session) -> tuple[User | None, User | None]:
             admin = User(
                 id=DEMO_ADMIN_ID,
                 email="admin@learnquest.ai",
-                full_name="Alex Mercer (Admin)",
+                full_name="Admin (Admin)",
                 role="admin",
                 preferences={"tutor_tone": "concise", "difficulty_pref": "advanced", "daily_goal_minutes": 30},
                 created_at=now,

@@ -17,7 +17,7 @@ const AuthContext = createContext(null);
 const DEV_USER = {
   id: '00000000-0000-0000-0000-000000000001',
   email: 'admin@learnquest.ai',
-  full_name: 'Alex Mercer (Admin)',
+  full_name: 'Admin (Admin)',
   role: 'admin',
   avatar_url: null,
 };

@@ -368,3 +368,26 @@ def require_admin(
 
 CurrentUser = Annotated[dict[str, Any], Depends(get_current_user)]
 AdminUser = Annotated[dict[str, Any], Depends(require_admin)]
+
+
+def get_optional_current_user(
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, Any] | None:
+    """Return user dict if valid Authorization header is present, else None."""
+    if not authorization:
+        return None
+    try:
+        from app.main import app as fastapi_app
+
+        override = fastapi_app.dependency_overrides.get(get_current_user)
+        if override:
+            return override()
+    except Exception:
+        pass
+    try:
+        return get_current_user(authorization)
+    except HTTPException:
+        return None
+
+
+OptionalCurrentUser = Annotated[dict[str, Any] | None, Depends(get_optional_current_user)]

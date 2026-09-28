@@ -6,15 +6,22 @@ OWNER: Member 2 (reads) / Member 3 (writes). See plan.md §7.3.
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import database_is_configured, get_db
-from app.deps import CurrentUser
+from app.deps import CurrentUser, OptionalCurrentUser
 from app.models.course import Course, Enrollment, Lesson
 from app.models.quiz import Quiz
-from app.schemas.course import CourseDetailResponse, CourseResponse, EnrollmentResponse
+from app.schemas.course import (
+    CourseDetailResponse,
+    CourseResponse,
+    CourseUpdate,
+    EnrollmentResponse,
+    LessonResponse,
+    LessonUpdate,
+)
 from app.services.events import emit
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
@@ -27,13 +34,29 @@ def list_courses(
     difficulty: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    user: OptionalCurrentUser = None,
     db: Session | None = Depends(get_db),
 ) -> dict[str, Any]:
     """Published courses, filterable. Public - no auth required."""
     if not db or not database_is_configured():
         return {"items": [], "total": 0, "page": page, "page_size": page_size}
 
-    query = db.query(Course).filter(Course.is_published.is_(True))
+    user_uuid = None
+    if user and "id" in user:
+        try:
+            user_uuid = uuid.UUID(str(user["id"]))
+        except Exception:
+            user_uuid = None
+
+    if user_uuid:
+        query = db.query(Course).filter(
+            Course.is_published.is_(True),
+            or_(Course.is_private.is_(False), Course.created_by == user_uuid),
+        )
+    else:
+        query = db.query(Course).filter(
+            Course.is_published.is_(True), Course.is_private.is_(False)
+        )
 
     if search:
         search_filter = f"%{search.strip()}%"
@@ -69,6 +92,7 @@ def list_courses(
 @router.get("/{slug}", response_model=CourseDetailResponse)
 def get_course(
     slug: str,
+    user: OptionalCurrentUser = None,
     db: Session | None = Depends(get_db),
 ) -> dict[str, Any]:
     """Course detail with its ordered lesson list."""
@@ -106,6 +130,24 @@ def get_course(
             detail=f"Course '{slug}' not found.",
             headers={"X-Error-Code": "COURSE_NOT_FOUND"},
         )
+
+    # Security check (plan.md §8.6, CHECKLIST Slot 11): private courses are only accessible by their creator or admin
+    if course.is_private:
+        user_uuid = None
+        if user and "id" in user:
+            try:
+                user_uuid = uuid.UUID(str(user["id"]))
+            except Exception:
+                user_uuid = None
+        is_admin = bool(user and user.get("role") == "admin")
+        is_owner = bool(user_uuid and course.created_by == user_uuid)
+        if not is_admin and not is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Course '{slug}' not found.",
+                headers={"X-Error-Code": "COURSE_NOT_FOUND"},
+            )
+
 
     course_dict = course.to_dict(include_lessons=False)
     lesson_ids = [l.id for l in course.lessons]
@@ -262,3 +304,142 @@ def enroll(
         "already_enrolled": False,
         "enrollment_id": str(enrollment.id),
     }
+
+
+@router.post("/upload", response_model=dict[str, Any])
+async def upload_notes_to_course(
+    user: CurrentUser,
+    file: UploadFile = File(...),
+    custom_title: str | None = Query(default=None),
+    db: Session | None = Depends(get_db),
+) -> dict[str, Any]:
+    """Upload notes (PDF/MD/TXT) -> extract text -> split into lessons -> tag -> create course.
+
+    OWNER: Member 3. See plan.md §6.13, §8.6, CHECKLIST.md Slot 11.
+    """
+    if db is None or not database_is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is not configured.",
+        )
+
+    try:
+        user_uuid = uuid.UUID(str(user["id"]))
+    except (KeyError, TypeError, ValueError) as err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user ID."
+        ) from err
+
+    content = await file.read()
+    filename = file.filename or "notes.txt"
+    content_type = file.content_type
+
+    from app.services.notes_extractor import process_uploaded_notes
+
+    return process_uploaded_notes(
+        db=db,
+        user_id=user_uuid,
+        filename=filename,
+        content=content,
+        content_type=content_type,
+        custom_title=custom_title,
+    )
+
+
+@router.patch("/{course_id}", response_model=CourseResponse)
+def update_user_course(
+    course_id: str,
+    payload: CourseUpdate,
+    user: CurrentUser,
+    db: Session | None = Depends(get_db),
+) -> dict[str, Any]:
+    """Allow course creator (or admin) to update their uploaded or owned course title/description."""
+    if not db or not database_is_configured():
+        return {"id": course_id, "title": payload.title or "Course"}
+
+    try:
+        c_uuid = uuid.UUID(course_id)
+        user_uuid = uuid.UUID(str(user["id"]))
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail="Invalid ID format.") from err
+
+    course = db.query(Course).filter(Course.id == c_uuid).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found.")
+
+    is_admin = user.get("role") == "admin"
+    is_owner = course.created_by == user_uuid
+    if not is_admin and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to edit this course.",
+        )
+
+    if payload.title is not None:
+        course.title = payload.title
+    if payload.description is not None:
+        course.description = payload.description
+    if payload.difficulty is not None:
+        course.difficulty = payload.difficulty
+
+    db.commit()
+    db.refresh(course)
+    return course.to_dict()
+
+
+@router.patch("/{course_id}/lessons/{lesson_id}", response_model=LessonResponse)
+def update_user_lesson(
+    course_id: str,
+    lesson_id: str,
+    payload: LessonUpdate,
+    user: CurrentUser,
+    db: Session | None = Depends(get_db),
+) -> dict[str, Any]:
+    """Allow course creator (or admin) to update a lesson title/content in their course."""
+    if not db or not database_is_configured():
+        return {"id": lesson_id, "title": payload.title or "Lesson"}
+
+    try:
+        c_uuid = uuid.UUID(course_id)
+        l_uuid = uuid.UUID(lesson_id)
+        user_uuid = uuid.UUID(str(user["id"]))
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail="Invalid ID format.") from err
+
+    course = db.query(Course).filter(Course.id == c_uuid).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found.")
+
+    is_admin = user.get("role") == "admin"
+    is_owner = course.created_by == user_uuid
+    if not is_admin and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to edit lessons in this course.",
+        )
+
+    lesson = db.query(Lesson).filter(Lesson.id == l_uuid, Lesson.course_id == c_uuid).first()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found in this course.")
+
+    if payload.title is not None:
+        lesson.title = payload.title
+    if payload.content_md is not None:
+        lesson.content_md = payload.content_md
+    if payload.order_index is not None:
+        lesson.order_index = payload.order_index
+    if payload.topic_tags is not None:
+        from app.services.topics import resolve
+
+        resolved = resolve(db, payload.topic_tags)
+        if not resolved:
+            raise HTTPException(
+                status_code=422,
+                detail="A lesson must have at least one valid topic tag from the vocabulary.",
+            )
+        lesson.topic_tags = resolved
+
+    db.commit()
+    db.refresh(lesson)
+    return lesson.to_dict()
+

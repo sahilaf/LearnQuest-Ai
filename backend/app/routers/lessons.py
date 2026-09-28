@@ -63,6 +63,21 @@ def get_lesson(
             detail=f"Lesson '{lesson_id}' not found.",
         )
 
+    # Security check: if lesson's course is private, verify user is creator or admin
+    if lesson.course and lesson.course.is_private:
+        user_uuid = None
+        try:
+            user_uuid = uuid.UUID(str(user["id"])) if user and "id" in user else None
+        except Exception:
+            user_uuid = None
+        is_admin = bool(user and user.get("role") == "admin")
+        is_owner = bool(user_uuid and lesson.course.created_by == user_uuid)
+        if not is_admin and not is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Lesson '{lesson_id}' not found.",
+            )
+
     data = lesson.to_dict()
 
     # Member 2: attach associated practice quiz if present
