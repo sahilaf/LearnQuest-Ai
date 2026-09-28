@@ -122,9 +122,9 @@ slot owner (M4's earlier total of 28 was a miscount; it owns 23 items).
 |---|---|---|---|---|
 | **M1** (AI) | 36 | 0 | 8 | 44 |
 | **M2** (Learning) | 29 | 0 | 6 | 35 |
-| **M3** (Users) | 14 | 1 | 7 | 22 |
+| **M3** (Users) | 15 | 1 | 6 | 22 |
 | **M4** (Game) | 23 | 0 | 0 | 23 |
-| **Total** | **102** | **1** | **21** | **124** |
+| **Total** | **103** | **1** | **20** | **124** |
 
 M1's 8 open items: 5 are Week 4 hardening (Slot 13, two of them avatar/TTS
 latency), and 3 are standing ⚠️ risks on generated content — no reviewer,
@@ -142,9 +142,8 @@ generated quizzes, generated courses, the misconception map. Slots 9D (M2) and
 9E (M4) are the highest-value work left in the project, because they are what
 makes the novel part visible to anyone who is not reading a database.
 
-G1, G3, G4, G5 and G6 are closed. **G2** (Google sign-in) is the only open
-gap, and it is a Supabase dashboard fix, not a code fix — see
-[Open gaps](#open-gaps).
+Every gap is closed — G1 through G6. Google sign-in (G2) was verified working
+on 2026-09-29. See [Open gaps](#open-gaps).
 
 **There is one avatar.** Tier A — the SVG avatar and its Web Speech voice — was
 removed on 2026-09-22. Without a GPU service the tutor page shows an "avatar
@@ -196,13 +195,13 @@ generated quizzes finally make mastery move.
 - ⚠️ Your three XP tests are order-dependent — see the note under Repo state.
   They pass now for the wrong reason.
 
-### 🟠 M3 (Users) — **G2, then `Profile.jsx`**
+### 🟠 M3 (Users) — **Slot 3 leftovers, then Slot 15**
 
 G5 is done — anonymous access now fails closed.
 
-- **G2:** Google sign-in still fails at the token exchange. The client secret in
-  Supabase does not match the client id. This is the last thing stopping a
-  stranger signing up, and it is a dashboard fix, not a code fix.
+- ~~**G2:** Google sign-in fails at the token exchange.~~ Verified working
+  2026-09-29. Still to confirm: redirect URLs for 5173 **and** 5174, and that a
+  fresh Google sign-up writes a `public.users` row.
 - ~~`Profile.jsx` is still 11 lines.~~ Built 2026-09-29: stats, name, daily
   goal, leaderboard opt-out.
 
@@ -291,7 +290,7 @@ appears for a wrong answer.
 
 - [x] Enable **Google OAuth** in Supabase — verified via `/auth/v1/settings` (`google: true`) — done, 2026-09-22
 - [x] `GET/PATCH /api/users/me` — real in `users.py` — done, 2026-09-22
-- [ ] Fix the Google token exchange — **see [G2]** — @, 2026-__-__
+- [x] Fix the Google token exchange — **[G2] closed**, sign-in verified working — @sahilaf, 2026-09-29
 - [ ] Add Supabase redirect URLs for **both 5173 and 5174** (Vite falls back) — @, 2026-__-__
 - [ ] Verify sign-up creates a `public.users` row — @, 2026-__-__
 - [x] `Profile.jsx` — stats, name, email (read-only), daily goal, leaderboard opt-out; `/api/me` now returns real stats — @sahilaf, 2026-09-29
@@ -713,13 +712,20 @@ reads `attempt_answers` back by `attempt_id` when the payload omits them. The
 misconception engine fires on the event M2 already emits, and M2's router was not
 touched. Covered by `TestG1AnswersFallback`.
 
-### [G2] — Google sign-in fails at the token exchange
+### ~~[G2] — Google sign-in fails at the token exchange~~ · **closed 2026-09-29**
+
+Google sign-in verified working end to end on 2026-09-29.
+
+<details><summary>the original report</summary>
+
 
 Supabase returns *"Unable to exchange external code"*, which means the Google
 **Client Secret in Supabase does not match the Client ID**. Re-paste both, and set
 the authorised redirect URI in Google Cloud to
 `https://dkyvtuzutcblcpeerqeo.supabase.co/auth/v1/callback`.
 Email/password sign-in works today. *(Owner: M3, Slot 3.)*
+
+</details>
 
 ### ~~[G3] — The dashboard never calls the roadmap~~ · **closed 2026-09-29**
 
@@ -845,4 +851,4 @@ problems, interleaving, daily challenges.
 > Add a line the moment you are stuck. Do not stall silently — the next person
 > in the relay is waiting on you.
 
-- [ ] *(none logged — G2 above is a dashboard action for M3, not a stall)*
+- [ ] *(none logged — every gap above is closed)*
