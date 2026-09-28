@@ -9,6 +9,7 @@ import io
 import unittest
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -23,13 +24,7 @@ from app.main import app
 from app.models.ai import ReviewItem, Topic
 from app.models.course import Course, Enrollment, Lesson
 from app.models.user import User
-from app.services.notes_extractor import (
-    assign_topic_tags,
-    extract_text_from_file,
-    process_uploaded_notes,
-    split_into_lessons,
-    validate_file,
-)
+from app.services.notes_extractor import extract_text_from_file, validate_file
 
 
 class TestUploadAndSecurity(unittest.TestCase):
@@ -140,113 +135,10 @@ class TestUploadAndSecurity(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertIn("Could not extract readable text", ctx.exception.detail)
 
-    # =========================================================================
-    # 2. Section Splitting & Topic Tagging Tests
-    # =========================================================================
-
-    def test_split_into_lessons_markdown_headings(self):
-        sample_doc = """# Introduction to Relational Databases
-A relational database stores data in tabular format with rows and columns.
-This structured approach helps maintain referential integrity.
-
-# Database Normalization
-Normalization is the process of organizing data in a database to reduce redundancy.
-First normal form requires atomic values. Second normal form eliminates partial dependencies.
-
-# SQL Queries and Joins
-SQL allows querying relational data using SELECT statements and JOIN clauses.
-Inner joins match rows that satisfy the join condition in both tables.
-"""
-        lessons = split_into_lessons(sample_doc, "Database Notes")
-        self.assertGreaterEqual(len(lessons), 3)
-        self.assertIn("Introduction to Relational Databases", lessons[0]["title"])
-        self.assertIn("Database Normalization", lessons[1]["title"])
-        self.assertIn("SQL Queries and Joins", lessons[2]["title"])
-
-    def test_split_into_lessons_paragraph_fallback(self):
-        # Document with no headings, just large paragraphs
-        p1 = "Paragraph 1 text that explains database normalization and concepts. " * 30
-        p2 = "Paragraph 2 text detailing SQL joins and queries for relational tables. " * 30
-        full_text = f"{p1}\n\n{p2}"
-
-        lessons = split_into_lessons(full_text, "Flat Notes")
-        self.assertGreaterEqual(len(lessons), 2)
-        for l in lessons:
-            self.assertIn("content_md", l)
-            self.assertIn("title", l)
-
-    def test_assign_topic_tags_matches_vocabulary(self):
-        lessons = [
-            {
-                "title": "SQL Joins and Queries",
-                "content_md": "We use INNER JOIN and LEFT JOIN to combine rows from multiple tables.",
-            },
-            {
-                "title": "Database Normalization Principles",
-                "content_md": "Normalization involves 1NF, 2NF, 3NF to avoid redundancy in tables.",
-            },
-        ]
-        assign_topic_tags(self.db, lessons, "Database Notes")
-        self.assertIn("sql.joins", lessons[0]["topic_tags"])
-        self.assertIn("dbms.normalization", lessons[1]["topic_tags"])
-
-    def test_assign_topic_tags_guarantees_at_least_one_tag(self):
-        # Even if content has unrelated text, every lesson MUST have at least 1 tag
-        lessons = [
-            {
-                "title": "Unrelated Topic",
-                "content_md": "Some completely abstract text about cooking and recipes.",
-            }
-        ]
-        assign_topic_tags(self.db, lessons, "Cooking")
-        self.assertGreaterEqual(len(lessons[0]["topic_tags"]), 1)
-        # Resolved against active vocabulary
-        self.assertTrue(any(t in ["sql.joins", "sql.basics", "dbms.normalization", "python.loops"] for t in lessons[0]["topic_tags"]))
-
-    # =========================================================================
-    # 3. Database Persistence & Pipeline End-to-End
-    # =========================================================================
-
-    def test_process_uploaded_notes_creates_course_and_seeds_review(self):
-        sample_doc = """# Module 1: SQL Joins
-A join clause is used to combine rows from two or more tables based on a related column.
-Inner join returns records that have matching values in both tables.
-
-# Module 2: Normalization
-Normalization organizes columns and tables of a relational database to minimize data redundancy.
-Third normal form eliminates transitive functional dependencies.
-"""
-        result = process_uploaded_notes(
-            db=self.db,
-            user_id=self.user1_id,
-            filename="sql_notes.md",
-            content=sample_doc.encode("utf-8"),
-        )
-
-        course = result["course"]
-        lessons = result["lessons"]
-
-        # Verify course properties
-        self.assertEqual(course["source"], "uploaded")
-        self.assertTrue(course["is_private"])
-        self.assertTrue(course["is_published"])
-        self.assertEqual(str(course["created_by"]), str(self.user1_id))
-        self.assertEqual(len(lessons), 2)
-
-        # Verify auto-enrollment
-        enr = self.db.query(Enrollment).filter(
-            Enrollment.user_id == self.user1_id,
-            Enrollment.course_id == uuid.UUID(course["id"]),
-        ).first()
-        self.assertIsNotNone(enr)
-
-        # Verify review items were seeded for the topics
-        review_items = self.db.query(ReviewItem).filter(
-            ReviewItem.user_id == self.user1_id
-        ).all()
-        self.assertGreater(len(review_items), 0)
-        topic_tags_seeded = {r.topic_tag for r in review_items}
-        self.assertTrue("sql.joins" in topic_tags_seeded or "dbms.normalization" in topic_tags_seeded)
+    # Splitting, tagging and persistence moved to services/notes_course.py on
+    # 2026-09-29 and are covered by tests/test_notes_course.py. The keyword
+    # tagger tested here filed unrelated notes under the first topic in the
+    # vocabulary - one test asserted exactly that, for notes about cooking.
 
     # =========================================================================
     # 4. HTTP Endpoint & Security Tests
@@ -261,16 +153,32 @@ Third normal form eliminates transitive functional dependencies.
         }
 
         doc = b"# Section 1: Intro to Python Loops\nFor loops and while loops iterate over sequences.\n\n# Section 2: Loop Control\nBreak and continue statements control loop execution flow."
-        response = self.client.post(
-            "/api/courses/upload",
-            files={"file": ("python_notes.md", doc, "text/markdown")},
-        )
-        self.assertEqual(response.status_code, 200, response.text)
+        # Building the course is a background job; the route's job is to read
+        # the file, refuse bad ones at once, and hand back something to poll.
+        with patch("app.services.jobs.schedule") as scheduled:
+            response = self.client.post(
+                "/api/courses/upload",
+                files={"file": ("python_notes.md", doc, "text/markdown")},
+            )
+        self.assertEqual(response.status_code, 202, response.text)
         data = response.json()
-        self.assertIn("course", data)
-        self.assertIn("lessons", data)
-        self.assertEqual(data["course"]["source"], "uploaded")
-        self.assertTrue(data["course"]["is_private"])
+        self.assertIn("job_id", data)
+        self.assertEqual(data["status"], "queued")
+        scheduled.assert_called_once()
+
+    def test_api_course_upload_rejects_a_bad_file_before_queueing(self):
+        app.dependency_overrides[get_current_user] = lambda: {
+            "id": str(self.user1_id),
+            "email": self.user1.email,
+            "role": "student",
+        }
+        with patch("app.services.jobs.schedule") as scheduled:
+            response = self.client.post(
+                "/api/courses/upload",
+                files={"file": ("virus.exe", b"MZ binary content", "application/octet-stream")},
+            )
+        self.assertEqual(response.status_code, 400, response.text)
+        scheduled.assert_not_called()
 
     def test_security_private_course_hidden_from_public_catalog(self):
         # Create a private course for user1

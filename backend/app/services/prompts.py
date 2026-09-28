@@ -39,6 +39,9 @@ Rules:
 - correct_answer MUST be one of the options for mcq questions.
 - options MUST be null for types other than mcq.
 - Never repeat a prompt within the same quiz.
+- Every question must be answerable from the lesson below alone. Do not ask
+  about anything the lesson does not teach, even if the topic tag suggests a
+  wider subject.
 - topic_tag must be one of: {topic_tags}
 
 Lesson:
@@ -196,10 +199,8 @@ COURSE_OUTLINE_PROMPT = """Design a short course for one learner.
 
 Their goal: {goal}
 
-Every lesson must be tagged with one topic from this list, and ONLY from this
-list. If the goal does not fit any of these topics, return the closest ones
-rather than inventing new tags:
-
+Tag every lesson with one topic.
+{topic_rules}
 {topic_vocabulary}
 
 Plan {n_lessons} lessons that build on each other in order. Each needs a title
@@ -209,7 +210,24 @@ Return ONLY JSON:
 {{"title": "...", "description": "one or two sentences",
   "subject": "...", "difficulty": "beginner" | "intermediate" | "advanced",
   "estimated_hours": 1,
-  "lessons": [{{"title": "...", "topic_tag": "...", "summary": "..."}}]}}"""
+  "lessons": [{{"title": "...", "topic_tag": "...", "topic_label": "...", "summary": "..."}}]}}"""
+
+# Shared by every prompt that tags content, so the rule cannot drift between
+# generated courses and uploaded notes.
+TOPIC_RULES = """- If a topic in the list below genuinely matches the lesson, use its tag exactly.
+- If none matches, propose a new tag in the form subject.topic - lowercase,
+  underscores, e.g. os.process_scheduling or biology.cell_division - and give
+  a short human-readable topic_label for it. Reuse the same new tag for every
+  lesson on the same topic.
+- NEVER use a tag from an unrelated subject just because it is on the list.
+  Notes about operating systems must not be tagged as databases.
+- Tag each lesson with the most specific concept it teaches. Mastery and
+  mistakes are tracked per topic, so lessons on different concepts (e.g. race
+  conditions vs semaphores) need different tags; share a tag only when two
+  lessons genuinely teach the same concept.
+- topic_label is required only for new tags; for existing tags repeat the label.
+
+Existing topics:"""
 
 LESSON_CONTENT_PROMPT = """Write one lesson in Markdown for a {difficulty} learner.
 
@@ -226,5 +244,72 @@ Rules:
 - Do not include the lesson title as a heading; it is shown above your text.
 - Do not invent facts you are unsure of. If something is genuinely contested,
   say so plainly rather than picking a side and stating it as settled.
+
+Return ONLY the Markdown. No JSON, no preamble."""
+
+
+# --------------------------------------------------------------------------- #
+# Uploaded notes -> course (M1 pipeline over M3's extraction).
+# See services/notes_course.py.
+# --------------------------------------------------------------------------- #
+
+NOTES_OUTLINE_PROMPT = """A student uploaded their own study notes. Plan a short course that
+teaches what the notes cover.
+
+The notes are split into numbered chunks marked [[1]], [[2]], ... below.
+
+Plan between {min_lessons} and {max_lessons} lessons in a sensible teaching order.
+Each lesson needs:
+- title: a clear lesson title. Never a page header, course code, university or
+  instructor name, date, or exam instruction.
+- summary: two sentences on what it teaches.
+- chunks: the chunk numbers this lesson should be taught from.
+- topic_tag and topic_label, following the rules below.
+
+Ignore administrative material entirely: cover pages, exam rules, marks
+schemes, instructor details, tables of contents, reference lists.
+
+If the notes contain no study material at all, return {{"lessons": []}}.
+
+Tag every lesson with one topic.
+{topic_rules}
+{topic_vocabulary}
+
+Return ONLY JSON:
+{{"title": "...", "description": "one or two sentences",
+  "subject": "...", "difficulty": "beginner" | "intermediate" | "advanced",
+  "lessons": [{{"title": "...", "summary": "...", "chunks": [1, 2],
+               "topic_tag": "...", "topic_label": "..."}}]}}
+
+Notes:
+{notes}"""
+
+NOTES_LESSON_PROMPT = """Write one lesson in Markdown that teaches the material below to a
+{difficulty} student. The material comes from the student's own notes, which
+are often terse slides or bullet points.
+
+Course: {course_title}
+Lesson {position} of {total}: {lesson_title}
+What it should teach: {summary}
+{prior_context}
+Rules:
+- Teach, do not transcribe. Explain each idea in plain language first, then
+  give the formal definition.
+- Stay faithful to the notes: cover what they cover and use their terminology
+  and notation. Where they are terse, fill in the standard explanation a good
+  textbook would give. Never contradict them; if something in them looks
+  wrong, say so briefly instead of repeating it as fact.
+- Include one worked example. For a programming topic use a short fenced code
+  block; otherwise a small table or a step-by-step case.
+- Add a "Key terms" section: each term with a one-line definition.
+- End with a two-sentence recap of what the reader can now do.
+- Around 400-700 words.
+- Do not include the lesson title as a heading; it is shown above your text.
+- Leave out anything administrative: page headers, course codes, names, dates.
+
+Source notes:
+<<<
+{source}
+>>>
 
 Return ONLY the Markdown. No JSON, no preamble."""

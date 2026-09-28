@@ -559,43 +559,28 @@ async def upload_notes(
     file: UploadFile = File(...),
     db: Session | None = Depends(get_db),
 ) -> dict[str, Any]:
-    """File handling for upload-your-own-notes (plan.md §6.13, §8.1 Day 4, §8.6 W3).
+    """Extraction preview for an uploaded file - no course is created here.
 
-    M3 handles file upload and document-to-course creation.
-    Creates a private course with lessons, topics, and review items seeded.
+    Courses are built by `POST /api/courses/upload`, which runs the AI pipeline
+    in `services/notes_course.py`. This route used to build one too, with the
+    old split-and-keyword-tag pipeline that filed any subject under whichever
+    topic came first in the vocabulary; nothing in the frontend called it, and
+    a second way to create a mis-tagged course is worse than none.
     """
     contents = await file.read()
     file_size = len(contents)
     filename = file.filename or "notes.txt"
     content_type = file.content_type or "text/plain"
 
-    from app.services.notes_extractor import (
-        extract_text_from_file,
-        process_uploaded_notes,
-    )
-
-    try:
-        user_uuid = uuid.UUID(str(user["id"]))
-    except Exception as err:
-        raise HTTPException(status_code=401, detail="Invalid user.") from err
+    from app.services.notes_extractor import extract_text_from_file
 
     extracted_text = extract_text_from_file(filename, contents, content_type)
-
-    course_result = None
-    if db and database_is_configured():
-        course_result = process_uploaded_notes(
-            db=db,
-            user_id=user_uuid,
-            filename=filename,
-            content=contents,
-            content_type=content_type,
-        )
 
     return {
         "filename": filename,
         "content_type": content_type,
         "file_size_bytes": file_size,
         "extracted_text": extracted_text[:5000],  # first 5k characters preview
-        "course_draft": course_result.get("course") if course_result else None,
+        "course_draft": None,
     }
 

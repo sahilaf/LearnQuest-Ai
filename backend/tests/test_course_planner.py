@@ -128,6 +128,29 @@ class TestOutlineValidation(PlannerBase):
         self.assertEqual(len(out["lessons"]), 3)
         self.assertNotIn("sql.joins", [l["topic_tag"] for l in out["lessons"]])
 
+    def test_a_labelled_new_topic_is_registered_not_forced_onto_dbms(self) -> None:
+        """A goal outside the vocabulary used to be tagged with "the closest" -
+        an operating-systems course came back filed under DBMS."""
+        payload = json.loads(_outline(["dbms.sql_joins", "dbms.er_model"]))
+        payload["lessons"].append(
+            {
+                "title": "Semaphores",
+                "topic_tag": "os.semaphores",
+                "topic_label": "Semaphores",
+                "summary": "x",
+            }
+        )
+        out = self._validate(payload, n=6)
+        self.assertEqual(out["lessons"][-1]["topic_tag"], "os.semaphores")
+        self.assertIsNotNone(self.db.query(Topic).filter(Topic.tag == "os.semaphores").first())
+
+    def test_the_planner_is_told_not_to_borrow_unrelated_tags(self) -> None:
+        from app.services.prompts import COURSE_OUTLINE_PROMPT, TOPIC_RULES
+
+        self.assertIn("{topic_rules}", COURSE_OUTLINE_PROMPT)
+        self.assertIn("NEVER use a tag from an unrelated subject", TOPIC_RULES)
+        self.assertNotIn("return the closest ones", COURSE_OUTLINE_PROMPT)
+
     def test_too_few_usable_lessons_is_rejected_outright(self) -> None:
         """Better no course than a two-lesson stub the learner paid a minute for."""
         payload = json.loads(_outline(["dbms.sql_joins"]))

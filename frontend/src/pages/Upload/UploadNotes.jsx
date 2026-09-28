@@ -2,10 +2,12 @@
  * Upload Notes -> Course. OWNER: Member 3.
  * See plan.md §6.13, §7.2 #5, §8.6, and CHECKLIST.md Slot 11.
  *
- * Lets a student drag & drop a PDF, Markdown, or text file to extract text,
- * split into structured lessons, tag with vocabulary, and create a private course.
+ * Lets a student drag & drop a PDF, Markdown, or text file. The backend reads
+ * it at once (a bad file fails immediately), then an AI job plans lessons from
+ * the notes and teaches each one from its own part of them - about a minute,
+ * so this polls the job rather than waiting on one request.
  */
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   UploadCloud,
@@ -22,18 +24,20 @@ import {
 } from 'lucide-react';
 
 import { uploadNotes, updateCourse, updateLesson } from '../../api/courses';
+import useGenerationJob from '../../hooks/useGenerationJob';
 import PageHeader from '../../components/layout/PageHeader';
-import { Badge, Button, Card, Input } from '../../components/ui';
+import { Badge, Button, Card, Input, ProgressBar } from '../../components/ui';
 
 export default function UploadNotes() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const job = useGenerationJob();
 
   const [file, setFile] = useState(null);
   const [customTitle, setCustomTitle] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  const uploading = job.isRunning;
 
   // Result state
   const [generatedResult, setGeneratedResult] = useState(null);
@@ -91,27 +95,22 @@ export default function UploadNotes() {
     e.preventDefault();
     if (!file) return;
 
-    setUploading(true);
     setError(null);
 
     const formData = new FormData();
     formData.append('file', file);
 
-    try {
-      const res = await uploadNotes(formData, customTitle.trim() || undefined);
-      const data = res?.data || res;
-      setGeneratedResult(data);
-      setCourseTitleInput(data.course.title);
-    } catch (err) {
-      const msg =
-        err?.response?.data?.detail ||
-        err?.message ||
-        'Failed to process file and generate course.';
-      setError(msg);
-    } finally {
-      setUploading(false);
-    }
+    await job.start(() => uploadNotes(formData, customTitle.trim() || undefined));
   };
+
+  useEffect(() => {
+    if (job.status === 'succeeded' && job.result?.course) {
+      setGeneratedResult(job.result);
+      setCourseTitleInput(job.result.course.title);
+    } else if (job.status === 'failed') {
+      setError(job.error || 'Failed to build a course from this file.');
+    }
+  }, [job.status, job.result, job.error]);
 
   const handleSaveCourseTitle = async () => {
     if (!courseTitleInput.trim() || !generatedResult) return;
@@ -156,6 +155,7 @@ export default function UploadNotes() {
     setCustomTitle('');
     setGeneratedResult(null);
     setError(null);
+    job.reset();
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -258,7 +258,7 @@ export default function UploadNotes() {
                 {uploading ? (
                   <>
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-                    Generating course...
+                    Building course...
                   </>
                 ) : (
                   <>
@@ -268,6 +268,17 @@ export default function UploadNotes() {
                 )}
               </Button>
             </div>
+
+            {uploading && (
+              <div className="space-y-2">
+                <ProgressBar value={job.progress} label="Building your course" />
+                <p className="text-sm text-muted">
+                  Reading your notes, planning the lessons, then writing each one from its part
+                  of your notes. This takes about a minute - you can leave this page and find the
+                  course under Courses when it is done.
+                </p>
+              </div>
+            )}
           </form>
         </Card>
       ) : (

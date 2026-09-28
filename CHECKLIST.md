@@ -616,6 +616,26 @@ same tables and the same pipeline, so nothing downstream knows the difference.
 - [x] Tag each lesson with topic tags (M1's vocabulary) so mastery + roadmap work — @member3, 2026-09-28
 - [x] Upload UI: drop a file, see the generated course, edit titles — @member3, 2026-09-28
 - [x] Security pass: file type/size limits, per-user ownership, RLS check — @member3, 2026-09-28
+- [x] **Rebuilt 2026-09-29 — uploads were not learnable.** A real OS-slides
+      upload came back as verbatim slide text, lessons titled "Dept. of CSE,
+      BUET", every lesson tagged `dbms.er_model` (the keyword tagger fell back
+      to the first topic on the list), so "Practice this lesson" produced a
+      DBMS quiz. Now `services/notes_course.py`: the model plans lessons from
+      the numbered notes, then teaches each one from **only its own chunks**
+      (explanation, worked example, key terms, recap). Runs as a generation
+      job with a progress bar. Verified live on the same notes: three lessons
+      tagged `os.race_conditions`, `os.producer_consumer`, `os.semaphores`.
+      `notes_extractor.py` keeps validation + extraction only — @sahilaf, 2026-09-29
+- [x] **The topic vocabulary can grow, deliberately.** It was closed at 12 DBMS /
+      Python / Web tags, and both upload and goal-based course generation
+      forced anything else onto "the closest" one. A model may now propose
+      `subject.topic` *with a label*; `topics.register` reuses an existing tag
+      with the same label or a plural spelling before creating one, and caps
+      new tags per call. Quizzes must be answerable from the lesson alone, and
+      a recorded misconception is only targeted when the lesson teaches it — @sahilaf, 2026-09-29
+
+> ⚠️ Courses uploaded **before** 2026-09-29 keep their wrong tags and raw text.
+> Re-upload the file to get a taught course; delete the old one from Courses.
 
 **✅ Hand off when:** you upload a PDF and it appears as a private course you can
 learn from, with a roadmap generated over it.
@@ -817,7 +837,7 @@ fake grading when the backend failed. They now surface the error instead.
 
 ### Tests
 
-**236 backend tests, all passing**, with zero real model calls (every LLM path is stubbed). `test_practice`, `test_review_and_recommendations` and `test_leaderboard` are new as of 2026-09-29. Earlier: `test_teachback`, `test_tts`,
+**259 backend tests, all passing**, with zero real model calls (every LLM path is stubbed). `test_practice`, `test_review_and_recommendations` and `test_leaderboard` are new as of 2026-09-29. Earlier: `test_teachback`, `test_tts`,
 `test_topics_and_jobs`, `test_quiz_generator`, `test_course_planner` and
 `test_progress_queries` are new.
 

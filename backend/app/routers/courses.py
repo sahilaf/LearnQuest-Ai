@@ -306,17 +306,32 @@ def enroll(
     }
 
 
-@router.post("/upload", response_model=dict[str, Any])
+@router.post(
+    "/upload",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def upload_notes_to_course(
     user: CurrentUser,
     file: UploadFile = File(...),
     custom_title: str | None = Query(default=None),
     db: Session | None = Depends(get_db),
 ) -> dict[str, Any]:
-    """Upload notes (PDF/MD/TXT) -> extract text -> split into lessons -> tag -> create course.
+    """Upload notes (PDF/MD/TXT) -> a course that teaches them. Returns a job.
 
-    OWNER: Member 3. See plan.md §6.13, §8.6, CHECKLIST.md Slot 11.
+    OWNER: Member 3 (extraction) / Member 1 (course pipeline). See plan.md
+    §6.13 and `services/notes_course.py`.
+
+    The file is read and validated here, so a bad upload fails at once with a
+    400 rather than a minute later. Planning and writing the lessons is one
+    model call per lesson plus an outline, so it runs as a generation job:
+    poll `GET /api/jobs/{job_id}`; on `succeeded` its `result` carries
+    `{course, lessons, topics, course_id, slug, title}`.
     """
+    from app.services.jobs import JobLimitReached, create_job, schedule
+    from app.services.notes_course import build_course_from_notes
+    from app.services.notes_extractor import extract_text_from_file
+
     if db is None or not database_is_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -332,18 +347,32 @@ async def upload_notes_to_course(
 
     content = await file.read()
     filename = file.filename or "notes.txt"
-    content_type = file.content_type
+    text = extract_text_from_file(filename, content, file.content_type)
 
-    from app.services.notes_extractor import process_uploaded_notes
+    try:
+        job = create_job(
+            db,
+            user_uuid,
+            "course",
+            {"source": "upload", "filename": filename[:255], "title": (custom_title or "")[:255]},
+        )
+    except JobLimitReached as err:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(err)
+        ) from err
 
-    return process_uploaded_notes(
-        db=db,
-        user_id=user_uuid,
-        filename=filename,
-        content=content,
-        content_type=content_type,
-        custom_title=custom_title,
-    )
+    async def _work(job_db, running_job):
+        return await build_course_from_notes(
+            job_db,
+            user_id=user_uuid,
+            text=text,
+            filename=filename,
+            custom_title=custom_title,
+            job_id=running_job.id,
+        )
+
+    schedule(job.id, _work)
+    return {"job_id": str(job.id), "status": "queued", "poll": f"/api/jobs/{job.id}"}
 
 
 @router.patch("/{course_id}", response_model=CourseResponse)

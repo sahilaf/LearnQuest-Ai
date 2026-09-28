@@ -93,12 +93,17 @@ def slugify(title: str) -> str:
 def validate_outline(db, payload: Any, n_lessons: int) -> dict[str, Any] | None:
     """Return a usable outline, or None.
 
-    Lessons whose `topic_tag` is not in the vocabulary are dropped rather than
-    kept with an invented tag: an untagged lesson cannot feed mastery, so it
-    cannot feed the misconception engine, which is the whole reason the course
-    exists.
+    A lesson keeps an existing tag, or a new one the model proposed *with a
+    label* (registered through `topics.register`, which prefers any existing
+    match). Anything else is dropped rather than kept with an invented tag: an
+    untagged lesson cannot feed mastery, so it cannot feed the misconception
+    engine, which is the whole reason the course exists.
+
+    The vocabulary used to be closed, and the prompt told the model to pick
+    "the closest" tag when nothing fitted - so a course on operating systems
+    came back filed under DBMS. That is worse than no tag at all.
     """
-    from app.services.topics import resolve
+    from app.services.topics import resolve_or_register
 
     if not isinstance(payload, dict):
         return None
@@ -126,8 +131,10 @@ def validate_outline(db, payload: Any, n_lessons: int) -> dict[str, Any] | None:
         if key in seen:
             continue
 
-        tags = resolve(db, [item.get("topic_tag")]) if item.get("topic_tag") else []
-        if not tags:
+        tag = resolve_or_register(
+            db, item.get("topic_tag"), item.get("topic_label"), payload.get("subject")
+        )
+        if not tag:
             logger.info(
                 "Dropped generated lesson %r: unknown topic tag %r",
                 lesson_title,
@@ -138,7 +145,7 @@ def validate_outline(db, payload: Any, n_lessons: int) -> dict[str, Any] | None:
         lessons.append(
             {
                 "title": lesson_title[:255],
-                "topic_tag": tags[0],
+                "topic_tag": tag,
                 "summary": str(item.get("summary") or "").strip()[:600],
             }
         )
@@ -170,15 +177,15 @@ def validate_outline(db, payload: Any, n_lessons: int) -> dict[str, Any] | None:
 async def plan_outline(db, goal: str, n_lessons: int) -> dict[str, Any] | None:
     """One call: a goal becomes a validated lesson plan."""
     from app.services.llm_client import get_llm
-    from app.services.prompts import COURSE_OUTLINE_PROMPT
+    from app.services.prompts import COURSE_OUTLINE_PROMPT, TOPIC_RULES
     from app.services.topics import prompt_block
 
-    vocabulary = prompt_block(db)
-    if not vocabulary:
-        raise ValueError("No topic vocabulary is configured.")
+    # An empty vocabulary is no longer fatal: the model proposes tags instead.
+    vocabulary = prompt_block(db) or "(none yet)"
 
     prompt = COURSE_OUTLINE_PROMPT.format(
         goal=str(goal or "").strip()[:MAX_GOAL_CHARS],
+        topic_rules=TOPIC_RULES,
         topic_vocabulary=vocabulary,
         n_lessons=n_lessons,
     )

@@ -50,6 +50,10 @@ Write at least one question that this belief would cause them to answer wrongly,
 so the belief is actually tested rather than avoided. Make the wrong option that
 the belief leads to a plausible distractor, not an obviously silly one. Do not
 mention the belief in the question text.
+
+Only do this if the lesson above actually teaches the idea this belief is
+about. If it does not, ignore this note completely - a question the lesson
+cannot answer is worse than one that misses the belief.
 """
 
 
