@@ -2,8 +2,8 @@
 // SHARED FILE - change by agreement (plan.md 2.4). Design tokens: plan.md 4.5.
 //
 // LearnQuest is a dark-first product surface: a near-black canvas, panels lifted
-// by one hairline border, an editorial serif for display type against a neutral
-// UI face, and exactly one accent colour. Full rules: docs/DESIGN_GUIDELINES.md
+// by one hairline border, a single typeface (Inter) throughout, and exactly one
+// accent colour. Full rules: docs/DESIGN_GUIDELINES.md
 //
 // Why every colour is a CSS variable
 // ----------------------------------
@@ -14,6 +14,8 @@
 // modifiers working (`bg-easy/15`, `border-line/60`) while letting the whole
 // theme swap from one place in index.css.
 const token = (name) => `rgb(var(${name}) / <alpha-value>)`;
+
+const INTER = ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'];
 
 export default {
   // Dark is the default theme, applied on :root. `.light` opts back out, so the
@@ -74,13 +76,16 @@ export default {
         canvas: token('--canvas'), // page background
       },
 
+      // One typeface for the whole UI - Inter - at the faculty's request
+      // (2026-09-29). `display` and `mono` are kept as names so existing
+      // classes keep working, but both resolve to Inter: page titles get their
+      // weight from `.display`, and figures stay aligned through
+      // `font-variant-numeric: tabular-nums` on `.font-mono` in index.css.
+      // Do not point these back at a second face.
       fontFamily: {
-        // Display is editorial, UI is neutral. Mixing a high-contrast serif with
-        // a workhorse sans is what keeps this from looking like a dashboard
-        // template; the serif is for page titles and hero copy only.
-        display: ['"Instrument Serif"', 'Georgia', 'ui-serif', 'serif'],
-        sans: ['Inter', 'Roboto', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        sans: INTER,
+        display: INTER,
+        mono: INTER,
       },
 
       fontSize: {

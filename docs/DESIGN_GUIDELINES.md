@@ -5,8 +5,8 @@
 **Read this before building any page or component.**
 
 LearnQuest is a **dark-first, editorial, information-dense** product surface. A
-near-black canvas, panels lifted by a single hairline border, an editorial serif
-for display type against a neutral UI face, and exactly one accent colour. The
+near-black canvas, panels lifted by a single hairline border, one typeface
+(Inter) throughout, and exactly one accent colour. The
 chrome should recede so the content — problems, explanations, progress, data —
 is what the eye lands on.
 
@@ -52,11 +52,13 @@ rather than designed. Reviewers should reject a PR that violates any of them.
 4. **Colour means status, never decoration.** Green = easy/passing.
    Amber = medium/warning. Red = hard/failing. Violet = the one primary action,
    active navigation, and the tutor. Everything else is neutral.
-5. **Two faces, two jobs.** `font-display` (Instrument Serif) for page titles
-   and hero copy only. `font-sans` (Inter) for all UI. `font-mono` (JetBrains
-   Mono) for micro-labels, topic tags and code. An editorial serif against a
-   neutral sans is most of what separates this from a dashboard template — do
-   not use the serif for body copy, and never for a button.
+5. **One typeface: Inter, everywhere** — the faculty's requirement
+   (2026-09-29). Hierarchy comes from size, weight and colour, never from a
+   second face. `font-display` and `font-mono` still exist as class names but
+   both resolve to Inter: `.display` makes page titles semibold, and
+   `font-mono` now means "a figure" — it switches on tabular numerals so XP,
+   ranks and timers line up. Do not add another font to `tailwind.config.js`
+   or `index.html`.
 
 ---
 
@@ -88,7 +90,8 @@ Each difficulty has `-bg` and `-fg` variants for tinted chips:
 
 ### Type
 
-**Inter** for UI, **JetBrains Mono** for code. Loaded in `frontend/index.html`.
+**Inter** for everything, including code blocks. Loaded in
+`frontend/index.html` (weights 400, 500, 600, 700).
 
 | Role | Classes |
 |---|---|
@@ -234,7 +237,7 @@ the bar by 0.02, so don't darken the background behind it.
 | `frontend/src/index.css` | Base layer + `.card`, `.field`, `.chip`, `.label`, `.table-dense` |
 | `frontend/src/components/ui/` | The component kit. Extend here, not per-page |
 | `frontend/src/components/layout/` | `AppLayout` (bar + rail), `PageHeader` |
-| `frontend/index.html` | Inter + JetBrains Mono loading |
+| `frontend/index.html` | Inter loading (the only font) |
 
 Changing a token changes every screen. If a change only suits one page, it
 belongs in that page.
@@ -256,7 +259,8 @@ replaced. What changed and why:
   a 16px gutter, leaving ~260px of dead margin each side at 1920 while the
   content felt cramped. The sidebar is now anchored to the viewport edge and
   content uses `.shell` (1600px, gutters that grow with the viewport).
-- **Display serif added** (Instrument Serif) for page titles and hero copy.
+- ~~Display serif added (Instrument Serif) for page titles and hero copy.~~
+  Removed 2026-09-29 along with JetBrains Mono: the UI uses Inter only.
 - **429 hardcoded palette classes** across 16 files were mapped onto tokens, and
   every `dark:` variant was deleted.
 

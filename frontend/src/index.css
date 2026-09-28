@@ -210,17 +210,17 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * Micro-label. Monospaced and letter-spaced, used above a section or
-   * beside a stat. The mono face is what makes these read as instrument
-   * labels rather than as shrunken headings.
+   * Micro-label. Uppercase and letter-spaced, used above a section or
+   * beside a stat - the spacing, not a second typeface, is what makes these
+   * read as labels rather than as shrunken headings.
    * ------------------------------------------------------------------ */
   .label {
     @apply font-mono text-2xs font-medium uppercase tracking-[0.12em] text-muted;
   }
 
-  /* Editorial page title. */
+  /* Page title. Inter needs weight where the old serif had contrast. */
   .display {
-    @apply font-display font-normal tracking-tight text-ink;
+    @apply font-display font-semibold tracking-tight text-ink;
   }
 
   /* ------------------------------------------------------------------ *
@@ -237,5 +237,22 @@
   }
   .table-dense tbody tr:last-child td {
     @apply border-b-0;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * One typeface (Inter). `font-mono` no longer means a monospaced face -
+ * it marks figures: XP, ranks, timers, counts. Tabular numerals give
+ * every digit the same width, so columns of numbers still line up and a
+ * ticking counter does not jitter, which is what the mono face was for.
+ * ------------------------------------------------------------------ */
+@layer utilities {
+  .font-mono,
+  .label,
+  code,
+  pre,
+  kbd,
+  samp {
+    font-variant-numeric: tabular-nums;
   }
 }
