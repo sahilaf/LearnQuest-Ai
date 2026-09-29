@@ -35,6 +35,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from app.database import release_connection
+
 logger = logging.getLogger("learnquest.teachback")
 
 # Nova must clear this to count as taught.
@@ -323,6 +325,7 @@ async def start_session(db, user_id, topic_tag: str | None = None):
         q_answer = question.correct_answer
         q_options = question.options
     else:
+        release_connection(db)
         invented = await _invent_question(row.misconception, row.topic_tag)
         if invented is None:
             return None, "no_question"
@@ -345,6 +348,7 @@ async def start_session(db, user_id, topic_tag: str | None = None):
         turns=[],
     )
 
+    release_connection(db)
     opening = await _nova_opening(row.misconception, row.topic_tag, q_prompt)
     _append_turn(session, "nova", opening)
 
@@ -416,6 +420,7 @@ async def student_turn(db, session, explanation: str) -> dict[str, Any]:
         db.commit()
         return {"reply": reply, "convinced": False, "can_retake": False}
 
+    release_connection(db)  # also saves the student's turn before Nova answers
     try:
         raw = await _ask_llm(
             NOVA_REPLY_PROMPT.format(
@@ -573,6 +578,7 @@ async def retake(db, session) -> dict[str, Any]:
     options_block = (
         "Options: " + " | ".join(str(o) for o in options) if options else ""
     )
+    release_connection(db)
 
     try:
         raw = await _ask_llm(

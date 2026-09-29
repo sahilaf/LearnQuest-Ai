@@ -238,15 +238,34 @@ def _sync_user_in_db(
             else:
                 if user_row.last_login_at is None or user_row.last_login_at.date() < now.date():
                     is_first_login_today = True
-                user_row.last_login_at = now
+
+                # Write only when something changed. This runs on EVERY request,
+                # and it used to UPDATE users.last_login_at, commit and re-read
+                # each time: a page firing six requests queued six writes on the
+                # same row, each holding a pooled connection while it waited for
+                # the previous one's row lock. Together with slow AI calls that
+                # exhausted the pool on 2026-09-29. last_login_at is now kept to
+                # the hour, which is all daily-login and "last seen" need.
+                changed = False
+                last = user_row.last_login_at
+                if last is not None and last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)  # SQLite drops the zone
+                stale = last is None or (now - last).total_seconds() > 3600
+                if is_first_login_today or stale:
+                    user_row.last_login_at = now
+                    changed = True
                 # Enforce admin role strictly for admin@learnquest.ai only
-                user_row.role = effective_role
+                if user_row.role != effective_role:
+                    user_row.role = effective_role
+                    changed = True
                 if full_name and not user_row.full_name:
                     user_row.full_name = full_name
+                    changed = True
                 if avatar_url and not user_row.avatar_url:
                     user_row.avatar_url = avatar_url
-                db.commit()
-                db.refresh(user_row)
+                    changed = True
+                if changed:
+                    db.commit()
 
             user_data = user_row.to_dict()
 

@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.database import release_connection
 from app.deps import CurrentUser
 
 # Imported for its side effect, and at module load on purpose: scheduler
@@ -136,6 +137,7 @@ async def answer(
     if question.type in ("mcq", "true_false"):
         grade = grade_choice(body.answer, question.correct_answer)
     else:
+        release_connection(database)
         grade = await grade_open(question.prompt, question.correct_answer, body.answer)
 
     misconception = None

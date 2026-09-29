@@ -57,12 +57,28 @@ def get_engine():
                 "true",
                 "yes",
             }
+            # Pool size: 5 + 10 ran out on 2026-09-29 once requests held
+            # connections through AI calls (see release_connection). Port 6543
+            # is Supabase's transaction pooler, which multiplexes many client
+            # connections, so a bigger app-side pool is safe. Tunable by env.
+            #
+            # TCP keepalives: "SSL connection has been closed unexpectedly"
+            # appeared alongside the exhaustion - idle connections dropped by
+            # the network path. Keepalive probes stop that for the price of a
+            # few bytes every 30s, instead of pre_ping's round trip per request.
             _engine = create_engine(
                 url,
                 pool_pre_ping=pre_ping,
                 pool_recycle=int(os.getenv("DB_POOL_RECYCLE_SECONDS", "240")),
-                pool_size=5,
-                max_overflow=10,
+                pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
+                max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "20")),
+                pool_timeout=int(os.getenv("DB_POOL_TIMEOUT_SECONDS", "15")),
+                connect_args={
+                    "keepalives": 1,
+                    "keepalives_idle": 30,
+                    "keepalives_interval": 10,
+                    "keepalives_count": 3,
+                },
                 future=True,
             )
     return _engine
@@ -91,6 +107,32 @@ def get_db() -> Generator[Session | None, None, None]:
         raise
     finally:
         db.close()
+
+
+def release_connection(db: Session | None) -> None:
+    """Hand this session's connection back to the pool before a slow await.
+
+    Call it right before awaiting a model. A Session keeps its pooled
+    connection from its first query until commit/rollback/close, so a request
+    that read a row and then awaited the AI held a connection for the whole
+    call - 5-20s when Gemini is over quota and the chain falls through to
+    OpenRouter. Measured 2026-09-29: a handful of such requests plus normal
+    page traffic exhausted the 15-connection pool, and every other request
+    waited 30s and failed ("QueuePool limit of size 5 overflow 10 reached").
+
+    Commits what is pending: at every call site that is work which should
+    persist whatever the model then says (the student's message, a new
+    session row). Loaded objects are expired and reload on next access, on a
+    fresh checkout, after the await.
+    """
+    if db is None:
+        return
+    try:
+        if db.in_transaction():
+            db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 def database_is_configured() -> bool:

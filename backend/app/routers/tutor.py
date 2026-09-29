@@ -17,6 +17,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.database import release_connection
 from app.deps import CurrentUser
 from app.models.ai import Conversation, Message
 from app.models.course import Course, Lesson
@@ -278,7 +279,9 @@ async def send_message(
     if not context_messages or context_messages[-1].get("content") != content:
         context_messages.append({"role": "user", "content": content})
 
-    # 3. Call LLM
+    # 3. Call LLM. The user's message is committed first, which also returns
+    # the connection to the pool for the length of the reply.
+    release_connection(db)
     llm = get_llm()
     try:
         reply = await llm.complete(context_messages, temperature=0.7, max_tokens=600)
@@ -327,6 +330,7 @@ async def send_message(
                         "content": "\n".join(f"{m.role}: {m.content}" for m in earlier_msgs),
                     },
                 ]
+                release_connection(db)
                 summary_text = await llm.complete(summary_prompt, max_tokens=150)
                 conv.summary = summary_text.strip()
             except Exception as e:
@@ -403,6 +407,7 @@ async def explain(
             selection=body.selection,
         )
 
+    release_connection(db)
     llm = get_llm()
     try:
         explanation = await llm.complete(

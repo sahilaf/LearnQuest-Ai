@@ -29,6 +29,8 @@ from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.database import release_connection
+
 logger = logging.getLogger("learnquest.scheduler")
 
 MAX_DAILY_ITEMS = 15
@@ -281,6 +283,7 @@ async def due_items(db, user_id, limit: int = MAX_DAILY_ITEMS) -> list[dict[str,
         if question is None and generated < MAX_GENERATED_PER_LOAD:
             generated += 1
             try:
+                release_connection(db)  # generation is one model call, ~8s
                 question = await _generate_question(db, uid, item)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not generate a review question: %s", exc)

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import database_is_configured, get_db
+from app.database import release_connection
 from app.deps import CurrentUser
 from app.models.quiz import AttemptAnswer, Question, Quiz, QuizAttempt
 from app.schemas.quiz import (
@@ -651,7 +652,9 @@ async def grade_open_answer(
         )
 
     answer = str((payload or {}).get("answer") or "")
-    result = await grade_open(question.prompt, question.correct_answer, answer)
+    prompt, expected = question.prompt, question.correct_answer
+    release_connection(db)
+    result = await grade_open(prompt, expected, answer)
 
     if not result["needs_review"]:
         stored = (

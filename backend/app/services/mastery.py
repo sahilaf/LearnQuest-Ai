@@ -24,6 +24,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.database import release_connection
+
 logger = logging.getLogger("learnquest.mastery")
 
 LEARNING_RATE = 0.3
@@ -251,6 +253,7 @@ async def capture_misconception(db, user_id, topic_tag: str, question, user_answ
         max_chars=MAX_MISCONCEPTION_CHARS,
     )
 
+    release_connection(db)  # don't hold a pooled connection through the model call
     try:
         from app.services.llm_client import get_llm
 

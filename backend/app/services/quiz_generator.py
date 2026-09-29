@@ -1,4 +1,4 @@
-"""AI quiz generation. OWNER: Member 1. See plan.md 6.4.
+"""AI quiz generation. 
 
 A quiz written for one student, fresh every time. Two things make it personal:
 
@@ -28,6 +28,8 @@ import logging
 import re
 import uuid
 from typing import Any
+
+from app.database import release_connection
 
 logger = logging.getLogger("learnquest.quizgen")
 
@@ -331,10 +333,12 @@ async def generate_quiz(
         if misconception_status(row) in ("active", "fading"):
             misconception = row.misconception
 
+    lesson_content, lesson_title = lesson.content_md or "", lesson.title
+    release_connection(db)  # don't hold a pooled connection through the model call
     questions = await generate_questions(
         db,
-        lesson_content=lesson.content_md or "",
-        lesson_title=lesson.title,
+        lesson_content=lesson_content,
+        lesson_title=lesson_title,
         allowed_tags=allowed_tags,
         num_questions=num_questions,
         difficulty=difficulty,
@@ -438,6 +442,7 @@ async def generate_adaptive_quiz(
         if set(lesson.topic_tags or []) & set(tags)
     ][:4]
 
+    release_connection(db)  # don't hold a pooled connection through the model call
     questions = await generate_questions(
         db,
         lesson_content="\n\n".join(relevant),
