@@ -198,17 +198,20 @@ export default function Achievements({ embedded = false }) {
               >
                 <Card
                   className={`relative flex flex-col justify-between overflow-hidden p-5 transition-all ${
+                    // Earned is marked by the amber border and icon tile, not
+                    // by filling the card: an amber gradient here swamped the
+                    // dark theme and hid the grey/amber footer text on it.
                     isEarned
-                      ? 'border-medium/30 bg-gradient-to-b from-surface to-medium shadow-sm'
+                      ? 'border-medium/50 bg-surface'
                       : 'border-line/70 bg-raised/50 opacity-90'
                   }`}
                 >
                   {/* Top Row: Icon + Status Pill */}
                   <div className="flex items-start justify-between gap-3">
                     <div
-                      className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl shadow-sm transition-transform ${
+                      className={`flex h-14 w-14 items-center justify-center rounded-2xl text-3xl transition-transform ${
                         isEarned
-                          ? 'bg-gradient-to-tr from-medium to-medium shadow-amber-500/20'
+                          ? 'bg-medium-bg text-medium-fg'
                           : 'bg-line text-muted grayscale'
                       }`}
                     >
