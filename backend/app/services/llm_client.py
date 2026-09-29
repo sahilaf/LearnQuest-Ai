@@ -143,11 +143,20 @@ class OpenAICompatibleClient(LLMClient):
     not each provider, decides when to wait and go round again.
     """
 
-    def __init__(self, base_url: str, api_key: str, model: str, retries: int | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        retries: int | None = None,
+        fallback_models: list[str] | None = None,
+    ) -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
         self.retries = settings.llm_max_retries if retries is None else retries
+        # OpenRouter only: backup models it tries itself, within one request.
+        self.fallback_models = [m for m in (fallback_models or []) if m and m != model]
 
     @property
     def _headers(self) -> dict[str, str]:
@@ -166,7 +175,12 @@ class OpenAICompatibleClient(LLMClient):
         valid every time.
         """
         if "openrouter.ai" in self.base_url:
-            return {"reasoning": {"enabled": False}}
+            extras: dict = {"reasoning": {"enabled": False}}
+            if self.fallback_models:
+                # OpenRouter's model routing: on an error from the first model
+                # (e.g. its only upstream rate-limiting it) it serves the next.
+                extras["models"] = [self.model, *self.fallback_models]
+            return extras
         return {}
 
     async def complete(
@@ -611,17 +625,20 @@ def get_llm() -> LLMClient:
         chained = False
 
     if chained:
-        _client = ChainClient(
-            [
-                _client,
-                OpenAICompatibleClient(
-                    PROVIDER_ENDPOINTS["openrouter"],
-                    settings.openrouter_api_key,
-                    settings.openrouter_model,
-                    retries=0,
-                ),
-            ]
+        openrouter = OpenAICompatibleClient(
+            PROVIDER_ENDPOINTS["openrouter"],
+            settings.openrouter_api_key,
+            settings.openrouter_model,
+            retries=0,
+            fallback_models=settings.openrouter_fallback_model_list,
         )
+        # LLM_PRIMARY picks who is asked first; the other is the fallback.
+        order = (
+            [openrouter, _client]
+            if settings.llm_primary.strip().lower() == "openrouter"
+            else [_client, openrouter]
+        )
+        _client = ChainClient(order)
 
     logger.info("LLM client: %s", type(_client).__name__)
     return _client

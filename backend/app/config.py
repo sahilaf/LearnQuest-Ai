@@ -54,6 +54,19 @@ class Settings(BaseSettings):
     # It is paid: the account needs credit. Empty key = no second provider.
     openrouter_api_key: str = ""
     openrouter_model: str = "inclusionai/ling-3.0-flash-vl"
+    # Tried by OpenRouter itself, in the same request, when the model above
+    # errors. Ling is served by a single upstream (Novita), which returned
+    # "temporarily rate-limited" 429s on 2026-09-29; gemini-2.5-flash-lite is
+    # served by Google (a separate quota from AI Studio's free tier), returned
+    # valid JSON in 0.8s, and costs ~5x Ling - still ~$0.0003 per lesson.
+    openrouter_fallback_models: str = "google/gemini-2.5-flash-lite"
+    # Which provider the chain asks first when both are configured:
+    # "gemini" (free, but a per-model daily quota) or "openrouter" (paid, but
+    # no quota wall). With Gemini first, a used-up quota made every AI call
+    # fail through four Gemini models before reaching OpenRouter - 5-20s per
+    # call, which is what held database connections long enough to exhaust
+    # the pool on 2026-09-29.
+    llm_primary: str = "gemini"
 
     # --- avatar (M1) ---
     avatar_service_url: str = ""
@@ -61,6 +74,10 @@ class Settings(BaseSettings):
     @property
     def llm_fallback_model_list(self) -> list[str]:
         return [m.strip() for m in self.llm_fallback_models.split(",") if m.strip()]
+
+    @property
+    def openrouter_fallback_model_list(self) -> list[str]:
+        return [m.strip() for m in self.openrouter_fallback_models.split(",") if m.strip()]
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -276,6 +276,7 @@ class TestGetLLMWiring(unittest.TestCase):
             "llm_fallback_models": "gemini-2.5-flash",
             "openrouter_api_key": "",
             "openrouter_model": "inclusionai/ling-3.0-flash-vl",
+            "llm_primary": "gemini",
         }
         values.update(overrides)
         with patch.multiple(llm_client.settings, **values):
@@ -291,6 +292,14 @@ class TestGetLLMWiring(unittest.TestCase):
         self.assertEqual(openrouter.retries, 0)
         self.assertIn("openrouter.ai", openrouter.base_url)
 
+    def test_openrouter_can_be_primary_with_gemini_as_fallback(self) -> None:
+        client = self._build(openrouter_api_key="or-key", llm_primary="openrouter")
+        first, second = client.clients
+        self.assertIsInstance(first, llm_client.OpenAICompatibleClient)
+        self.assertIn("openrouter.ai", first.base_url)
+        self.assertIsInstance(second, GeminiClient)
+        self.assertEqual(second.rounds, 1)
+
     def test_no_openrouter_key_keeps_gemini_alone(self) -> None:
         self.assertIsInstance(self._build(), GeminiClient)
 
@@ -300,6 +309,17 @@ class TestGetLLMWiring(unittest.TestCase):
 
 
 class TestOpenRouterReasoning(unittest.TestCase):
+    def test_openrouter_is_given_its_backup_models(self) -> None:
+        """Ling has one upstream; its 429s are served by the next model."""
+        orc = llm_client.OpenAICompatibleClient(
+            llm_client.PROVIDER_ENDPOINTS["openrouter"], "k", "inclusionai/ling-3.0-flash-vl",
+            fallback_models=["google/gemini-2.5-flash-lite", "inclusionai/ling-3.0-flash-vl", ""],
+        )
+        self.assertEqual(
+            orc._extras()["models"],
+            ["inclusionai/ling-3.0-flash-vl", "google/gemini-2.5-flash-lite"],
+        )
+
     def test_reasoning_is_off_for_openrouter_only(self) -> None:
         orc = llm_client.OpenAICompatibleClient(llm_client.PROVIDER_ENDPOINTS["openrouter"], "k", "m")
         groq = llm_client.OpenAICompatibleClient(llm_client.PROVIDER_ENDPOINTS["groq"], "k", "m")
