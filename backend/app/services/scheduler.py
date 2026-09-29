@@ -83,8 +83,13 @@ def interleave(items: list) -> list:
 def enrol_topic(db, user_id, topic_tag: str, source_lesson_id=None):
     """Add a topic to the queue the first time the learner touches it.
 
-    Idempotent: an existing item is left alone, so enrolling again never resets
-    an interval the learner has earned.
+    Idempotent per (learner, topic): an existing item is left alone, so
+    enrolling again never resets an interval the learner has earned.
+
+    It used to match on (topic, source lesson) instead, so a topic enrolled by
+    a notes upload (with its lesson) and again by a quiz (without one) became
+    two items with two schedules - one topic reviewed twice, and answering one
+    did nothing to the other. Seen on a real account 2026-09-29.
     """
     from app.models.ai import ReviewItem
 
@@ -94,15 +99,14 @@ def enrol_topic(db, user_id, topic_tag: str, source_lesson_id=None):
 
     item = (
         db.query(ReviewItem)
-        .filter(
-            ReviewItem.user_id == uid,
-            ReviewItem.topic_tag == topic_tag,
-            ReviewItem.source_lesson_id.is_(None)
-            if source_lesson_id is None
-            else ReviewItem.source_lesson_id == source_lesson_id,
-        )
+        .filter(ReviewItem.user_id == uid, ReviewItem.topic_tag == topic_tag)
+        .order_by(ReviewItem.interval_days.desc())
         .first()
     )
+    if item is not None and item.source_lesson_id is None and source_lesson_id is not None:
+        # Remember where the topic was taught, so a generated review question
+        # can be written from that lesson.
+        item.source_lesson_id = source_lesson_id
     if item is None:
         item = ReviewItem(
             user_id=uid,
@@ -137,26 +141,102 @@ def _enrol_known_topics(db, user_id: uuid.UUID) -> None:
             have.add(tag)
 
 
-def _pick_question(db, item):
-    """A bank question for this topic, preferring one not shown last time."""
-    from app.models.quiz import Question
+def _merge_duplicates(db, user_id: uuid.UUID) -> None:
+    """Collapse several items for one topic into one - see `enrol_topic`.
 
-    candidates = db.query(Question).filter(Question.topic_tag == item.topic_tag).all()
+    Self-healing for queues created before that fix: keeps the item with the
+    most earned progress (longest interval, then streak), carries over a
+    source lesson it lacks, and removes the rest.
+    """
+    from app.models.ai import ReviewItem
+
+    by_topic: dict[str, list] = {}
+    for item in db.query(ReviewItem).filter(ReviewItem.user_id == user_id).all():
+        by_topic.setdefault(item.topic_tag, []).append(item)
+
+    for items in by_topic.values():
+        if len(items) < 2:
+            continue
+        items.sort(key=lambda i: (i.interval_days or 0, i.streak or 0), reverse=True)
+        keep, extras = items[0], items[1:]
+        lesson = keep.source_lesson_id or next(
+            (i.source_lesson_id for i in extras if i.source_lesson_id), None
+        )
+        # Delete first: uq_review_items_user_topic_lesson forbids the kept row
+        # taking over a lesson id while the duplicate that has it still exists.
+        for extra in extras:
+            db.delete(extra)
+        db.flush()
+        keep.source_lesson_id = lesson
+        logger.info("Merged %d duplicate review item(s) for %s", len(extras), keep.topic_tag)
+
+
+def _pick_question(db, item):
+    """A bank question for this topic, preferring one not shown last time.
+
+    Only questions the learner may see: authored ones (no generating user) and
+    ones generated for this learner. Every generated quiz is written for one
+    student; it used to draw from anyone's, so a review could show another
+    student's private questions.
+    """
+    from sqlalchemy import or_
+
+    from app.models.quiz import Question, Quiz
+
+    candidates = (
+        db.query(Question)
+        .join(Quiz, Quiz.id == Question.quiz_id)
+        .filter(
+            Question.topic_tag == item.topic_tag,
+            or_(Quiz.generated_by_user.is_(None), Quiz.generated_by_user == item.user_id),
+        )
+        .all()
+    )
     if not candidates:
         return None
     fresh = [q for q in candidates if q.id != item.question_id] or candidates
     return random.choice(fresh)
 
 
-async def _generate_question(db, user_id, topic_tag: str):
+def _source_material(db, item) -> tuple[str, str]:
+    """(title, content) to write a review question from.
+
+    The lesson the topic was learned in, else any lesson the learner can see
+    that is tagged with it. A question generated from nothing but a tag name
+    was vague at best - and the quiz prompt now requires every question to be
+    answerable from the lesson it is given.
+    """
+    from sqlalchemy import or_
+
+    from app.models.course import Course, Lesson
+
+    lesson = db.get(Lesson, item.source_lesson_id) if item.source_lesson_id else None
+    if lesson is None:
+        for candidate in (
+            db.query(Lesson)
+            .join(Course, Course.id == Lesson.course_id)
+            .filter(or_(Course.is_private.is_(False), Course.created_by == item.user_id))
+            .all()
+        ):
+            if item.topic_tag in (candidate.topic_tags or []):
+                lesson = candidate
+                break
+    if lesson is None:
+        return f"Review: {item.topic_tag}", ""
+    return lesson.title, lesson.content_md or ""
+
+
+async def _generate_question(db, user_id, item):
     """Fallback for a topic with no bank questions: one generated question."""
     from app.models.quiz import Question
     from app.services.quiz_generator import generate_questions, persist_quiz
 
+    topic_tag = item.topic_tag
+    title, content = _source_material(db, item)
     questions = await generate_questions(
         db,
-        lesson_content="",
-        lesson_title=f"Review: {topic_tag}",
+        lesson_content=content,
+        lesson_title=title,
         allowed_tags=[topic_tag],
         num_questions=1,
         difficulty="medium",
@@ -178,6 +258,7 @@ async def due_items(db, user_id, limit: int = MAX_DAILY_ITEMS) -> list[dict[str,
     if uid is None:
         return []
 
+    _merge_duplicates(db, uid)
     _enrol_known_topics(db, uid)
     db.commit()
 
@@ -200,7 +281,7 @@ async def due_items(db, user_id, limit: int = MAX_DAILY_ITEMS) -> list[dict[str,
         if question is None and generated < MAX_GENERATED_PER_LOAD:
             generated += 1
             try:
-                question = await _generate_question(db, uid, item.topic_tag)
+                question = await _generate_question(db, uid, item)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not generate a review question: %s", exc)
         if question is None:

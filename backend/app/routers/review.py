@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -65,9 +66,15 @@ async def today(user: CurrentUser, db: Session | None = Depends(get_db)) -> dict
     user_uuid = _user_uuid(user)
     items = await due_items(database, user_uuid)
 
+    # The next one still to come. Without the > now filter this returned the
+    # oldest *overdue* item, so an empty queue announced a review "due"
+    # yesterday.
     upcoming = (
         database.query(ReviewItem.due_at)
-        .filter(ReviewItem.user_id == user_uuid)
+        .filter(
+            ReviewItem.user_id == user_uuid,
+            ReviewItem.due_at > datetime.now(timezone.utc),
+        )
         .order_by(ReviewItem.due_at.asc())
         .first()
     )

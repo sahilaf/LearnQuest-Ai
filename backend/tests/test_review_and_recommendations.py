@@ -186,6 +186,82 @@ class TestReviewQueue(_DBCase):
         self.assertEqual(again.id, item.id)
         self.assertEqual(again.interval_days, 10)
 
+    def test_one_topic_is_one_item_whatever_enrolled_it(self) -> None:
+        """Upload (with lesson) then quiz (without) made two items - 2026-09-29."""
+        course = Course(id=uuid.uuid4(), title="C", slug=f"c-{uuid.uuid4().hex[:6]}")
+        self.db.add(course)
+        self.db.flush()
+        lesson = Lesson(id=uuid.uuid4(), course_id=course.id, title="L", order_index=0,
+                        content_md="x", topic_tags=["dbms.sql_joins"])
+        self.db.add(lesson)
+        self.db.flush()
+        first = scheduler.enrol_topic(self.db, self.user_id, "dbms.sql_joins", source_lesson_id=lesson.id)
+        second = scheduler.enrol_topic(self.db, self.user_id, "dbms.sql_joins")
+        self.assertEqual(first.id, second.id)
+        self.assertEqual(self.db.query(ReviewItem).count(), 1)
+
+    def test_existing_duplicates_are_merged_keeping_progress(self) -> None:
+        """The live case: the lesson is on the item being dropped, and
+        uq_review_items_user_topic_lesson rejected moving it before the delete."""
+        self._bank()
+        course = Course(id=uuid.uuid4(), title="C", slug=f"c-{uuid.uuid4().hex[:6]}")
+        self.db.add(course)
+        self.db.flush()
+        lesson = Lesson(id=uuid.uuid4(), course_id=course.id, title="L", order_index=0,
+                        content_md="x", topic_tags=["dbms.sql_joins"])
+        self.db.add(lesson)
+        self.db.flush()
+        now = datetime.now(timezone.utc)
+        self.db.add_all([
+            ReviewItem(user_id=self.user_id, topic_tag="dbms.sql_joins", due_at=now,
+                       interval_days=1, streak=0, source_lesson_id=lesson.id),
+            ReviewItem(user_id=self.user_id, topic_tag="dbms.sql_joins", due_at=now,
+                       interval_days=5, streak=2),
+        ])
+        self.db.commit()
+        items = _run(scheduler.due_items(self.db, self.user_id))
+        self.assertEqual(len(items), 1)
+        kept = self.db.query(ReviewItem).one()
+        self.assertEqual((kept.interval_days, kept.streak), (5, 2))
+        self.assertEqual(kept.source_lesson_id, lesson.id)
+
+    def test_another_students_generated_questions_are_never_used(self) -> None:
+        stranger = uuid.uuid4()
+        quiz = Quiz(id=uuid.uuid4(), title="theirs", topic_tags=["dbms.er_model"],
+                    source="ai_generated", generated_by_user=stranger)
+        self.db.add(quiz)
+        self.db.flush()
+        self.db.add(Question(id=uuid.uuid4(), quiz_id=quiz.id, type="mcq", prompt="Their private question?",
+                             options=["a", "b"], correct_answer="a", topic_tag="dbms.er_model", order_index=0))
+        scheduler.enrol_topic(self.db, self.user_id, "dbms.er_model")
+        self.db.commit()
+        with patch("app.services.llm_client.get_llm", return_value=_DeadLLM()):
+            items = _run(scheduler.due_items(self.db, self.user_id))
+        self.assertEqual(items, [])  # deferred rather than shown their question
+
+    def test_a_generated_review_question_is_written_from_the_lesson(self) -> None:
+        course = Course(id=uuid.uuid4(), title="C", slug=f"c-{uuid.uuid4().hex[:6]}")
+        self.db.add(course)
+        self.db.flush()
+        lesson = Lesson(id=uuid.uuid4(), course_id=course.id, title="ER basics", order_index=0,
+                        content_md="An entity set is a collection of similar entities.",
+                        topic_tags=["dbms.er_model"])
+        self.db.add(lesson)
+        self.db.flush()
+        scheduler.enrol_topic(self.db, self.user_id, "dbms.er_model", source_lesson_id=lesson.id)
+        self.db.commit()
+
+        prompts = []
+
+        class _Capture:
+            async def complete(self, messages, **kwargs):
+                prompts.append(messages[0]["content"])
+                return ""
+
+        with patch("app.services.llm_client.get_llm", return_value=_Capture()):
+            _run(scheduler.due_items(self.db, self.user_id))
+        self.assertIn("An entity set is a collection of similar entities.", prompts[0])
+
     def test_topics_with_history_join_the_queue(self) -> None:
         """So the queue is not empty for the people who have done the most work."""
         self._bank()

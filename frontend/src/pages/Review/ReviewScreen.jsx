@@ -36,6 +36,19 @@ import {
 } from '../../components/ui';
 import { getTodayReview, submitReviewAnswer } from '../../api/review';
 
+/** "in 3 hours", "tomorrow", "in 5 days" - from the server's due date. */
+function whenDue(iso) {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - Date.now();
+  if (Number.isNaN(ms)) return null;
+  if (ms <= 0) return 'now';
+  const hours = Math.round(ms / 3_600_000);
+  if (hours < 1) return 'in under an hour';
+  if (hours < 24) return `in ${hours} hour${hours === 1 ? '' : 's'}`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? 'tomorrow' : `in ${days} days`;
+}
+
 export default function ReviewScreen() {
   const navigate = useNavigate();
 
@@ -49,6 +62,7 @@ export default function ReviewScreen() {
   // Result of current question submission
   const [feedback, setFeedback] = useState(null);
   const [reviewedCount, setReviewedCount] = useState(0);
+  const [nextDueAt, setNextDueAt] = useState(null);
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
@@ -57,6 +71,7 @@ export default function ReviewScreen() {
       const res = await getTodayReview();
       const list = res?.items || (Array.isArray(res) ? res : []);
       setItems(list);
+      setNextDueAt(res?.next_due_at || null);
       setCurrentIndex(0);
       setCurrentAnswer('');
       setFeedback(null);
@@ -147,11 +162,16 @@ export default function ReviewScreen() {
           </h1>
           <p className="text-sm text-muted max-w-md mx-auto leading-relaxed">
             {reviewedCount > 0
-              ? `Great session! You completed ${reviewedCount} due review ${
-                  reviewedCount === 1 ? 'item' : 'items'
-                }. Spaced repetition intervals have been scheduled.`
-              : 'You have no items due for spaced-repetition review right now. Check back tomorrow!'}
+              ? `You reviewed ${reviewedCount} ${
+                  reviewedCount === 1 ? 'topic' : 'topics'
+                }. Each one comes back when you are about to forget it.`
+              : 'Nothing is due right now. Topics come back here a day after you first study them, then at growing intervals.'}
           </p>
+          {whenDue(nextDueAt) && whenDue(nextDueAt) !== 'now' && (
+            <p className="text-sm font-medium text-ink">
+              Next review {whenDue(nextDueAt)}.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col items-center justify-center gap-3 pt-2">
@@ -160,8 +180,8 @@ export default function ReviewScreen() {
               Continue your course →
             </Button>
           </Link>
-          <Link to="/learn" className="text-xs text-muted hover:text-ink transition-colors pt-1">
-            Or browse all courses & challenges →
+          <Link to="/courses" className="text-xs text-muted hover:text-ink transition-colors pt-1">
+            Or browse all courses →
           </Link>
         </div>
       </div>
@@ -170,6 +190,8 @@ export default function ReviewScreen() {
 
   const isAnswered = Boolean(feedback);
   const isCorrect = feedback?.is_correct;
+  // The grader abstained: not marked wrong, schedule untouched.
+  const isUngraded = Boolean(feedback?.needs_review);
   const totalDue = items.length;
   const progressPct = Math.round((currentIndex / totalDue) * 100);
 
@@ -307,26 +329,37 @@ export default function ReviewScreen() {
           <div className="animate-fade-in space-y-3 rounded-lg border border-line bg-canvas p-4 sm:p-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {isCorrect ? (
+                {isUngraded ? (
+                  <Badge tone="default" className="text-xs">
+                    Couldn't grade this confidently
+                  </Badge>
+                ) : isCorrect ? (
                   <Badge tone="easy" className="text-xs">
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mastered
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Correct
                   </Badge>
                 ) : (
                   <Badge tone="danger" className="text-xs">
-                    <XCircle className="h-3.5 w-3.5 mr-1" /> Needs Revision
+                    <XCircle className="h-3.5 w-3.5 mr-1" /> Not quite
                   </Badge>
                 )}
-                <span className="text-xs text-muted font-mono">
-                  Score: {Math.round((feedback.score_0_1 ?? (isCorrect ? 1 : 0)) * 100)}%
-                </span>
               </div>
 
-              {feedback.next_due_at && (
-                <span className="text-2xs text-muted">
-                  Next review in 2 days
-                </span>
-              )}
+              <span className="text-2xs text-muted">
+                {isUngraded
+                  ? 'Schedule unchanged'
+                  : feedback.interval_days
+                  ? `Back in ${feedback.interval_days} day${feedback.interval_days === 1 ? '' : 's'}`
+                  : null}
+              </span>
             </div>
+
+            {/* The right answer, whenever the learner did not give it */}
+            {!isCorrect && !isUngraded && feedback.correct_answer && (
+              <p className="text-sm text-body">
+                <span className="font-semibold text-ink">Correct answer: </span>
+                {feedback.correct_answer}
+              </p>
+            )}
 
             {/* Written Explanation */}
             {feedback.feedback && (
@@ -350,7 +383,11 @@ export default function ReviewScreen() {
         {/* Action Button Footer */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           <div className="text-xs text-muted">
-            {!isAnswered ? 'Submit to receive conceptual feedback' : 'Interval updated'}
+            {!isAnswered
+              ? 'Answer from memory - no peeking at the lesson.'
+              : isUngraded
+              ? 'Not counted either way.'
+              : 'Your next review date is set.'}
           </div>
 
           <div>
