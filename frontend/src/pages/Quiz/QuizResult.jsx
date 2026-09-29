@@ -84,6 +84,35 @@ export default function QuizResult() {
     loadAttempt();
   }, [loadAttempt]);
 
+  // Hooks must run on every render, so these sit above the loading/error
+  // early returns. Below them, the first render (loading) called 20 hooks and
+  // the next (loaded) called 22 - React threw "Rendered more hooks than during
+  // the previous render" and the results page went blank after every quiz.
+  const wrongAnswers = useMemo(() => {
+    return (attempt?.answers || []).filter((a) => !a.is_correct);
+  }, [attempt]);
+
+  const primaryMisconception = useMemo(() => {
+    if (!wrongAnswers.length) return null;
+    const firstWrong = wrongAnswers[0];
+    const matched = misconceptions.find(
+      (m) => m.topic_tag === firstWrong.topic_tag && m.misconception
+    );
+    if (matched) {
+      return {
+        topic: firstWrong.topic_tag,
+        text: matched.misconception,
+      };
+    }
+    const cleanExpl = firstWrong.explanation
+      ? firstWrong.explanation.replace(/^Explanation:\s*/i, '').trim()
+      : null;
+    return {
+      topic: firstWrong.topic_tag || 'sql',
+      text: cleanExpl || `A conceptual misunderstanding regarding ${firstWrong.topic_tag || 'this topic'} was detected.`,
+    };
+  }, [wrongAnswers, misconceptions]);
+
   if (loading) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3">
@@ -122,31 +151,6 @@ export default function QuizResult() {
   const durationMinutes = Math.floor((attempt.duration_seconds || 0) / 60);
   const durationSeconds = (attempt.duration_seconds || 0) % 60;
   const formattedDuration = `${durationMinutes}m ${durationSeconds < 10 ? '0' : ''}${durationSeconds}s`;
-
-  const wrongAnswers = useMemo(() => {
-    return (attempt?.answers || []).filter((a) => !a.is_correct);
-  }, [attempt]);
-
-  const primaryMisconception = useMemo(() => {
-    if (!wrongAnswers.length) return null;
-    const firstWrong = wrongAnswers[0];
-    const matched = misconceptions.find(
-      (m) => m.topic_tag === firstWrong.topic_tag && m.misconception
-    );
-    if (matched) {
-      return {
-        topic: firstWrong.topic_tag,
-        text: matched.misconception,
-      };
-    }
-    const cleanExpl = firstWrong.explanation
-      ? firstWrong.explanation.replace(/^Explanation:\s*/i, '').trim()
-      : null;
-    return {
-      topic: firstWrong.topic_tag || 'sql',
-      text: cleanExpl || `A conceptual misunderstanding regarding ${firstWrong.topic_tag || 'this topic'} was detected.`,
-    };
-  }, [wrongAnswers, misconceptions]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
