@@ -351,8 +351,10 @@ export default function LearnHub() {
       )}
 
       {/* Modal: Generate a Course */}
+      {/* `open`, not `isOpen`: Modal ignores unknown props, so with isOpen the
+          dialog never rendered and "Generate a course" silently did nothing. */}
       <Modal
-        isOpen={generateModalOpen}
+        open={generateModalOpen}
         onClose={() => !courseJob.isRunning && setGenerateModalOpen(false)}
         title="Generate a Custom Course"
         size="md"
@@ -365,7 +367,7 @@ export default function LearnHub() {
           {courseJob.isRunning ? (
             <div className="space-y-3 py-4">
               <div className="flex items-center justify-between text-xs text-muted">
-                <span>Generating course syllabus & lessons (~25s)...</span>
+                <span>Planning and writing your lessons - about a minute...</span>
                 <span className="font-mono font-semibold text-ink">{courseJob.progress}%</span>
               </div>
               <ProgressBar value={courseJob.progress} tone="default" size="sm" />
