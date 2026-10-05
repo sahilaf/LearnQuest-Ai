@@ -25,6 +25,12 @@ export function setTokenProvider(fn) {
   tokenProvider = fn;
 }
 
+/**
+ * The current access token, for the one caller that cannot go through axios:
+ * the live tutor's WebSocket, which sends it as its first message.
+ */
+export const getAccessToken = () => tokenProvider();
+
 client.interceptors.request.use(async (config) => {
   try {
     const token = await tokenProvider();

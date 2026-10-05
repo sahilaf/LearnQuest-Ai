@@ -49,7 +49,7 @@ CHALLENGE_POOL = [
     {
         "challenge_type": "tutor_chat",
         "title": "Inquisitive Mind",
-        "description": "Chat with Nova or ask at least 2 questions.",
+        "description": "Chat with Redwan or ask at least 2 questions.",
         "target_value": 2,
         "xp_reward": 25,
         "coin_reward": 5,
@@ -65,7 +65,7 @@ CHALLENGE_POOL = [
     {
         "challenge_type": "teachback_complete",
         "title": "The Teacher",
-        "description": "Successfully guide Nova through a Teach-Back session.",
+        "description": "Successfully guide Redwan through a Teach-Back session.",
         "target_value": 1,
         "xp_reward": 50,
         "coin_reward": 10,

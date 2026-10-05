@@ -328,11 +328,11 @@ class Recommendation(Base):
 
 
 class TeachBackSession(Base):
-    """One Teach-Back round: the student teaches Nova out of their own misconception.
+    """One Teach-Back round: the student teaches Redwan out of their own misconception.
 
-    The protege effect, made literal. Nova is seeded with the false belief this
+    The protege effect, made literal. Redwan is seeded with the false belief this
     student actually holds, argues from it, and then re-takes the question they
-    got wrong. Nova's score on that retry is the student's grade - you have only
+    got wrong. Redwan's score on that retry is the student's grade - you have only
     taught something when the learner can use it without you.
 
     State lives in one row rather than in the chat transcript because the grade
@@ -358,7 +358,7 @@ class TeachBackSession(Base):
     # TopicMastery row may be cleared or overwritten before this session ends.
     misconception: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # The question Nova will re-take, snapshotted for the same reason.
+    # The question Redwan will re-take, snapshotted for the same reason.
     question_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), nullable=True
     )

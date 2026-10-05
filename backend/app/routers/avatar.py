@@ -174,8 +174,46 @@ async def create_avatar_session(user: CurrentUser) -> dict[str, Any]:
         "video_ws_url": f"{ws_base}/ws/video/{session_id}",
         "audio_ws_url": f"{ws_base}/ws/audio/{session_id}",
         "idle_cache_ready": bool(data.get("idle_cache_ready")),
+        "idle": await _idle_loop(base) if data.get("idle_cache_ready") else None,
         "fps": STREAM_FPS,
         "sample_rate": STREAM_SAMPLE_RATE,
+    }
+
+
+async def _idle_loop(base: str) -> dict[str, Any] | None:
+    """The pre-rendered idle clip the face plays between replies.
+
+    Without it the canvas is blank until the first reply and then freezes on
+    the last speech frame - a mouth stuck half open. The info is proxied (the
+    service sends no CORS headers, so the browser cannot read it), but the
+    frames are not: the browser loads them as plain images, which needs no
+    CORS, and only draws them.
+
+    `source_map` maps each clip position to the recording frame it shows, so
+    the client can resume idle at the frame nearest where speech ended. None
+    when the cache cannot be read - the avatar still speaks, it just holds
+    still between replies.
+    """
+    from app.services.llm_client import get_http_client
+
+    try:
+        response = await get_http_client().get(
+            f"{base}/idle/info", timeout=SESSION_TIMEOUT_SECONDS
+        )
+        response.raise_for_status()
+        info = response.json()
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Avatar idle loop unavailable: %s", exc)
+        return None
+
+    count = int(info.get("frame_count") or 0)
+    if not info.get("ready") or count <= 0:
+        return None
+    source_map = info.get("source_map") or list(range(count))
+    return {
+        "frame_count": count,
+        "frame_url": f"{base}/idle/frame/{{index}}",
+        "source_map": source_map[:count],
     }
 
 

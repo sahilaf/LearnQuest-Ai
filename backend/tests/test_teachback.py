@@ -3,8 +3,8 @@
 Covers:
 1. G1 - `quiz.submitted` arriving with no `answers` list still produces a
    misconception, by reading `attempt_answers` back from the attempt.
-2. Teach-Back - seed Nova, push back on a vague explanation, and grade the
-   student on Nova's retake.
+2. Teach-Back - seed Redwan, push back on a vague explanation, and grade the
+   student on Redwan's retake.
 3. The grading guards: a wrong retake fails, and a judge that errors fails
    rather than passing by default.
 """
@@ -221,7 +221,7 @@ class TestTeachBackLoop(TeachBackTestBase):
         self.assertEqual(session.question_correct_answer, "INNER JOIN")
         self.assertEqual(len(session.turns), 1)
         self.assertEqual(session.turns[0]["role"], "nova")
-        # Nova was told the student's belief verbatim.
+        # Redwan was told the student's belief verbatim.
         self.assertIn("unmatched rows", fake.prompts[0])
 
     def test_start_without_a_misconception_is_refused(self) -> None:
@@ -553,7 +553,7 @@ class TestDemoIntegrity(TeachBackTestBase):
     """The two rules that make the retake a measurement rather than a formality."""
 
     def test_reciting_the_answer_does_not_count_as_teaching(self) -> None:
-        """An examiner will type the answer at Nova. It must not score."""
+        """An examiner will type the answer at Redwan. It must not score."""
         from app.services.teachback import _answer_was_handed_over
 
         answer = "Only rows that have matching values in both tables"

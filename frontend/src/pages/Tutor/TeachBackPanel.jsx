@@ -1,18 +1,18 @@
 /**
  * TeachBackPanel - OWNER: Member 1. See plan.md §6.10 and services/teachback.py.
  *
- * The protege effect, on screen. Nova is seeded with a false belief this student
+ * The protege effect, on screen. Redwan is seeded with a false belief this student
  * actually holds, argues from it, and then re-takes the question they got wrong.
- * Her score is their grade.
+ * His score is their grade.
  *
  * Two deliberate interaction choices:
  *
  * - The correct answer is never shown while the session is winnable. The backend
  *   withholds it too; this component only renders what it is given. Showing it
  *   would turn teaching into copying.
- * - "Ask Nova to try again" stays enabled even when she is not convinced. Being
- *   convinced is her opinion; the retake is the measurement, and a student is
- *   allowed to disagree with her and be proved right.
+ * - "Ask Redwan to try again" stays enabled even when he is not convinced. Being
+ *   convinced is his opinion; the retake is the measurement, and a student is
+ *   allowed to disagree with him and be proved right.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -41,7 +41,7 @@ function TurnBubble({ turn }) {
       >
         {isNova && (
           <span className="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">
-            Nova
+            Redwan
           </span>
         )}
         {turn.content}
@@ -61,7 +61,7 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
 
   const turnsEndRef = useRef(null);
   // Held in a ref so a new callback identity from the parent cannot retrigger
-  // the speak effect and make Nova repeat her last line.
+  // the speak effect and make Redwan repeat his last line.
   const onNovaSpeakRef = useRef(onNovaSpeak);
   useEffect(() => {
     onNovaSpeakRef.current = onNovaSpeak;
@@ -81,7 +81,7 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
     turnsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [session?.turns?.length]);
 
-  // Speak whatever Nova said last, so the avatar says it too.
+  // Speak whatever Redwan said last, so the avatar says it too.
   useEffect(() => {
     const turns = session?.turns || [];
     const last = turns[turns.length - 1];
@@ -113,7 +113,7 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
     teachNova(session.id, message)
       .then((data) => setSession(data.session))
       .catch((err) => {
-        setError(err?.detail || 'Nova could not reply.');
+        setError(err?.detail || 'Redwan could not reply.');
         setDraft(message); // never silently eat what they typed
       })
       .finally(() => setBusy(false));
@@ -129,7 +129,7 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
         setSession(data.session);
         if (data.passed) loadAvailable();
       })
-      .catch((err) => setError(err?.detail || 'Nova could not take the question.'))
+      .catch((err) => setError(err?.detail || 'Redwan could not take the question.'))
       .finally(() => setBusy(false));
   }, [session, busy, loadAvailable]);
 
@@ -159,7 +159,7 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
           description={
             'Teach-Back starts from a misconception. Take a quiz and get something '
             + 'wrong, and the tutor will name the belief behind it - then you can '
-            + 'teach Nova out of it.'
+            + 'teach Redwan out of it.'
           }
           action={
             <Button variant="secondary" size="sm" onClick={loadAvailable}>
@@ -177,9 +177,9 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
     return (
       <div className="space-y-3 p-4">
         <div>
-          <h3 className="text-sm font-semibold">Teach Nova</h3>
+          <h3 className="text-sm font-semibold">Teach Redwan</h3>
           <p className="mt-0.5 text-sm text-muted">
-            She believes what you believed. Talk her out of it, then watch her
+            He believes what you believed. Talk him out of it, then watch him
             re-take the question you got wrong.
           </p>
         </div>
@@ -217,15 +217,15 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
       <div className="border-b border-line px-4 py-3">
         <div className="flex items-center gap-2">
           <GraduationCap className="h-4 w-4 text-primary-600" />
-          <span className="text-sm font-semibold">Teaching Nova</span>
+          <span className="text-sm font-semibold">Teaching Redwan</span>
           <span className="font-mono text-xs text-muted">{session.topic_tag}</span>
         </div>
         <p className="mt-1.5 text-sm text-muted">
-          <span className="font-medium text-body">She believes:</span>{' '}
+          <span className="font-medium text-body">He believes:</span>{' '}
           {session.misconception}
         </p>
         <p className="mt-1 text-sm text-muted">
-          <span className="font-medium text-body">Her question:</span>{' '}
+          <span className="font-medium text-body">His question:</span>{' '}
           {session.question_prompt}
         </p>
       </div>
@@ -247,12 +247,12 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
         >
           <div className="flex items-center gap-2 font-semibold">
             {result.passed ? <Trophy className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
-            {result.passed ? 'Nova got it right' : 'Nova still got it wrong'}
+            {result.passed ? 'Redwan got it right' : 'Redwan still got it wrong'}
             <Badge tone={result.passed ? 'success' : 'hard'}>{result.score}/100</Badge>
             {result.xp_awarded > 0 && <Badge tone="primary">+{result.xp_awarded} XP</Badge>}
           </div>
           <p className="mt-1.5">
-            <span className="text-muted">She answered:</span> {result.nova_answer}
+            <span className="text-muted">He answered:</span> {result.nova_answer}
           </p>
           {result.why && <p className="mt-0.5 text-muted">{result.why}</p>}
           {result.correct_answer && (
@@ -263,7 +263,7 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
           {!result.passed && !closed && (
             <p className="mt-1 text-muted">
               {result.retakes_left} attempt{result.retakes_left === 1 ? '' : 's'} left - explain
-              the part she is still missing.
+              the part he is still missing.
             </p>
           )}
         </div>
@@ -311,7 +311,7 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
                 }}
                 rows={2}
                 disabled={busy}
-                placeholder="Explain why what she believes is wrong..."
+                placeholder="Explain why what he believes is wrong..."
                 className="field min-h-[56px] flex-1 resize-none"
               />
               <Button size="sm" onClick={send} disabled={busy || !draft.trim()}>
@@ -326,11 +326,11 @@ export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null
               loading={busy}
               className="mt-2 w-full"
             >
-              Ask Nova to re-take the question
+              Ask Redwan to re-take the question
             </Button>
             {!hasTaught && (
               <p className="mt-1.5 text-center text-xs text-muted">
-                Teach her something first - her score is your grade.
+                Teach him something first - his score is your grade.
               </p>
             )}
           </>

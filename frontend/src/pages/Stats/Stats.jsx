@@ -257,7 +257,7 @@ export default function Stats({ embedded = false }) {
                 </h3>
                 <p className="mx-auto mt-1 max-w-sm text-xs text-muted leading-relaxed">
                   {misconceptionFilter === 'all'
-                    ? 'When an incorrect quiz or practice response reveals a conceptual false belief, Nova captures it here so you can systematically overcome it.'
+                    ? 'When an incorrect quiz or practice response reveals a conceptual false belief, Redwan captures it here so you can systematically overcome it.'
                     : `You have no misconceptions in the "${misconceptionFilter}" state right now.`}
                 </p>
               </Card>

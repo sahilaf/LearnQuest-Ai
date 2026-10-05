@@ -9,19 +9,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
-  BookOpen,
-  CheckCircle2,
-  Clock,
-  Compass,
-  Flame,
   GraduationCap,
-  HelpCircle,
   Lightbulb,
-  Map,
-  RotateCcw,
   Sparkles,
   Target,
-  Zap,
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
@@ -37,9 +28,6 @@ import {
   Badge,
   Button,
   Card,
-  EmptyState,
-  Input,
-  ProgressBar,
   Spinner,
 } from '../../components/ui';
 import { StreakFlame, XPBar } from '../../components/game';
@@ -77,7 +65,7 @@ export default function Dashboard() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [popularCourses, setPopularCourses] = useState([]);
-  const [roadmapGoal, setRoadmapGoal] = useState('Get confident with databases and SQL');
+  const [roadmapGoal] = useState('Get confident with databases and SQL');
   const [dailyMinutes, setDailyMinutes] = useState(30);
   const [onboardingBusy, setOnboardingBusy] = useState(false);
 
@@ -314,7 +302,7 @@ export default function Dashboard() {
                   What do you want to learn?
                 </h2>
                 <p className="text-sm text-body leading-relaxed">
-                  LearnQuest guides you through one continuous loop: learn a lesson, quiz your understanding, diagnose mistakes, and teach Nova to make concepts stick.
+                  LearnQuest guides you through one continuous loop: learn a lesson, quiz your understanding, diagnose mistakes, and teach Redwan to make concepts stick.
                 </p>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2">
@@ -386,13 +374,13 @@ export default function Dashboard() {
                   ))}
                 </div>
 
-                {/* Nova Introduction */}
+                {/* Redwan Introduction */}
                 <div className="rounded-lg border border-primary-500/30 bg-primary-500/5 p-3.5 text-xs text-body flex items-start gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-primary-600 text-white">
                     <Sparkles className="h-4 w-4" />
                   </span>
                   <div>
-                    <span className="font-semibold text-ink">Meet Nova:</span> Your personal AI tutor who explains tough concepts, captures false beliefs behind wrong answers, and lets you teach her to achieve true mastery.
+                    <span className="font-semibold text-ink">Meet Redwan:</span> Your personal AI tutor who explains tough concepts, captures false beliefs behind wrong answers, and lets you teach him to achieve true mastery.
                   </div>
                 </div>
 
@@ -574,7 +562,7 @@ export default function Dashboard() {
                 </div>
                 <h4 className="text-sm font-semibold text-ink">Mental Models are Clear</h4>
                 <p className="mx-auto max-w-sm text-xs text-muted leading-relaxed">
-                  You have no active false beliefs. When a quiz reveals a misconception, Nova captures the exact belief here so you can teach her out of it.
+                  You have no active false beliefs. When a quiz reveals a misconception, Redwan captures the exact belief here so you can teach him out of it.
                 </p>
               </div>
             ) : (
@@ -604,7 +592,7 @@ export default function Dashboard() {
                       >
                         <Button variant="secondary" size="sm" className="text-xs">
                           <GraduationCap className="h-3.5 w-3.5 text-primary-400" />
-                          Teach Nova to fix it →
+                          Teach Redwan to fix it →
                         </Button>
                       </Link>
                     </div>

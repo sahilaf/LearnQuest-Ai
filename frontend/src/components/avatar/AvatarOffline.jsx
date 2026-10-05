@@ -11,6 +11,7 @@
  *
  * It never shows a retry button: nothing the student can do in the browser
  * starts a GPU service, and a button that cannot work is worse than no button.
+ * It does offer a way back to the Connect card, which is the honest action.
  */
 import { Sparkles, VideoOff } from 'lucide-react';
 
@@ -21,7 +22,7 @@ const FRIENDLY = {
   'Avatar service is still loading': 'The avatar service is still starting up.',
 };
 
-export default function AvatarOffline({ reason = null, compact = false }) {
+export default function AvatarOffline({ reason = null, compact = false, onBack = null }) {
   const message = FRIENDLY[reason]
     || (reason?.startsWith('No speech provider')
       ? 'No speech provider is configured, so the tutor has no voice.'
@@ -49,14 +50,24 @@ export default function AvatarOffline({ reason = null, compact = false }) {
         <p className="text-lg font-semibold text-ink">Avatar offline</p>
         <p className="mt-1.5 max-w-[18rem] text-base text-muted">{message}</p>
         <p className="mt-3 max-w-[18rem] text-sm text-faint">
-          Everything else works — the tutor still answers in the chat, and
-          Teach-Back runs normally.
+          Everything else works — the tutor still talks and answers without the
+          face.
         </p>
 
         {reason && (
           <code className="mt-4 max-w-full truncate rounded border border-line bg-canvas px-2.5 py-1.5 font-mono text-2xs text-faint">
             {reason}
           </code>
+        )}
+
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="mt-4 rounded border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-muted hover:text-ink"
+          >
+            Back
+          </button>
         )}
       </div>
     </div>
@@ -83,7 +94,7 @@ export function AvatarPreview() {
           <span className="flex h-16 w-16 items-center justify-center rounded-pill border border-primary-500/40 bg-primary-500/10 text-primary-300">
             <Sparkles className="h-7 w-7" />
           </span>
-          <p className="mt-4 text-xl font-semibold text-ink">She explains it your way</p>
+          <p className="mt-4 text-xl font-semibold text-ink">He explains it your way</p>
           <p className="mt-1.5 max-w-[15rem] text-sm text-muted">
             A real face that answers out loud — and learns what you keep getting wrong.
           </p>

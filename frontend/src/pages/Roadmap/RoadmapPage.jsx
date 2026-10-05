@@ -169,7 +169,7 @@ function GoalForm({ onGenerate, generating, error }) {
 
       <h2 className="text-2xl font-semibold">What do you want to achieve?</h2>
       <p className="mt-2 font-semibold leading-relaxed text-muted">
-        Describe your goal and Nova will build a personalised quest path from the
+        Describe your goal and Redwan will build a personalised quest path from the
         real lessons in the catalogue — ordered around what you already know.
       </p>
 

@@ -478,7 +478,7 @@ def _load_teachback(db: Session, session_id: uuid.UUID, user_id: uuid.UUID):
 def teachback_available(
     user: CurrentUser, db: Session | None = Depends(get_db)
 ) -> dict[str, Any]:
-    """Misconceptions this student could currently teach Nova out of.
+    """Misconceptions this student could currently teach Redwan out of.
 
     Drives the entry point: with nothing here there is nothing to teach, which
     is the normal state until a quiz has been answered wrongly.
@@ -520,7 +520,7 @@ async def teachback_start(
     user: CurrentUser,
     db: Session | None = Depends(get_db),
 ) -> dict[str, Any]:
-    """Open a Teach-Back round: Nova is seeded with the student's own false belief."""
+    """Open a Teach-Back round: Redwan is seeded with the student's own false belief."""
     from app.services.teachback import start_session
 
     database = _teachback_db(db)
@@ -564,7 +564,7 @@ async def teachback_teach(
     user: CurrentUser,
     db: Session | None = Depends(get_db),
 ) -> dict[str, Any]:
-    """The student explains. Nova pushes back, or concedes the point."""
+    """The student explains. Redwan pushes back, or concedes the point."""
     from app.services.teachback import student_turn
 
     database = _teachback_db(db)
@@ -587,7 +587,7 @@ async def teachback_retake(
     user: CurrentUser,
     db: Session | None = Depends(get_db),
 ) -> dict[str, Any]:
-    """Nova re-takes the question. Her score is the student's grade."""
+    """Redwan re-takes the question. His score is the student's grade."""
     from app.services.teachback import retake
 
     database = _teachback_db(db)
@@ -599,7 +599,7 @@ async def teachback_retake(
     if error == "nothing_taught":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Teach Nova something before asking her to re-take the question.",
+            detail="Teach Redwan something before asking him to re-take the question.",
         )
     if error == "session_closed":
         raise HTTPException(

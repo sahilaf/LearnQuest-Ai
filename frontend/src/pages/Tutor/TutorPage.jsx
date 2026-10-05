@@ -1,502 +1,315 @@
 /**
  * TutorPage - OWNER: Member 1 (AI Avatar Tutor & Intelligent Learning).
- * See plan.md §6.6, §6.7.
+ * See plan.md §6.3, §6.6, §6.7.
  *
- * Full-featured interactive AI Tutor dashboard:
- * - SyncTalk avatar that speaks each reply (or an offline panel when it cannot)
- * - Socratic conversation chat with markdown and code highlighting
- * - Conversation management (create, list, switch, delete)
- * - Dynamic lesson context attachment (when navigated from a lesson)
- * - Text-to-speech audio narration controls and mute toggles
- * - Responsive desktop split view and mobile-optimized layouts
+ * Three ways to work with one tutor, Redwan, one tab each:
+ *   Live   - talk out loud, like a call (Gemini Live)
+ *   Teach  - Teach-Back: explain a concept to Redwan, who holds your old mistake
+ *   Chat   - a text chatbot with history
+ *
+ * Calm by default: opening the page connects nothing and plays nothing. The
+ * avatar connects only when the student presses Connect; a live call starts
+ * only when they press Start.
+ *
+ * One tutor, not three: Live and Chat share the selected conversation (live
+ * turns are saved into it), all three use the same male voice, and the avatar
+ * connection is shared by Live and Teach.
  */
-import React, { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import {
-  MessageSquare,
-  Plus,
-  Trash2,
-  Volume2,
-  VolumeX,
-  Sparkles,
-  Layers,
-  History,
-  Info,
-  ChevronLeft,
-  ChevronRight,
-  BookOpen,
-  GraduationCap,
-} from 'lucide-react';
+import { BookOpen, GraduationCap, MessageSquare, Plus, Radio, Trash2 } from 'lucide-react';
+
 import AvatarStage from '../../components/avatar/AvatarStage';
-import TeachBackPanel from './TeachBackPanel';
 import ChatPanel from '../../components/tutor/ChatPanel';
-import PageHeader from '../../components/layout/PageHeader';
-import { Button, Badge, Spinner } from '../../components/ui';
-import {
-  listConversations,
-  deleteConversation,
-  createConversation,
-} from '../../api/tutor';
+import { Spinner } from '../../components/ui';
+import { createConversation, deleteConversation, listConversations } from '../../api/tutor';
 import { getLesson } from '../../api/lessons';
+import LivePanel from './LivePanel';
+import { LiveStatusChip, VoiceOrb, liveStateOf } from './LiveStatus';
+import TeachBackPanel from './TeachBackPanel';
+import useLiveConversation from './useLiveConversation';
+import useTutorVoice from './useTutorVoice';
+
+const TABS = [
+  { id: 'live', label: 'Live conversation', short: 'Live', icon: Radio },
+  { id: 'teach', label: 'Teach Redwan', short: 'Teach', icon: GraduationCap },
+  { id: 'chat', label: 'Chat', short: 'Chat', icon: MessageSquare },
+];
+
+function initialTab(searchParams) {
+  const tab = searchParams.get('tab');
+  if (TABS.some((t) => t.id === tab)) return tab;
+  if (searchParams.get('mode') === 'teachback') return 'teach';
+  return 'live';
+}
 
 export default function TutorPage() {
-  // The URL carries the conversation's per-user number (/tutor/7), not its
-  // UUID. The API accepts either, so this value is passed straight through.
   const { conversationId: routeConvRef } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-
   const lessonId = searchParams.get('lessonId') || searchParams.get('lesson_id');
-  const [lessonData, setLessonData] = useState(null);
+  const topicParam = searchParams.get('topic');
 
-  // Conversations list state
+  const [tab, setTab] = useState(() => initialTab(searchParams));
+  const [lesson, setLesson] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [selectedConvRef, setSelectedConvRef] = useState(routeConvRef || null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Avatar state machine
-  const [avatarExpression, setAvatarExpression] = useState('neutral');
-  const [spokenText, setSpokenText] = useState('');
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [audioMuted, setAudioMuted] = useState(false);
+  // Avatar: opt-in, shared by Live and Teach.
+  const [avatarConnected, setAvatarConnected] = useState(false);
+  const [avatarLive, setAvatarLive] = useState(false);
+  const avatarRef = useRef(null);
+  const [muted, setMuted] = useState(false);
 
-  // Active mobile view tab: 'split' (desktop default) | 'avatar' | 'chat'
-  const [activeMobileTab, setActiveMobileTab] = useState('chat');
+  // Speak through the face only where the face is on screen.
+  const voice = useTutorVoice({
+    avatarRef,
+    useAvatar: avatarLive && tab !== 'chat',
+    muted,
+  });
+  const live = useLiveConversation({ voice });
 
-  // Right-hand column: ask Nova, or teach her. Teach-Back is the novel mode.
-  const modeParam = searchParams.get('mode');
-  const topicParam = searchParams.get('topic');
-  const [rightMode, setRightMode] = useState(modeParam === 'teachback' ? 'teachback' : 'chat');
+  useEffect(() => { if (routeConvRef) setSelectedConvRef(routeConvRef); }, [routeConvRef]);
 
   useEffect(() => {
-    if (modeParam === 'teachback') {
-      setRightMode('teachback');
-    }
-  }, [modeParam]);
-
-  // Sync route param with internal state
-  useEffect(() => {
-    if (routeConvRef) {
-      setSelectedConvRef(routeConvRef);
-    }
-  }, [routeConvRef]);
-
-  // Fetch optional attached lesson info
-  useEffect(() => {
-    if (!lessonId) {
-      setLessonData(null);
-      return;
-    }
-    getLesson(lessonId)
-      .then((data) => setLessonData(data))
-      .catch((err) => console.warn('Could not load lesson context:', err));
+    if (!lessonId) { setLesson(null); return; }
+    getLesson(lessonId).then(setLesson).catch(() => setLesson(null));
   }, [lessonId]);
 
-  // Load user's conversations
   const fetchConversations = useCallback(async () => {
     try {
-      setLoadingConversations(true);
       const res = await listConversations({ page: 1, page_size: 30 });
-      const items = res?.items || (Array.isArray(res) ? res : []);
-      setConversations(items);
-
-      // If no conversation is active and conversations exist, select the latest
-      if (!selectedConvRef && !routeConvRef && items.length > 0) {
-        setSelectedConvRef(items[0].number);
-        navigate(`/tutor/${items[0].number}`, { replace: true });
-      }
-    } catch (err) {
-      console.error('Failed to load conversations:', err);
+      setConversations(res?.items || (Array.isArray(res) ? res : []));
+    } catch {
+      /* the list is a convenience; the tabs still work without it */
     } finally {
       setLoadingConversations(false);
     }
-  }, [selectedConvRef, routeConvRef, navigate]);
-
-  useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
-
-  // Handle new conversation creation
-  const handleNewConversation = async () => {
-    try {
-      const title = lessonData
-        ? `Discussion: ${lessonData.title?.slice(0, 24)}...`
-        : 'New conversation';
-      const created = await createConversation({
-        title,
-        lesson_id: lessonId || undefined,
-      });
-
-      setConversations((prev) => [created, ...prev]);
-      setSelectedConvRef(created.number);
-      navigate(`/tutor/${created.number}`);
-      setSidebarOpen(false);
-    } catch (err) {
-      console.error('Failed to create new conversation:', err);
-    }
-  };
-
-  // Handle conversation deletion
-  const handleDeleteConversation = async (e, convRef) => {
-    e.stopPropagation();
-    if (!window.confirm('Delete this conversation history?')) return;
-
-    try {
-      await deleteConversation(convRef);
-      // Compare as strings: the value from the URL is a string, the one on the
-      // record is a number, and `===` between them is silently always false.
-      const remaining = conversations.filter(
-        (c) => String(c.number) !== String(convRef),
-      );
-      setConversations(remaining);
-
-      if (String(selectedConvRef) === String(convRef)) {
-        const nextRef = remaining.length > 0 ? remaining[0].number : null;
-        setSelectedConvRef(nextRef);
-        navigate(nextRef ? `/tutor/${nextRef}` : '/tutor');
-      }
-    } catch (err) {
-      console.error('Failed to delete conversation:', err);
-    }
-  };
-
-  // Switch conversation
-  const handleSelectConversation = (convRef) => {
-    setSelectedConvRef(convRef);
-    navigate(`/tutor/${convRef}`);
-    setSidebarOpen(false);
-  };
-
-  // Avatar speech & expression coordination callbacks
-  const handleAssistantReply = ({ reply, expression, text }) => {
-    setAvatarExpression(expression || 'explaining');
-    setSpokenText(text || reply || '');
-    setIsSpeaking(true);
-  };
-
-  const handleThinkingStart = () => {
-    setAvatarExpression('thinking');
-    setIsSpeaking(false);
-    setSpokenText('');
-  };
-
-  const handleSpeakMessage = ({ text, expression }) => {
-    setAvatarExpression(expression || 'explaining');
-    setSpokenText(text);
-    setIsSpeaking(true);
-  };
-
-  const handleSpeechEnd = () => {
-    setIsSpeaking(false);
-    setAvatarExpression('neutral');
-  };
-
-  // Teach-Back speaks through the same avatar. Nova is arguing from a false
-  // belief here, so she is 'explaining' rather than 'encouraging'.
-  const handleNovaSpeak = useCallback((text) => {
-    if (!text) return;
-    setAvatarExpression('explaining');
-    setSpokenText(text);
-    setIsSpeaking(true);
   }, []);
+  useEffect(() => { fetchConversations(); }, [fetchConversations]);
+
+  const selectedConv = useMemo(
+    () => conversations.find((c) => String(c.number) === String(selectedConvRef)) || null,
+    [conversations, selectedConvRef],
+  );
+
+  const selectConversation = useCallback((ref) => {
+    setSelectedConvRef(ref);
+    navigate(ref ? `/tutor/${ref}${window.location.search}` : `/tutor${window.location.search}`, { replace: true });
+  }, [navigate]);
+
+  const newConversation = useCallback(async (title = 'New conversation') => {
+    const created = await createConversation({ title, lesson_id: lessonId || undefined });
+    setConversations((prev) => [created, ...prev]);
+    selectConversation(created.number);
+    return created;
+  }, [lessonId, selectConversation]);
+
+  const removeConversation = async (e, ref) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this conversation?')) return;
+    try {
+      await deleteConversation(ref);
+      const remaining = conversations.filter((c) => String(c.number) !== String(ref));
+      setConversations(remaining);
+      if (String(selectedConvRef) === String(ref)) selectConversation(remaining[0]?.number || null);
+    } catch {
+      /* leave it listed; nothing was deleted */
+    }
+  };
+
+  const switchTab = (next) => {
+    if (next === tab) return;
+    // A call belongs to the Live tab; leaving it hangs up rather than leaving
+    // a hidden microphone open. Speech from the old tab stops too.
+    if (tab === 'live') live.stop();
+    voice.stop();
+    setTab(next);
+    const params = new URLSearchParams(searchParams);
+    params.set('tab', next);
+    params.delete('mode');
+    setSearchParams(params, { replace: true });
+  };
+
+  const startLive = async () => {
+    avatarRef.current?.resume?.();
+    let ref = selectedConvRef;
+    if (!ref) {
+      try {
+        ref = (await newConversation('Live conversation')).number;
+      } catch {
+        ref = null; // the call still works; it just is not saved
+      }
+    }
+    live.start(ref);
+  };
+
+  // After a call the conversation has new turns and probably a new title.
+  const prevLiveStatus = useRef(live.status);
+  useEffect(() => {
+    if (prevLiveStatus.current !== live.status && live.status !== 'live' && live.status !== 'connecting') {
+      fetchConversations();
+    }
+    prevLiveStatus.current = live.status;
+  }, [live.status, fetchConversations]);
+
+  const disconnectAvatar = useCallback(() => {
+    avatarRef.current?.stopNow();
+    setAvatarConnected(false);
+    setAvatarLive(false);
+  }, []);
+
+  const showAvatar = tab !== 'chat';
+  const inCall = tab === 'live' && (live.status === 'live' || live.status === 'connecting');
+  const liveState = inCall ? liveStateOf(live) : null;
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Top Header */}
-      <PageHeader
-        title="AI Avatar Tutor"
-        subtitle="Real-time multimodal learning with intelligent lipsync, Socratic dialogue, and tailored explanations."
-        action={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setAudioMuted((prev) => !prev)}
-              className="flex items-center gap-1.5"
-              title={audioMuted ? 'Unmute tutor audio' : 'Mute tutor audio'}
-            >
-              {audioMuted ? (
-                <>
-                  <VolumeX className="h-4 w-4 text-hard-fg" />
-                  <span className="text-xs">Unmute</span>
-                </>
-              ) : (
-                <>
-                  <Volume2 className="h-4 w-4 text-easy-fg" />
-                  <span className="text-xs">Mute Voice</span>
-                </>
-              )}
-            </Button>
+      {/* Title, context and the three tabs - nothing else up here. */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold text-ink">Tutor</h1>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-sm text-muted">
+            <span>Redwan knows your lessons, weak spots and past conversations.</span>
+            {lesson && (
+              <span className="inline-flex items-center gap-1 text-primary-300">
+                <BookOpen className="h-3.5 w-3.5" />
+                {lesson.title}
+              </span>
+            )}
+          </p>
+        </div>
 
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setSidebarOpen((prev) => !prev)}
-              className="flex items-center gap-1.5 lg:hidden"
+        <div role="tablist" className="flex w-full rounded-lg border border-line bg-surface p-1 sm:w-auto">
+          {TABS.map(({ id, label, short, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => switchTab(id)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-3.5 py-1.5 text-sm font-medium transition-colors sm:flex-none ${
+                tab === id ? 'bg-primary-600 text-white' : 'text-muted hover:text-body'
+              }`}
             >
-              <History className="h-4 w-4" />
-              <span className="text-xs">Chats</span>
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={handleNewConversation}
-              className="flex items-center gap-1.5"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="text-xs">New Chat</span>
-            </Button>
-          </div>
-        }
-      />
-
-      {/* Mobile Tab Toggle (Avatar / Chat) */}
-      <div className="flex rounded-xl bg-raised p-1 lg:hidden">
-        <button
-          type="button"
-          onClick={() => setActiveMobileTab('chat')}
-          className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${
-            activeMobileTab === 'chat'
-              ? 'bg-surface text-primary-600 shadow-sm'
-              : 'text-muted hover:text-ink'
-          }`}
-        >
-          Chat Stream
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveMobileTab('avatar')}
-          className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${
-            activeMobileTab === 'avatar'
-              ? 'bg-surface text-primary-600 shadow-sm'
-              : 'text-muted hover:text-ink'
-          }`}
-        >
-          Avatar Stage
-        </button>
+              <Icon className="h-4 w-4" />
+              <span className="sm:hidden">{short}</span>
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Main Workspace Grid */}
-      {/* Fill the viewport rather than a hard-coded 720px: the shell above this
-          row (app header + page header + main padding) measures ~15rem, so the
-          workspace fits without the page itself scrolling. The min-h floor keeps
-          it usable on short screens, where scrolling is the right fallback. */}
-      <div className="relative grid grid-cols-1 gap-5 lg:grid-cols-12 lg:h-[calc(100vh-16rem)] lg:min-h-[560px]">
-        {/* Collapsible Sidebar (Drawer on mobile, left rail on desktop) */}
-        <aside
-          className={`fixed inset-y-0 left-0 z-40 w-72 transform bg-surface p-4 shadow-xl transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:w-auto lg:transform-none lg:col-span-3 lg:rounded-lg lg:border lg:border-line/80 lg:shadow-sm lg: ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-          }`}
-        >
-          <div className="flex h-full flex-col">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <MessageSquare className="h-4 w-4 text-primary-500" />
-                <span>Conversations</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNewConversation}
-                className="h-8 w-8 p-0"
-                title="Create new conversation"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Conversation List */}
-            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
-              {loadingConversations && (
-                <div className="flex h-32 items-center justify-center">
-                  <Spinner size="sm" />
-                </div>
-              )}
-
-              {!loadingConversations && conversations.length === 0 && (
-                <div className="py-8 text-center text-xs text-muted">
-                  No conversations yet. Start chatting below!
-                </div>
-              )}
-
-              {!loadingConversations &&
-                conversations.map((conv) => {
-                  const isActive = String(conv.number) === String(selectedConvRef);
-                  return (
-                    <div
-                      key={conv.id}
-                      onClick={() => handleSelectConversation(conv.number)}
-                      className={`group relative flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-xs transition-all ${
-                        isActive
-                          ? 'bg-primary-50 font-medium text-primary-700'
-                          : 'text-body hover:bg-raised'
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1 pr-2">
-                        <p className="truncate">{conv.title || 'Untitled chat'}</p>
-                        <span className="text-[10px] text-muted">
-                          {new Date(conv.updated_at || conv.created_at).toLocaleDateString(
-                            [],
-                            { month: 'short', day: 'numeric' }
-                          )}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteConversation(e, conv.number)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-hard-fg transition-opacity"
-                        title="Delete conversation"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
-
-            {/* Lesson Context Tag if active */}
-            {lessonData && (
-              <div className="mt-3 rounded-xl border border-primary-100 bg-primary-50/60 p-2.5 text-xs text-primary-800">
-                <div className="flex items-center gap-1.5 font-medium">
-                  <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{lessonData.title}</span>
-                </div>
-                <p className="mt-0.5 text-[11px] opacity-80">Linked course lesson</p>
-              </div>
+      <div className="grid grid-cols-1 gap-5 lg:h-[calc(100vh-13rem)] lg:min-h-[560px] lg:grid-cols-12">
+        {/* The face. Mounted on every tab so a connection survives switching,
+            hidden on Chat where it is not used. */}
+        <div className={`${showAvatar ? 'flex' : 'hidden'} flex-col items-center gap-3 lg:col-span-5`}>
+          <div className="w-full max-w-[440px]">
+            {/* A voice-only call still gets a presence that shows whose turn it is. */}
+            {inCall && !avatarConnected && (
+              <VoiceOrb state={liveState} level={live.level} onConnectAvatar={() => setAvatarConnected(true)} />
             )}
-          </div>
-        </aside>
-
-        {/* Mobile backdrop for drawer */}
-        {sidebarOpen && (
-          <div
-            onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 z-30 bg-canvas/40 backdrop-blur-xs lg:hidden"
-          />
-        )}
-
-        {/* Center/Left: Avatar Stage */}
-        <div
-          className={`h-[620px] flex-col gap-3 lg:col-span-4 lg:h-full lg:flex ${
-            activeMobileTab === 'avatar' ? 'flex' : 'hidden lg:flex'
-          }`}
-        >
-          <div className="flex-1 flex flex-col rounded-lg border border-line/80 bg-surface shadow-sm overflow-hidden">
-            {/* Stage header info */}
-            <div className="flex items-center justify-between border-b border-line px-4 py-2.5 text-xs">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`h-2 w-2 rounded-full ${
-                    isSpeaking ? 'bg-easy animate-pulse' : 'bg-line-strong'
-                  }`}
-                />
-                <span className="font-medium text-body">
-                  Nova · Socratic Tutor
-                </span>
-              </div>
-              <Badge tone={isSpeaking ? 'primary' : 'neutral'}>
-                {isSpeaking ? 'Narrating' : 'Ready'}
-              </Badge>
-            </div>
-
-            {/* Avatar visual canvas & lipsync */}
-            {/* AvatarStage is aspect-square, so its height tracks its width.
-                min-h-0 lets this row shrink inside the fixed-height column, and
-                the max-w cap stops the square from outgrowing the space it has. */}
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3 bg-gradient-to-b from-raised to-surface">
-              <div className="w-full max-w-[320px]">
-                <AvatarStage
-                  spokenText={spokenText}
-                  isSpeaking={isSpeaking}
-                  onSpeechEnd={handleSpeechEnd}
-                  audioMuted={audioMuted}
-                  onToggleMute={() => setAudioMuted((prev) => !prev)}
-                />
-              </div>
-            </div>
-
-            {/* Avatar Persona Card */}
-            <div className="border-t border-line bg-raised/50 p-3.5 text-xs">
-              <div className="flex items-start gap-2">
-                <Sparkles className="h-4 w-4 text-primary-500 mt-0.5 shrink-0" />
-                <div>
-                  <h4 className="font-semibold text-ink">
-                    Socratic AI Guide
-                  </h4>
-                  <p className="mt-0.5 text-muted text-[11px] leading-relaxed">
-                    Trained to unpack mental models, diagnose misunderstandings, and
-                    guide you toward solutions through questioning.
-                  </p>
-                </div>
-              </div>
+            <div className={inCall && !avatarConnected ? 'hidden' : ''}>
+            <AvatarStage
+              connected={avatarConnected}
+              onConnect={() => setAvatarConnected(true)}
+              onDisconnect={disconnectAvatar}
+              onAvailabilityChange={setAvatarLive}
+              controllerRef={avatarRef}
+              spokenText={voice.avatarLine.text}
+              isSpeaking={voice.avatarLine.speaking}
+              onSpeechEnd={voice.onAvatarLineEnd}
+              audioMuted={muted}
+              onToggleMute={() => setMuted((m) => !m)}
+              overlay={liveState ? <LiveStatusChip state={liveState} level={live.level} /> : null}
+            />
             </div>
           </div>
         </div>
 
-        {/* Right: ask Nova, or teach her */}
+        {/* Chat: conversation list beside the chat. */}
+        {tab === 'chat' && (
+          <aside className="flex min-h-[200px] flex-col rounded-lg border border-line bg-surface p-3 lg:col-span-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-semibold text-ink">Conversations</span>
+              <button
+                type="button"
+                onClick={() => newConversation().catch(() => {})}
+                className="rounded p-1.5 text-muted transition-colors hover:bg-raised hover:text-ink"
+                title="New conversation"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+              {loadingConversations && <div className="flex justify-center py-6"><Spinner size="sm" /></div>}
+              {!loadingConversations && conversations.length === 0 && (
+                <p className="py-6 text-center text-xs text-muted">No conversations yet.</p>
+              )}
+              {conversations.map((conv) => {
+                const active = String(conv.number) === String(selectedConvRef);
+                return (
+                  <div
+                    key={conv.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => selectConversation(conv.number)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') selectConversation(conv.number); }}
+                    className={`group flex cursor-pointer items-center justify-between rounded px-2.5 py-2 text-sm transition-colors ${
+                      active ? 'bg-primary-500/15 text-ink' : 'text-body hover:bg-raised'
+                    }`}
+                  >
+                    <span className="truncate pr-2">{conv.title || 'Untitled'}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => removeConversation(e, conv.number)}
+                      className="p-1 text-faint opacity-0 transition-opacity hover:text-hard-fg group-hover:opacity-100"
+                      title="Delete conversation"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </aside>
+        )}
+
         <div
-          className={`lg:col-span-5 h-[620px] lg:h-full ${
-            activeMobileTab === 'chat' ? 'flex' : 'hidden lg:flex'
-          } flex-col gap-2`}
+          className={`flex min-h-[520px] flex-col overflow-hidden rounded-lg border border-line bg-surface ${
+            tab === 'chat' ? 'lg:col-span-9' : 'lg:col-span-7'
+          }`}
         >
-          <div className="flex shrink-0 items-center gap-1 rounded-lg border border-line bg-surface p-1">
-            <button
-              type="button"
-              onClick={() => setRightMode('chat')}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-                rightMode === 'chat'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-muted hover:text-body'
-              }`}
-            >
-              <MessageSquare className="h-3.5 w-3.5" />
-              Ask Nova
-            </button>
-            <button
-              type="button"
-              onClick={() => setRightMode('teachback')}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-                rightMode === 'teachback'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-muted hover:text-body'
-              }`}
-            >
-              <GraduationCap className="h-3.5 w-3.5" />
-              Teach Nova
-            </button>
+          {tab === 'live' && (
+            <LivePanel
+              live={live}
+              conversationTitle={selectedConv?.title}
+              lessonTitle={lesson?.title}
+              avatarLive={avatarLive}
+              onStart={startLive}
+            />
+          )}
+
+          {/* Kept mounted: switching tabs must not throw away a session. */}
+          <div className={`${tab === 'teach' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
+            <TeachBackPanel onNovaSpeak={tab === 'teach' ? voice.speakText : null} initialTopic={topicParam} />
           </div>
 
-          <div className="min-h-0 flex-1">
-            {/* Both panels stay mounted: switching tabs must not throw away an
-                in-progress Teach-Back session or an unsent chat draft. */}
-            <div className={`h-full ${rightMode === 'chat' ? 'block' : 'hidden'}`}>
-              <ChatPanel
-                conversationId={selectedConvRef}
-                onConversationCreated={(newConv) => {
-                  setConversations((prev) => [newConv, ...prev]);
-                  setSelectedConvRef(newConv.number);
-                  navigate(`/tutor/${newConv.number}`, { replace: true });
-                }}
-                onAssistantReply={handleAssistantReply}
-                onThinkingStart={handleThinkingStart}
-                onSpeakMessage={handleSpeakMessage}
-                lessonId={lessonId}
-                lessonTitle={lessonData?.title}
-              />
-            </div>
-            <div
-              className={`h-full overflow-hidden rounded-lg border border-line bg-surface ${
-                rightMode === 'teachback' ? 'block' : 'hidden'
-              }`}
-            >
-              <TeachBackPanel
-                onNovaSpeak={handleNovaSpeak}
-                initialTopic={topicParam}
-              />
-            </div>
-          </div>
+          {tab === 'chat' && (
+            // Remounted per visit so it reloads anything said in a live call.
+            <ChatPanel
+              conversationId={selectedConvRef}
+              onConversationCreated={(conv) => {
+                setConversations((prev) => [conv, ...prev]);
+                selectConversation(conv.number);
+              }}
+              onThinkingStart={voice.stop}
+              onSpeakMessage={({ text }) => voice.speakText(text)}
+              lessonId={lessonId}
+              lessonTitle={lesson?.title}
+            />
+          )}
         </div>
       </div>
     </div>

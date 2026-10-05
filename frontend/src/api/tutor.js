@@ -43,7 +43,7 @@ export function streamMessage(conversationId, query, { onToken, onDone, onError 
   return () => es.close();
 }
 
-/* --- Teach-Back: the student teaches Nova out of their own misconception. --- */
+/* --- Teach-Back: the student teaches Redwan out of their own misconception. --- */
 
 /** Misconceptions that are still standing, so still teachable. */
 export const teachBackAvailable = () => client.get('/api/tutor/teachback/available');
@@ -55,10 +55,10 @@ export const startTeachBack = (topicTag) =>
 export const getTeachBack = (sessionId) =>
   client.get(`/api/tutor/teachback/${sessionId}`);
 
-/** Send an explanation. Nova pushes back or concedes. */
+/** Send an explanation. Redwan pushes back or concedes. */
 export const teachNova = (sessionId, message) =>
   client.post(`/api/tutor/teachback/${sessionId}/teach`, { message });
 
-/** Nova re-takes the question. Her score is the student's grade. */
+/** Redwan re-takes the question. His score is the student's grade. */
 export const novaRetake = (sessionId) =>
   client.post(`/api/tutor/teachback/${sessionId}/retake`);

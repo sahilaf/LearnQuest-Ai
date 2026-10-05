@@ -257,7 +257,14 @@ class TestTutorAI(unittest.TestCase):
         # 7. Avatar endpoints
         # avatar_status is async: it probes the SyncTalk service's /health
         # before reporting the avatar online.
-        status_res = await avatar_status()
+        # Pinned rather than read from .env: a developer with the GPU service
+        # configured and running would otherwise see this report online.
+        from unittest.mock import patch
+
+        from app.config import settings
+
+        with patch.object(settings, "avatar_service_url", ""):
+            status_res = await avatar_status()
         self.assertIn("online", status_res)
         self.assertIn("speech", status_res)
         # No AVATAR_SERVICE_URL in the test env, so it must report offline

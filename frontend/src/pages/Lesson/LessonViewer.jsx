@@ -45,7 +45,7 @@ export default function LessonViewer() {
 
   // Progress state
   const [isCompleted, setIsCompleted] = useState(false);
-  const [secondsSpent, setSecondsSpent] = useState(0);
+  const [, setSecondsSpent] = useState(0);
   const [scrollProgress, setScrollProgress] = useState(0);
 
   const secondsSpentRef = useRef(0);
@@ -757,7 +757,7 @@ export default function LessonViewer() {
                 </span>
                 <h4 className="text-base font-semibold">Need clarification?</h4>
                 <p className="text-xs font-semibold leading-relaxed text-muted">
-                  Highlight any text on the page, then ask Nova to break it down for you.
+                  Highlight any text on the page, then ask Redwan to break it down for you.
                 </p>
                 <Button size="sm" onClick={handleOpenTutor} className="mt-2 w-full">
                   Ask about this lesson
@@ -870,7 +870,7 @@ export default function LessonViewer() {
           {tutorResponse && (
             <div className="animate-fade-in rounded-lg border-2 border-primary-200 bg-primary-50 p-4">
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700">
-                Nova explains
+                Redwan explains
               </p>
               <p className="text-sm font-semibold leading-relaxed text-body">
                 {tutorResponse}

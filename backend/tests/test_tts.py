@@ -127,6 +127,63 @@ class TestSynthesis(TTSTestBase):
         with patch("app.services.llm_client.get_http_client", return_value=http):
             self.assertIsNone(_run(tts.synthesize("hello there, this is a test")))
 
+    def test_wav_response_is_unwrapped_with_the_header_rate(self) -> None:
+        """The 3.x models answer audio/wav; the rate comes from the header."""
+        import io
+        import wave
+
+        pcm = b"\x01\x02" * 2400
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(24000)
+            w.writeframes(pcm)
+        http = _FakeHTTP(_Response(200, _audio_payload(buf.getvalue(), "audio/wav")))
+        with patch("app.services.llm_client.get_http_client", return_value=http):
+            speech = _run(tts.synthesize("hello there, this is a test"))
+
+        self.assertEqual(speech.pcm, pcm)  # no 44-byte header played as a click
+        self.assertEqual(speech.sample_rate, 24000)
+
+    def test_stereo_wav_is_refused(self) -> None:
+        import io
+        import wave
+
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(2)
+            w.setsampwidth(2)
+            w.setframerate(24000)
+            w.writeframes(b"\x00\x01" * 400)
+        http = _FakeHTTP(_Response(200, _audio_payload(buf.getvalue(), "audio/wav")))
+        with patch("app.services.llm_client.get_http_client", return_value=http):
+            self.assertIsNone(_run(tts.synthesize("hello there, this is a test")))
+
+    def test_quota_falls_back_to_the_next_model_and_parks_the_first(self) -> None:
+        """Free tier: 10 TTS requests a day per model, so one 429 is not silence."""
+        quota = _Response(
+            429, {"error": {"code": 429, "details": [{"retryDelay": "25193s"}]}}, "quota"
+        )
+        ok = _Response(200, _audio_payload(b"\x01\x02" * 2400))
+        responses = iter([quota, ok, ok])
+
+        class _Seq(_FakeHTTP):
+            async def post(self, url, **kwargs):  # noqa: ANN001
+                self.calls.append((url, kwargs))
+                return next(responses)
+
+        http = _Seq(None)
+        with patch.dict("os.environ", {"TTS_MODEL": "a-tts", "TTS_FALLBACK_MODELS": "b-tts"}), patch(
+            "app.services.llm_client.get_http_client", return_value=http
+        ):
+            self.assertIsNotNone(_run(tts.synthesize("first line to speak")))
+            self.assertIsNotNone(_run(tts.synthesize("second line to speak")))
+
+        models = [url.split("/models/")[1].split(":")[0] for url, _ in http.calls]
+        # The exhausted model is not asked again until its retryDelay passes.
+        self.assertEqual(models, ["a-tts", "b-tts", "b-tts"])
+
     def test_quota_error_returns_none(self) -> None:
         http = _FakeHTTP(_Response(429, {}, "quota exceeded"))
         with patch("app.services.llm_client.get_http_client", return_value=http):
@@ -160,8 +217,8 @@ class TestCache(TTSTestBase):
         pcm = b"\x01\x02" * 2400
         http = _FakeHTTP(_Response(200, _audio_payload(pcm)))
         with patch("app.services.llm_client.get_http_client", return_value=http):
-            first = _run(tts.synthesize("Nova says this twice."))
-            second = _run(tts.synthesize("Nova says this twice."))
+            first = _run(tts.synthesize("Redwan says this twice."))
+            second = _run(tts.synthesize("Redwan says this twice."))
 
         self.assertEqual(len(http.calls), 1)
         self.assertEqual(first.pcm, second.pcm)
@@ -228,6 +285,80 @@ class TestSpeechEndpoint(TTSTestBase):
     def test_empty_text_is_a_400(self) -> None:
         response = self._client().post("/api/avatar/speech", json={"text": "   "})
         self.assertEqual(response.status_code, 400)
+
+
+class _ServiceResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self) -> None:
+        if isinstance(self._payload, Exception):
+            raise self._payload
+
+    def json(self):
+        return self._payload
+
+
+class _FakeAvatarService:
+    """Stands in for the GPU box: /session, and /idle/info when it has one."""
+
+    def __init__(self, idle_info):
+        self.idle_info = idle_info
+
+    async def post(self, url, **_kwargs):  # noqa: ANN001
+        assert url.endswith("/session")
+        return _ServiceResponse({"session_id": "abc123", "idle_cache_ready": True})
+
+    async def get(self, url, **_kwargs):  # noqa: ANN001
+        assert url.endswith("/idle/info")
+        return _ServiceResponse(self.idle_info)
+
+
+class TestAvatarSessionIdle(TTSTestBase):
+    """The session hands the browser the idle loop it plays between replies.
+
+    Without it the face is blank before the first reply and frozen mid-word
+    after every one, so this is part of the avatar working, not decoration.
+    """
+
+    _client = TestSpeechEndpoint._client
+
+    def _session(self, idle_info):
+        from app.config import settings
+
+        with patch.object(settings, "avatar_service_url", "http://gpu:5001"), patch(
+            "app.services.llm_client.get_http_client",
+            lambda: _FakeAvatarService(idle_info),
+        ):
+            return self._client().post("/api/avatar/session")
+
+    def test_session_carries_the_idle_loop(self) -> None:
+        response = self._session(
+            {"ready": True, "frame_count": 3, "source_map": [7639, 7640, 7641, 7642]}
+        )
+
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["video_ws_url"], "ws://gpu:5001/ws/video/abc123")
+        idle = body["idle"]
+        self.assertEqual(idle["frame_count"], 3)
+        # Trimmed to the frames that exist, so no position maps past the clip.
+        self.assertEqual(idle["source_map"], [7639, 7640, 7641])
+        self.assertEqual(
+            idle["frame_url"].format(index=2), "http://gpu:5001/idle/frame/2"
+        )
+
+    def test_unreadable_idle_cache_still_opens_a_session(self) -> None:
+        response = self._session(RuntimeError("idle cache broke"))
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.json()["idle"])
+
+    def test_idle_cache_not_ready_is_none(self) -> None:
+        response = self._session({"ready": False, "frame_count": 0})
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.json()["idle"])
 
 
 if __name__ == "__main__":

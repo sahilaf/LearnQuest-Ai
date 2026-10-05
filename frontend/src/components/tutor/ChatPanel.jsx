@@ -117,7 +117,7 @@ export default function ChatPanel({
     listMessages(conversationId)
       .then((data) => {
         if (isMounted) {
-          const list = Array.isArray(data) ? data : data?.messages || [];
+          const list = Array.isArray(data) ? data : data?.items || data?.messages || [];
           setMessages(list);
         }
       })

@@ -7,17 +7,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  Award,
   BookOpen,
   CheckCircle2,
   Clock,
   GraduationCap,
   Lightbulb,
   RotateCcw,
-  Sparkles,
   XCircle,
 } from 'lucide-react';
 
@@ -26,7 +24,6 @@ import {
   Badge,
   Button,
   Card,
-  CardHeader,
   EmptyState,
   ProgressBar,
   Spinner,
@@ -37,7 +34,6 @@ import { myMisconceptions } from '../../api/mastery';
 
 export default function QuizResult() {
   const { attemptId } = useParams();
-  const navigate = useNavigate();
 
   const [attempt, setAttempt] = useState(null);
   const [quizDetails, setQuizDetails] = useState(null);
@@ -292,7 +288,7 @@ export default function QuizResult() {
 
             <p className="text-xs text-body leading-relaxed max-w-xl">
               Explaining this concept to someone else is the proven way to rewire your mental model.
-              Teach Nova why this belief is wrong — her score is your grade.
+              Teach Redwan why this belief is wrong — his score is your grade.
             </p>
 
             <div className="pt-1">
@@ -305,7 +301,7 @@ export default function QuizResult() {
               >
                 <Button variant="primary" size="lg" className="font-semibold px-6">
                   <GraduationCap className="h-4 w-4" />
-                  Teach Nova to fix it →
+                  Teach Redwan to fix it →
                 </Button>
               </Link>
             </div>
@@ -433,7 +429,7 @@ export default function QuizResult() {
                       >
                         <Button variant="secondary" size="sm">
                           <GraduationCap className="h-3.5 w-3.5 text-primary-500" />
-                          Teach Nova
+                          Teach Redwan
                         </Button>
                       </Link>
                     </div>
@@ -505,7 +501,7 @@ export default function QuizResult() {
             >
               <Button variant="primary">
                 <GraduationCap className="h-4 w-4" />
-                Teach Nova to fix it →
+                Teach Redwan to fix it →
               </Button>
             </Link>
           </>

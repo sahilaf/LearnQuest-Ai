@@ -21,6 +21,8 @@ certifi>=2024.2.2
 
 # --- http / ai ---
 httpx>=0.28.1
+# Gemini Live, for the live voice tutor (app/routers/live.py)
+google-genai>=2.18.1
 
 # --- document processing ---
 pypdf>=5.0.0

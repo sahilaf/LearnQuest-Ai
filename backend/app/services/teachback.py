@@ -1,4 +1,4 @@
-"""Teach-Back: the student teaches Nova out of their own misconception.
+"""Teach-Back: the student teaches Redwan out of their own misconception.
 
 OWNER: Member 1 (AI Avatar Tutor & Intelligent Learning). See plan.md 6.10.
 
@@ -7,11 +7,11 @@ A normal tutor explains until the student nods. Here the direction reverses:
 
   1. `capture_misconception()` (services/mastery.py) has already named the false
      belief behind a wrong answer, in the student's own terms.
-  2. Nova is seeded with *that* belief and argues from it - confidently, the way
+  2. Redwan is seeded with *that* belief and argues from it - confidently, the way
      someone who actually holds it would.
-  3. The student has to talk her out of it.
-  4. Nova then re-takes the question the student originally got wrong, reasoning
-     only from what she was just taught. **Her score is the student's grade.**
+  3. The student has to talk him out of it.
+  4. Redwan then re-takes the question the student originally got wrong, reasoning
+     only from what he was just taught. **His score is the student's grade.**
 
 Step 4 is what makes it a measurement rather than a chat. You have only taught
 something when the learner can use it without you standing there.
@@ -39,7 +39,7 @@ from app.database import release_connection
 
 logger = logging.getLogger("learnquest.teachback")
 
-# Nova must clear this to count as taught.
+# Redwan must clear this to count as taught.
 PASS_SCORE = 70
 
 # After this many failed retakes the session closes. Unlimited retries would
@@ -99,7 +99,7 @@ async def _ask_llm(prompt: str, *, max_tokens: int = 500, temperature: float = 0
 # Prompts
 # --------------------------------------------------------------------------- #
 
-NOVA_OPENING_PROMPT = """You are Nova, a student who genuinely holds this false belief:
+NOVA_OPENING_PROMPT = """You are Redwan, a student who genuinely holds this false belief:
 
 "{misconception}"
 
@@ -116,7 +116,7 @@ Stay in character as a learner. Do not teach. Do not mention being an AI.
 Return ONLY JSON:
 {{"opening": "..."}}"""
 
-NOVA_REPLY_PROMPT = """You are Nova, a student who holds this false belief:
+NOVA_REPLY_PROMPT = """You are Redwan, a student who holds this false belief:
 
 "{misconception}"
 
@@ -143,7 +143,7 @@ Decide honestly whether that explanation actually addresses your false belief.
 Return ONLY JSON:
 {{"reply": "...", "convinced": true or false}}"""
 
-NOVA_RETAKE_PROMPT = """You are Nova. You are re-taking a question you previously got wrong.
+NOVA_RETAKE_PROMPT = """You are Redwan. You are re-taking a question you previously got wrong.
 
 Originally you believed: "{misconception}"
 
@@ -291,7 +291,7 @@ def _transcript(session, limit: int = 8) -> str:
     turns = (session.turns or [])[-limit:]
     if not turns:
         return "(nothing yet)"
-    speaker = {"nova": "Nova", "student": "Student"}
+    speaker = {"nova": "Redwan", "student": "Student"}
     return "\n".join(
         f"{speaker.get(t.get('role'), 'Student')}: {t.get('content', '')}"
         for t in turns
@@ -362,7 +362,7 @@ async def start_session(db, user_id, topic_tag: str | None = None):
 
 
 async def _nova_opening(misconception: str, topic_tag: str, question: str) -> str:
-    """Nova's first line. Falls back to stating the belief verbatim."""
+    """Redwan's first line. Falls back to stating the belief verbatim."""
     fallback = (
         f"{misconception} That is how I have always read it - "
         f"so why would that not work here?"
@@ -378,7 +378,7 @@ async def _nova_opening(misconception: str, topic_tag: str, question: str) -> st
             temperature=0.6,
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Nova opening failed, using fallback: %s", exc)
+        logger.warning("Redwan opening failed, using fallback: %s", exc)
         return fallback
 
     data = _extract_json(raw) or {}
@@ -404,7 +404,7 @@ def _looks_vague(text: str) -> bool:
 
 
 async def student_turn(db, session, explanation: str) -> dict[str, Any]:
-    """The student teaches. Nova pushes back or concedes.
+    """The student teaches. Redwan pushes back or concedes.
 
     Returns {"reply", "convinced", "can_retake"}.
     """
@@ -420,7 +420,7 @@ async def student_turn(db, session, explanation: str) -> dict[str, Any]:
         db.commit()
         return {"reply": reply, "convinced": False, "can_retake": False}
 
-    release_connection(db)  # also saves the student's turn before Nova answers
+    release_connection(db)  # also saves the student's turn before Redwan answers
     try:
         raw = await _ask_llm(
             NOVA_REPLY_PROMPT.format(
@@ -437,7 +437,7 @@ async def student_turn(db, session, explanation: str) -> dict[str, Any]:
         reply = str(data.get("reply") or "").strip()
         convinced = bool(data.get("convinced"))
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Nova reply failed: %s", exc)
+        logger.warning("Redwan reply failed: %s", exc)
         reply, convinced = "", False
 
     if len(reply) < 10:
@@ -449,13 +449,13 @@ async def student_turn(db, session, explanation: str) -> dict[str, Any]:
     db.commit()
 
     # The retake is always available once there is something to reason from.
-    # Gating it on `convinced` would let Nova refuse to be examined.
+    # Gating it on `convinced` would let Redwan refuse to be examined.
     taught = sum(1 for t in (session.turns or []) if t.get("role") == "student")
     return {"reply": reply, "convinced": convinced, "can_retake": taught >= 1}
 
 
 # --------------------------------------------------------------------------- #
-# The retake - Nova's score is the student's grade
+# The retake - Redwan's score is the student's grade
 # --------------------------------------------------------------------------- #
 
 
@@ -547,7 +547,7 @@ def _answer_was_handed_over(student_turns: list[str], correct_answer: str) -> bo
 
 
 async def retake(db, session) -> dict[str, Any]:
-    """Nova re-takes the question. Her score is the student's grade."""
+    """Redwan re-takes the question. His score is the student's grade."""
     from app.services.events import emit
     from app.services.mastery import register_correct_answer
 
@@ -595,7 +595,7 @@ async def retake(db, session) -> dict[str, Any]:
         nova_answer = str(data.get("answer") or "").strip()
         nova_reasoning = str(data.get("reasoning") or "").strip()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Nova retake failed: %s", exc)
+        logger.warning("Redwan retake failed: %s", exc)
         nova_answer, nova_reasoning = "", ""
 
     if not nova_answer:
@@ -682,7 +682,7 @@ def _on_teachback_completed(db, user_id, payload: dict[str, Any]) -> dict[str, A
         db=db,
         user_id=user_id,
         amount=TEACHBACK_XP,
-        reason="Taught Nova out of a misconception",
+        reason="Taught Redwan out of a misconception",
         event_type="teachback.completed",
         ref_type="teachback",
         ref_id=payload.get("session_id"),

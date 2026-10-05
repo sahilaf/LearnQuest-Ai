@@ -22,6 +22,7 @@ from app.routers import (
     gamification,
     jobs,
     lessons,
+    live,
     mastery,
     practice,
     progress,
@@ -88,6 +89,7 @@ app.include_router(practice.router)          # M2 UI / M1 runner
 app.include_router(roadmap.router)           # M1
 app.include_router(tutor.router)             # M1
 app.include_router(avatar.router)            # M1
+app.include_router(live.router)              # M1
 app.include_router(recommendations.router)   # M1
 app.include_router(gamification.router)      # M4
 app.include_router(analytics.router)         # M4
