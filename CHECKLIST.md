@@ -25,7 +25,19 @@ to teach it out of the mistake. Its score on the retry is your grade.
 
 ---
 
-## ⚠️ Read this after you pull — 2026-10-05 (avatar owner only)
+## ⚠️ Read this after you pull — 2026-10-06 (everyone)
+
+Migration head is now **`0011`** (Teach-Back remembers which question revealed
+each misconception). Until it is applied, every page that reads mastery fails:
+
+```bash
+cd backend && .venv/Scripts/python.exe -m alembic upgrade head
+```
+
+New dependencies: `pip install -r requirements.txt` (google-genai) and
+`npm install` in `frontend` (vitest). End-to-end tests: see `e2e/TEST_PLAN.md`.
+
+## Earlier pull note — 2026-10-05 (avatar owner only)
 
 The avatar now runs **Alapon**, the production lip-sync model from `Fydp_v2`, on
 Alapon's own server. The weights did not change (same `59.pth`), only the folder
@@ -135,11 +147,11 @@ slot owner (M4's earlier total of 28 was a miscount; it owns 23 items).
 
 | Member | Done | In progress | Open | Total |
 |---|---|---|---|---|
-| **M1** (AI) | 41 | 0 | 7 | 48 |
+| **M1** (AI) | 42 | 0 | 7 | 49 |
 | **M2** (Learning) | 29 | 0 | 6 | 35 |
 | **M3** (Users) | 15 | 1 | 6 | 22 |
 | **M4** (Game) | 23 | 0 | 0 | 23 |
-| **Total** | **108** | **1** | **19** | **128** |
+| **Total** | **109** | **1** | **19** | **129** |
 
 M1's 7 open items: 3 are Week 4 hardening (Slot 13; avatar and TTS latency are
 done), the TTS daily quota, and 3 standing ⚠️ risks on generated content —
@@ -386,6 +398,14 @@ get one wrong → the app names your misconception.
       recent turns). One male voice (Charon) everywhere. Also fixed: Chat never
       loaded conversation history (it read `messages`, the API sends `items`).
       Verified live in the browser; 5 tests in `test_live_tutor.py` — @sahilaf, 2026-10-06
+- [x] **End-to-end test suite** (`e2e/`, Playwright): 14 student journeys in a
+      real browser against the real frontend, backend and a fresh seeded
+      database, with AI scripted (`E2E_FAKE_AI=1`, refused in production).
+      14/14 pass, stable over 4 runs, ~40 s. Found and fixed 4 real bugs: the
+      live transcript never rendered in dev builds (StrictMode), Teach-Back
+      paired a belief with the wrong question (migration `0011`), sign-out
+      right after sign-up was undone, auth pages redirected during render.
+      Test plan and report for faculty: `e2e/TEST_PLAN.md` — @sahilaf, 2026-10-06
 - [x] **Review fixes (supervisor-style audit).** Avatar service listens on
       127.0.0.1 by default (it has no login), closes sessions nobody connects
       to within 30 s, and refuses more than 4 at once. Live calls: one per

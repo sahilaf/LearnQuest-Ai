@@ -226,6 +226,20 @@ Detailed folder-by-folder ownership is in [plan.md](plan.md) §1.
 
 ---
 
+## Testing
+
+| Level | Command | What it covers |
+|---|---|---|
+| Backend unit | `cd backend && .venv/Scripts/python.exe -m unittest discover -s tests` | 320 tests: services, routers, auth, the live socket |
+| Frontend unit | `cd frontend && npm test` | Pure logic: speech splitting, live-call states |
+| Frontend lint | `cd frontend && npm run lint` | ESLint 9 |
+| **End to end** | `cd e2e && npm test` | 14 student journeys in a real browser against the real app, on a fresh database, with AI scripted — see [e2e/TEST_PLAN.md](e2e/TEST_PLAN.md) |
+
+End-to-end setup, once: `cd e2e`, `npm install`, `npx playwright install chromium`.
+`npm run report` opens the HTML report with a video and trace of every test.
+
+---
+
 ## Provenance and consent
 
 Declared here so nobody has to ask.

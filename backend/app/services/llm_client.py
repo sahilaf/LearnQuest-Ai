@@ -597,6 +597,14 @@ def get_llm() -> LLMClient:
     if _client is not None:
         return _client
 
+    # End-to-end tests: scripted answers, no network (app/services/e2e_fakes.py).
+    from app.services.e2e_fakes import ScriptedLLMClient, e2e_enabled
+
+    if e2e_enabled():
+        logger.warning("E2E_FAKE_AI=1 - using the scripted LLM. Never in production.")
+        _client = ScriptedLLMClient()
+        return _client
+
     provider = settings.llm_provider.lower()
     chained = bool(settings.openrouter_api_key) and provider != "openrouter"
 

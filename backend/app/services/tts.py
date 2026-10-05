@@ -125,6 +125,10 @@ def is_available() -> bool:
     Cheap and synchronous so `/api/avatar/status` can answer without paying for
     a round trip. It cannot know about quota - that surfaces as a None later.
     """
+    from app.services.e2e_fakes import e2e_enabled
+
+    if e2e_enabled():
+        return True
     return settings.llm_provider.lower() == "gemini" and bool(settings.llm_api_key)
 
 
@@ -183,6 +187,12 @@ async def synthesize(text: str, *, voice: str | None = None) -> Speech | None:
     if len(clean) > MAX_TTS_CHARS:
         logger.info("Refusing to synthesize %d chars (max %d)", len(clean), MAX_TTS_CHARS)
         return None
+
+    from app.services import e2e_fakes
+
+    if e2e_fakes.e2e_enabled():
+        return Speech(pcm=e2e_fakes.tone_pcm(e2e_fakes.fake_speech_seconds(clean)),
+                      sample_rate=e2e_fakes.SAMPLE_RATE)
 
     chosen_voice = voice or tts_voice()
     key = (clean, chosen_voice)

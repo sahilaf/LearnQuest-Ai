@@ -126,7 +126,10 @@ async def _run_call(ws: WebSocket, start: dict, user_id: uuid.UUID) -> None:
         live_tutor.resolve_conversation_id, user_id, start.get("conversation")
     )
 
-    if not settings.llm_api_key:
+    from app.services import e2e_fakes
+
+    fake = e2e_fakes.e2e_enabled()
+    if not settings.llm_api_key and not fake:
         await _fail(ws, "No Gemini key configured, so live voice is unavailable.")
         return
 
@@ -138,7 +141,8 @@ async def _run_call(ws: WebSocket, start: dict, user_id: uuid.UUID) -> None:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=settings.llm_api_key)
+    # End-to-end tests talk to a scripted session instead of Gemini Live.
+    client = e2e_fakes.FakeLiveClient() if fake else genai.Client(api_key=settings.llm_api_key)
     try:
         async with client.aio.live.connect(
             model=live_tutor.live_model(), config=_live_config(instruction)
