@@ -81,6 +81,7 @@ export default function AvatarStage({
   controllerRef = null,
   overlay = null,
   compact = false,
+  fill = false,
 }) {
   const [availability, setAvailability] = useState(null);
   const [streamFailed, setStreamFailed] = useState(false);
@@ -139,7 +140,7 @@ export default function AvatarStage({
 
   if (availability === null) {
     return (
-      <div className="flex aspect-square w-full items-center justify-center rounded-lg border border-line bg-surface">
+      <div className={`flex w-full items-center justify-center rounded-lg border border-line bg-surface ${fill ? 'aspect-[4/3] lg:aspect-auto lg:h-full' : 'aspect-square'}`}>
         <span className="h-6 w-6 animate-spin rounded-full border-2 border-line-strong border-t-primary-400" />
       </div>
     );
@@ -150,6 +151,7 @@ export default function AvatarStage({
       <AvatarOffline
         reason={streamFailed ? 'Avatar service is not reachable' : availability.reason}
         onBack={onDisconnect}
+        fill={fill}
       />
     );
   }
@@ -170,6 +172,7 @@ export default function AvatarStage({
       onDisconnect={onDisconnect}
       overlay={overlay}
       compact={compact}
+      fill={fill}
     />
   );
 }

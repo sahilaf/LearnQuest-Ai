@@ -40,7 +40,9 @@ test('chat: a question gets an answer, and the conversation survives a reload', 
 
   await page.reload();
   await page.getByRole('tab', { name: /Chat/ }).click();
-  await page.getByText('What is a foreign key?').first().waitFor();
+  // The conversation picker now names it after the question...
+  await expect(page.getByLabel('Conversation', { exact: true })).toHaveValue(/\d+/);
+  // ...and the exchange itself is back on screen.
   await expect(page.getByText('[e2e tutor] You asked: "What is a foreign key?"')).toBeVisible();
 });
 

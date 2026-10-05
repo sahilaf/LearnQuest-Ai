@@ -20,7 +20,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { BookOpen, GraduationCap, MessageSquare, Plus, Radio, Trash2 } from 'lucide-react';
 
 import ChatPanel from '../../components/tutor/ChatPanel';
-import { Spinner } from '../../components/ui';
+import { Button, Select } from '../../components/ui';
 import { createConversation, deleteConversation, listConversations } from '../../api/tutor';
 import { getLesson } from '../../api/lessons';
 import LivePanel, { LiveControls } from './LivePanel';
@@ -63,10 +63,11 @@ export default function TutorPage() {
   const avatarRef = useRef(null);
   const [muted, setMuted] = useState(false);
 
-  // Speak through the face only where the face is on screen.
+  // Speak through the face whenever video is connected - it is on screen
+  // in every tab.
   const voice = useTutorVoice({
     avatarRef,
-    useAvatar: avatarLive && tab !== 'chat',
+    useAvatar: avatarLive,
     muted,
   });
   const live = useLiveConversation({ voice });
@@ -205,8 +206,7 @@ export default function TutorPage() {
       onAvatarLineEnd={voice.onAvatarLineEnd}
       muted={muted}
       onToggleMute={() => setMuted((m) => !m)}
-      // In Teach the question matters more than the face.
-      compact={tab === 'teach'}
+      fill
     />
   );
 
@@ -247,92 +247,75 @@ export default function TutorPage() {
         </div>
       </div>
 
-      {/* Same frame for every mode: the tutor and what belongs beside him on
-          the left, the conversation on the right. */}
-      <div className="grid grid-cols-1 gap-5 lg:h-[calc(100vh-12.5rem)] lg:min-h-[600px] lg:grid-cols-[minmax(300px,380px)_1fr]">
-        <aside className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto">
-          {/* The stage stays mounted in every tab, so a video connection is
-              never torn down by switching tabs. */}
-          <div className={tab === 'chat' ? 'hidden' : ''}>{stage}</div>
+      {/* Half the screen is Redwan's face; the other half is everything else
+          for the current mode. The face stays mounted in every tab, so a
+          video connection survives switching. */}
+      <div className="grid grid-cols-1 gap-5 lg:h-[calc(100vh-12.5rem)] lg:min-h-[600px] lg:grid-cols-2">
+        <div className="min-h-0">{stage}</div>
 
-          {tab === 'live' && inCall && <LiveControls live={live} />}
-          {tab === 'teach' && <TeachChallenge teach={teach} />}
+        <div className="flex min-h-0 flex-col gap-4">
+          {tab === 'live' && inCall && <LiveControls live={live} bar />}
+          {tab === 'teach' && <TeachChallenge teach={teach} compact />}
           {tab === 'chat' && (
-            <div className="card flex min-h-[220px] flex-1 flex-col p-3">
-              <div className="mb-2 flex items-center justify-between px-1">
-                <span className="label">Conversations</span>
-                <button
-                  type="button"
-                  onClick={() => newConversation().catch(() => {})}
-                  className="rounded p-1.5 text-muted transition-colors hover:bg-raised hover:text-ink"
-                  title="New conversation"
-                  aria-label="New conversation"
+            <div className="flex items-end gap-2">
+              <Select
+                label="Conversation"
+                id="tutor-conversation"
+                className="min-w-0 flex-1"
+                value={selectedConvRef ? String(selectedConvRef) : ''}
+                onChange={(e) => selectConversation(e.target.value || null)}
+                disabled={loadingConversations}
+              >
+                <option value="">{conversations.length ? 'Start a new conversation' : 'No conversations yet'}</option>
+                {conversations.map((conv) => (
+                  <option key={conv.id} value={String(conv.number)}>{conv.title || 'Untitled'}</option>
+                ))}
+              </Select>
+              <Button variant="secondary" onClick={() => newConversation().catch(() => {})} title="New conversation">
+                <Plus className="h-4 w-4" />
+                New
+              </Button>
+              {selectedConvRef && (
+                <Button
+                  variant="ghost"
+                  onClick={(e) => removeConversation(e, selectedConvRef)}
+                  title="Delete this conversation"
+                  aria-label="Delete this conversation"
                 >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
-                {loadingConversations && <div className="flex justify-center py-6"><Spinner size="sm" /></div>}
-                {!loadingConversations && conversations.length === 0 && (
-                  <p className="py-6 text-center text-sm text-muted">No conversations yet.</p>
-                )}
-                {conversations.map((conv) => {
-                  const active = String(conv.number) === String(selectedConvRef);
-                  return (
-                    <div
-                      key={conv.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => selectConversation(conv.number)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') selectConversation(conv.number); }}
-                      className={`group flex cursor-pointer items-center justify-between rounded px-2.5 py-2 text-sm transition-colors ${
-                        active ? 'bg-primary-500/15 text-ink' : 'text-body hover:bg-raised'
-                      }`}
-                    >
-                      <span className="truncate pr-2">{conv.title || 'Untitled'}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => removeConversation(e, conv.number)}
-                        className="p-1 text-faint opacity-0 transition-opacity hover:text-hard-fg focus:opacity-100 group-hover:opacity-100"
-                        title="Delete conversation"
-                        aria-label="Delete conversation"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           )}
-        </aside>
 
-        <section className="flex min-h-[520px] flex-col overflow-hidden rounded-lg border border-line bg-surface">
-          {tab === 'live' && (
-            <LivePanel
-              live={live}
-              conversationTitle={selectedConv?.title}
-              lessonTitle={lesson?.title}
-              avatarLive={avatarLive}
-              onStart={startLive}
-            />
-          )}
-          {tab === 'teach' && <TeachConversation teach={teach} />}
-          {tab === 'chat' && (
-            // Remounted per visit so it reloads anything said in a live call.
-            <ChatPanel
-              conversationId={selectedConvRef}
-              onConversationCreated={(conv) => {
-                setConversations((prev) => [conv, ...prev]);
-                selectConversation(conv.number);
-              }}
-              onThinkingStart={voice.stop}
-              onSpeakMessage={({ text }) => voice.speakText(text)}
-              lessonId={lessonId}
-              lessonTitle={lesson?.title}
-            />
-          )}
-        </section>
+          <section className="flex min-h-[460px] flex-1 flex-col overflow-hidden rounded-lg border border-line bg-surface lg:min-h-0">
+            {tab === 'live' && (
+              <LivePanel
+                live={live}
+                conversationTitle={selectedConv?.title}
+                lessonTitle={lesson?.title}
+                avatarLive={avatarLive}
+                onStart={startLive}
+              />
+            )}
+            {tab === 'teach' && <TeachConversation teach={teach} />}
+            {tab === 'chat' && (
+              // Keyed by conversation so it reloads anything said in a live call.
+              <ChatPanel
+                key={selectedConvRef || 'new'}
+                conversationId={selectedConvRef}
+                onConversationCreated={(conv) => {
+                  setConversations((prev) => [conv, ...prev]);
+                  selectConversation(conv.number);
+                }}
+                onThinkingStart={voice.stop}
+                onSpeakMessage={({ text }) => voice.speakText(text)}
+                lessonId={lessonId}
+                lessonTitle={lesson?.title}
+              />
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );

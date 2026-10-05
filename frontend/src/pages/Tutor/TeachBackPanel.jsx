@@ -32,8 +32,48 @@ const asHisBelief = (text = '') => text.replace(/^You believe\b/i, 'He believes'
 /* Beside the tutor                                                          */
 /* ------------------------------------------------------------------------ */
 
-export function TeachChallenge({ teach }) {
+export function TeachChallenge({ teach, compact = false }) {
   const { session, attemptsUsed, maxRetakes, passed, failed } = teach;
+
+  // Compact (above the conversation): the list of beliefs explains itself, so
+  // the card appears only once there is a challenge to show.
+  if (!session && compact) return null;
+
+  if (session && compact) {
+    const opts = Array.isArray(session.question_options) ? session.question_options : [];
+    const remaining = Math.max(0, maxRetakes - attemptsUsed);
+    return (
+      <div className="card space-y-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <span className="label">What he believes</span>
+            <p className="mt-1 text-sm font-medium leading-snug text-ink">{asHisBelief(session.misconception)}</p>
+          </div>
+          <span className="shrink-0 text-right text-2xs text-muted">
+            <span className="mb-1 flex justify-end gap-1" aria-hidden>
+              {Array.from({ length: maxRetakes }, (_, i) => (
+                <span key={i} className={`h-1.5 w-4 rounded-pill ${i < attemptsUsed ? 'bg-muted' : 'bg-line-strong'}`} />
+              ))}
+            </span>
+            {passed && 'Passed'}
+            {failed && 'None left'}
+            {!passed && !failed && `${remaining} of ${maxRetakes} left`}
+          </span>
+        </div>
+        <div>
+          <span className="label">The question he will re-take</span>
+          <p className="mt-1 text-sm leading-relaxed text-body">{session.question_prompt}</p>
+          {opts.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {opts.map((option) => (
+                <span key={option} className="rounded border border-line bg-raised px-2 py-1 text-xs text-body">{option}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return (

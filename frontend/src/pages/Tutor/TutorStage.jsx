@@ -13,9 +13,9 @@ import { Video, Volume2, VolumeX } from 'lucide-react';
 import AvatarStage from '../../components/avatar/AvatarStage';
 import { LiveStatusChip } from './LiveStatus';
 
-function StillPresence({ state, level, onConnect, muted, onToggleMute, compact }) {
+function StillPresence({ state, level, onConnect, muted, onToggleMute, compact, fill }) {
   return (
-    <div className="panel w-full">
+    <div className={`panel ${fill ? 'flex w-full flex-col lg:h-full' : 'w-full'}`}>
       <div className="panel-head">
         <span className="label">Redwan</span>
         <div className="flex items-center gap-1.5">
@@ -38,7 +38,7 @@ function StillPresence({ state, level, onConnect, muted, onToggleMute, compact }
           </button>
         </div>
       </div>
-      <div className={`relative aspect-[4/3] w-full overflow-hidden bg-canvas ${compact ? '' : 'lg:aspect-square'}`}>
+      <div className={`relative w-full overflow-hidden bg-canvas ${fill ? 'aspect-[4/3] lg:aspect-auto lg:min-h-0 lg:flex-1' : `aspect-[4/3] ${compact ? '' : 'lg:aspect-square'}`}`}>
         <picture>
           <source srcSet="/landing/redwan.webp" type="image/webp" />
           <img
@@ -73,6 +73,7 @@ export default function TutorStage({
   muted,
   onToggleMute,
   compact = false,
+  fill = false,
 }) {
   if (!connected) {
     return (
@@ -83,6 +84,7 @@ export default function TutorStage({
         muted={muted}
         onToggleMute={onToggleMute}
         compact={compact}
+        fill={fill}
       />
     );
   }
@@ -99,6 +101,7 @@ export default function TutorStage({
       onToggleMute={onToggleMute}
       overlay={<LiveStatusChip state={state} level={level} />}
       compact={compact}
+      fill={fill}
     />
   );
 }

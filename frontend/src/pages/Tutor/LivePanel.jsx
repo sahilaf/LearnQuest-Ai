@@ -185,9 +185,49 @@ export default function LivePanel({ live, conversationTitle, lessonTitle, avatar
  * words, then mute / stop talking / end. Kept next to the face they control,
  * not under the transcript.
  */
-export function LiveControls({ live }) {
+export function LiveControls({ live, bar = false }) {
   const state = liveStateOf(live);
   const inCall = live.status === LIVE_STATUS.LIVE;
+  if (bar) {
+    // One row above the transcript, for the half-screen layout.
+    return (
+      <div className="card flex flex-wrap items-center gap-3 px-4 py-3" role="status">
+        <div className="mr-auto min-w-0">
+          <p className="text-sm font-medium text-ink">{LIVE_STATES[state].label}</p>
+          <p className="text-xs text-muted">{LIVE_STATES[state].hint}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => live.setMicMuted(!live.micMuted)}
+          disabled={!inCall}
+          className={`inline-flex items-center gap-1.5 rounded border px-3 py-2 text-sm transition-colors disabled:opacity-40 ${
+            live.micMuted ? 'border-hard/50 text-hard-fg' : 'border-line text-body hover:text-ink'
+          }`}
+        >
+          {live.micMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          {live.micMuted ? 'Unmute mic' : 'Mute mic'}
+        </button>
+        <button
+          type="button"
+          onClick={live.interrupt}
+          disabled={state !== 'speaking'}
+          className="inline-flex items-center gap-1.5 rounded border border-line px-3 py-2 text-sm text-body transition-colors hover:text-ink disabled:opacity-40"
+          title="Stop Redwan and take your turn"
+        >
+          <Hand className="h-4 w-4" />
+          Stop talking
+        </button>
+        <button
+          type="button"
+          onClick={live.stop}
+          className="inline-flex items-center gap-1.5 rounded bg-hard/90 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-hard"
+        >
+          <PhoneOff className="h-4 w-4" />
+          End call
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="card space-y-3 p-4" role="status">
       <div>

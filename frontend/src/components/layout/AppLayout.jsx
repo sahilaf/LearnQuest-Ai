@@ -175,10 +175,12 @@ export default function AppLayout() {
                 <span className="text-lg font-semibold tracking-tight text-ink">LearnQuest</span>
               </NavLink>
 
-              <div className="ml-auto flex items-center gap-4">
+              {/* Tighter on phones: at 390px the full row overflowed the screen
+                  by ~90px on every page. The streak is on the dashboard too. */}
+              <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-4">
                 {stats && (
-                  <div className="flex items-center gap-3">
-                    <StreakFlame stats={stats} compact />
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="hidden sm:inline-flex"><StreakFlame stats={stats} compact /></span>
                     <XPBar stats={stats} compact />
                   </div>
                 )}

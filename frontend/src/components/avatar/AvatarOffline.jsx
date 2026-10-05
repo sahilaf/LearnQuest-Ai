@@ -22,14 +22,14 @@ const FRIENDLY = {
   'Avatar service is still loading': 'The avatar service is still starting up.',
 };
 
-export default function AvatarOffline({ reason = null, compact = false, onBack = null }) {
+export default function AvatarOffline({ reason = null, compact = false, onBack = null, fill = false }) {
   const message = FRIENDLY[reason]
     || (reason?.startsWith('No speech provider')
       ? 'No speech provider is configured, so the tutor has no voice.'
       : 'The avatar is unavailable right now.');
 
   return (
-    <div className="panel aspect-square w-full">
+    <div className={`panel w-full ${fill ? 'flex w-full flex-col lg:h-full' : 'aspect-square'}`}>
       <div className="panel-head">
         <span className="label">Tutor</span>
         <span className="flex items-center gap-2 text-2xs font-medium text-faint">

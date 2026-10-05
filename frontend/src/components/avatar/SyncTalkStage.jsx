@@ -99,6 +99,8 @@ export default function SyncTalkStage({
   overlay = null,
   // 4:3 instead of square, where the page needs the room more than the face.
   compact = false,
+  // Fill the parent's height (a half-screen stage) instead of a fixed shape.
+  fill = false,
 }) {
   // Identity-stable so the hook does not tear the socket down on every render.
   const createSession = useCallback(() => avatarSession(), []);
@@ -202,7 +204,7 @@ export default function SyncTalkStage({
   else if (synthesizing) label = 'Thinking';
 
   return (
-    <div className="panel w-full">
+    <div className={`panel ${fill ? 'flex w-full flex-col lg:h-full' : 'w-full'}`}>
       <div className="panel-head">
         <span className="label">Tutor</span>
         <span className="flex items-center gap-3 text-2xs font-medium text-muted">
@@ -231,7 +233,7 @@ export default function SyncTalkStage({
       </div>
 
       <div
-        className={`relative w-full bg-canvas ${compact ? 'aspect-[4/3]' : 'aspect-square'}`}
+        className={`relative w-full bg-canvas ${fill ? 'aspect-[4/3] lg:aspect-auto lg:min-h-0 lg:flex-1' : compact ? 'aspect-[4/3]' : 'aspect-square'}`}
         // Browsers hold an AudioContext suspended until a user gesture; without
         // this the very first utterance can arrive with the clock still paused.
         onClick={resume}

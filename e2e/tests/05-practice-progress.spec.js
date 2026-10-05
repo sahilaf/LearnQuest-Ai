@@ -26,7 +26,8 @@ test('finishing a quiz earns XP and a badge, and the student appears on the lead
 
   await page.goto('/progress?tab=achievements');
   await dismissCelebrations(page);
-  await expect(page.getByText(/Badges Earned\s*1\s*\/\s*15/)).toBeVisible();
+  // At least one: time-of-day badges (Night Owl, Early Bird) can add more.
+  await expect(page.getByText(/Badges Earned\s*[1-9]\d*\s*\/\s*15/)).toBeVisible();
 
   await page.goto('/progress?tab=leaderboard');
   await expect(page.getByText(name).first()).toBeVisible();
