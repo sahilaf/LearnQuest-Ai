@@ -10,7 +10,8 @@ student has connected the avatar - this endpoint does not know or care which.
 Protocol
 --------
 Client -> server
-  text   {"type": "start", "token": <Supabase JWT or null>, "conversation": <number>}
+  text   {"type": "start", "token": <Supabase JWT or null>, "conversation": <number>,
+          "reading": <optional: the lesson passage the student paused on>}
          must be the first message; browsers cannot set headers on a WebSocket,
          and a token in the URL would be written to access logs
   binary 16-bit mono PCM at 16 kHz from the microphone
@@ -135,7 +136,7 @@ async def _run_call(ws: WebSocket, start: dict, user_id: uuid.UUID) -> None:
 
     # 2. The tutor's whole context, as one instruction.
     instruction = await run_in_threadpool(
-        live_tutor.build_live_instruction, user_id, conversation_id
+        live_tutor.build_live_instruction, user_id, conversation_id, start.get("reading")
     )
 
     from google import genai

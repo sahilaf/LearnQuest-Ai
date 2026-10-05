@@ -1,7 +1,7 @@
 # LearnQuest — End-to-End Test Plan and Report
 
 **Tool:** Playwright 1.x (Chromium) · **Suite:** `e2e/tests/` · **Last run:** 2026-10-06 —
-**14 / 14 passed**, stable across consecutive runs, ~50 s per run.
+**16 / 16 passed**, stable across consecutive runs, ~55 s per run.
 
 ## 1. What "end to end" means here
 
@@ -48,6 +48,8 @@ production** whatever the environment says.
 | 12 | Turn status | `04-tutor` | Start a call | Status always shows whose turn it is, including "Redwan is speaking" | ✅ |
 | 13 | SQL practice | `05-practice-progress` | Submit a wrong query, then a correct one | Wrong one fails the hidden tests; correct one passes (queries are really executed) | ✅ |
 | 14 | Gamification | `05-practice-progress` | Finish a quiz; open Achievements and Leaderboard | First badge earned (1/15); student listed on the leaderboard as "You" | ✅ |
+| 15 | **Lesson read aloud** | `06-lesson-narration` | Open a lesson, press "Listen with Redwan"; Pause; Ask; Continue the lesson; close | Nothing plays before asked; the highlighted word moves on as he reads; audio is requested as lesson narration with no Markdown in it; Pause freezes the highlight; Ask opens a live call carrying the paused passage and the lesson's conversation; Continue resumes with no part downloaded twice; close clears every highlight | ✅ |
+| 16 | Read from here | `06-lesson-narration` | While listening, click a later paragraph | Narration jumps there; its first word is highlighted | ✅ |
 
 ## 4. Defects found by this suite (all fixed)
 
@@ -97,6 +99,8 @@ the real services (`.\dev.ps1`, plugged in, Gemini key with quota):
 
 1. Quiz 1 → answer wrong → a *sensible* misconception appears.
 2. Quiz result → Ask Redwan about it → Chat explains where the belief goes wrong.
+2b. Lesson → Listen with Redwan (with and without video) → the highlight stays on the word being
+    said; Pause → Ask a question out loud → Continue picks up at the same sentence.
 3. Tutor → Connect avatar → the face appears and idles.
 4. Live conversation → speak into the real microphone → Redwan answers aloud through
    the avatar, the transcript fills in, the face does not drop to idle mid-sentence.

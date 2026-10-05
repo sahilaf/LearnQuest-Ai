@@ -51,6 +51,9 @@ SESSION_TIMEOUT_SECONDS = 5.0
 class SpeakRequest(BaseModel):
     text: str
     expression: str | None = "neutral"
+    # "lesson": narration of lesson text, the same for every student, so the
+    # audio is kept on disk and a lesson costs TTS quota only once.
+    purpose: str | None = None
 
 
 def _ws_base(http_url: str) -> str:
@@ -246,7 +249,7 @@ async def synthesize_speech(body: SpeakRequest, user: CurrentUser) -> Response:
             status_code=status.HTTP_400_BAD_REQUEST, detail="Nothing to speak."
         )
 
-    speech = await synthesize(text)
+    speech = await synthesize(text, persist=body.purpose == "lesson")
     if speech is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

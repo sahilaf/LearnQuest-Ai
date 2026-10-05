@@ -91,8 +91,9 @@ export default function SyncTalkStage({
   onStatusChange = null,
   fps = 25,
   sampleRate = 24000,
-  // Filled with {streamAudio, endStream, stopNow, isAudible} so the page can
-  // stream the live tutor's voice into the face.
+  // Filled with {streamAudio, endStream, stopNow, isAudible, speakPcm,
+  // resetClock, heardSeconds} so the page can stream the live tutor's voice
+  // into the face, or narrate a lesson through it.
   controllerRef = null,
   onDisconnect = null,
   // Laid over the bottom of the video, e.g. the live call's turn indicator.
@@ -108,7 +109,7 @@ export default function SyncTalkStage({
 
   const {
     canvasRef, status, error, speaking, speak, interrupt, resume,
-    streamAudio, endStream, stopNow, isAudible,
+    streamAudio, endStream, stopNow, isAudible, resetClock, heardSeconds,
   } = useSyncTalkStream({
     enabled: true,
     muted,
@@ -127,9 +128,14 @@ export default function SyncTalkStage({
       stopNow,
       resume,
       isAudible: () => synthesizingRef.current || isAudible(),
+      // Resolves once the audio has been sent (paced at real time).
+      speakPcm: (pcm, rate) => speak(pcm, rate || sampleRate),
+      resetClock,
+      heardSeconds,
     } : null;
     return () => { controllerRef.current = null; };
-  }, [controllerRef, status, streamAudio, endStream, stopNow, resume, isAudible]);
+  }, [controllerRef, status, streamAudio, endStream, stopNow, resume, isAudible,
+    speak, sampleRate, resetClock, heardSeconds]);
 
   // Held in a ref so a parent re-render cannot restart an utterance mid-sentence.
   const onSpeechEndRef = useRef(onSpeechEnd);

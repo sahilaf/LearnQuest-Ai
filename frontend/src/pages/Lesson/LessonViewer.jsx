@@ -9,9 +9,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Headphones } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import { getLesson, updateProgress } from '../../api/lessons';
-import { explain } from '../../api/tutor';
+import { createConversation, explain } from '../../api/tutor';
 import { generateQuiz } from '../../api/quizzes';
 import { myQuota } from '../../api/jobs';
 import {
@@ -24,6 +25,10 @@ import {
   Skeleton,
   Spinner,
 } from '../../components/ui';
+import useLiveConversation, { LIVE_STATUS } from '../Tutor/useLiveConversation';
+import useTutorVoice from '../Tutor/useTutorVoice';
+import LessonNarrator from './LessonNarrator';
+import useLessonNarration from './useLessonNarration';
 
 function slugify(text) {
   return String(text)
@@ -33,6 +38,99 @@ function slugify(text) {
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+/**
+ * Markdown renderers, defined once. Inline in render they were new component
+ * types every render, so React remounted every paragraph each second (the
+ * time counter re-renders the page) - which also detached the word ranges
+ * lesson narration highlights.
+ */
+const MARKDOWN_COMPONENTS = {
+  h1: ({ children, ...props }) => {
+    const hId = slugify(children);
+    return (
+      <h1
+        id={hId}
+        className="mt-8 mb-4 scroll-mt-24 text-2xl font-bold text-ink"
+        {...props}
+      >
+        {children}
+      </h1>
+    );
+  },
+  h2: ({ children, ...props }) => {
+    const hId = slugify(children);
+    return (
+      <h2
+        id={hId}
+        className="mt-7 mb-3 scroll-mt-24 text-xl font-bold text-ink border-b border-line pb-2"
+        {...props}
+      >
+        {children}
+      </h2>
+    );
+  },
+  h3: ({ children, ...props }) => {
+    const hId = slugify(children);
+    return (
+      <h3
+        id={hId}
+        className="mt-6 mb-2 scroll-mt-24 text-lg font-semibold text-ink"
+        {...props}
+      >
+        {children}
+      </h3>
+    );
+  },
+  p: ({ children, ...props }) => (
+    <p
+      className="my-3 leading-relaxed text-body"
+      {...props}
+    >
+      {children}
+    </p>
+  ),
+  ul: ({ children, ...props }) => (
+    <ul
+      className="my-3 list-disc list-inside space-y-1 text-body"
+      {...props}
+    >
+      {children}
+    </ul>
+  ),
+  ol: ({ children, ...props }) => (
+    <ol
+      className="my-3 list-decimal list-inside space-y-1 text-body"
+      {...props}
+    >
+      {children}
+    </ol>
+  ),
+  // react-markdown 9 no longer passes `inline`, so every inline `code` word
+  // used to render as a whole code block inside its paragraph (<pre> in <p>).
+  // A code block is the one wrapped in <pre>; that wrapper gets the styling.
+  pre: ({ children }) => (
+    <pre className="my-4 overflow-x-auto rounded-xl bg-canvas p-4 font-mono text-xs text-ink">
+      {children}
+    </pre>
+  ),
+  code: ({ className, children }) => {
+    const block = /language-/.test(className || '') || String(children).includes('\n');
+    return block ? (
+      <code className={className}>{children}</code>
+    ) : (
+      <code className="rounded bg-raised px-1.5 py-0.5 font-mono text-xs text-ink">{children}</code>
+    );
+  },
+  blockquote: ({ children, ...props }) => (
+    <blockquote
+      className="my-4 border-l-4 border-primary-500 bg-primary-500/10 py-2 pl-4 italic text-body"
+      {...props}
+    >
+      {children}
+    </blockquote>
+  ),
+};
 
 export default function LessonViewer() {
   const { lessonId, id } = useParams();
@@ -59,6 +157,24 @@ export default function LessonViewer() {
   const [tutorLoading, setTutorLoading] = useState(false);
   const [tutorResponse, setTutorResponse] = useState(null);
   const [tutorError, setTutorError] = useState(null);
+
+  // Redwan reading the lesson aloud (see useLessonNarration). The avatar is
+  // opt-in, as on the tutor page; without it he reads voice only.
+  const contentRef = useRef(null);
+  const avatarRef = useRef(null);
+  const [avatarConnected, setAvatarConnected] = useState(false);
+  const [avatarLive, setAvatarLive] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const voice = useTutorVoice({ avatarRef, useAvatar: avatarLive, muted });
+  const live = useLiveConversation({ voice });
+  const narration = useLessonNarration({
+    containerRef: contentRef,
+    voice,
+    contentKey: `${currentLessonId}:${lesson?.content_md?.length ?? 0}`,
+  });
+  // Questions asked while listening go into one conversation per visit,
+  // attached to this lesson, so Chat has them afterwards.
+  const askConversationRef = useRef(null);
 
   // AI Quiz Generation State & Quota (Slot 9D)
   const [generatingQuiz, setGeneratingQuiz] = useState(false);
@@ -114,6 +230,52 @@ export default function LessonViewer() {
       handlePracticeThisLesson();
     }
   };
+
+  // The voice path changes when video connects or drops: pause rather than
+  // carry on with the clock of the old path.
+  const narrationRef = useRef(narration);
+  narrationRef.current = narration;
+  useEffect(() => { narrationRef.current.pause(); }, [avatarLive]);
+
+  const renderedLesson = useMemo(() => (lesson?.content_md ? (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+      {lesson.content_md}
+    </ReactMarkdown>
+  ) : null), [lesson?.content_md]);
+
+  /** Stop reading and ask Redwan out loud about where we are. */
+  const askWhileListening = async () => {
+    narration.pause();
+    avatarRef.current?.resume?.();
+    let ref = askConversationRef.current;
+    if (!ref) {
+      try {
+        const conv = await createConversation({ title: `Lesson: ${lesson?.title || 'questions'}`, lesson_id: currentLessonId });
+        ref = conv.number;
+        askConversationRef.current = ref;
+      } catch {
+        ref = null; // the call still works; it just is not saved
+      }
+    }
+    live.start(ref, { reading: narration.passage() });
+  };
+
+  /** Done asking: hang up and carry on reading. */
+  const continueListening = () => {
+    live.stop();
+    narration.play();
+  };
+
+  const avatar = {
+    ref: avatarRef,
+    connected: avatarConnected,
+    connect: () => setAvatarConnected(true),
+    disconnect: () => { avatarRef.current?.stopNow(); setAvatarConnected(false); setAvatarLive(false); },
+    setLive: setAvatarLive,
+    muted,
+    toggleMute: () => setMuted((m) => !m),
+  };
+  const inCall = live.status === LIVE_STATUS.LIVE || live.status === LIVE_STATUS.CONNECTING;
 
   // 1. Fetch lesson data
   const fetchLessonData = useCallback(() => {
@@ -386,7 +548,16 @@ export default function LessonViewer() {
   const topicTags = Array.isArray(lesson.topic_tags) ? lesson.topic_tags : [];
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className={`space-y-6 ${narration.active || inCall ? 'pb-36 lg:pb-20' : 'pb-20'}`}>
+      <LessonNarrator
+        variant="bar"
+        narration={narration}
+        live={live}
+        voice={voice}
+        avatar={avatar}
+        onAsk={askWhileListening}
+        onContinue={continueListening}
+      />
       {/* Top Breadcrumb & Progress Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
         <div className="flex items-center gap-2 text-sm text-muted">
@@ -444,6 +615,16 @@ export default function LessonViewer() {
                   ⏱ {lesson.estimated_minutes} min read
                 </span>
               )}
+              {lesson.content_md && !narration.active && !inCall && (
+                <button
+                  type="button"
+                  onClick={narration.play}
+                  className="ml-auto inline-flex items-center gap-1.5 rounded border border-primary-500/40 bg-primary-500/10 px-3 py-1.5 text-xs font-medium text-primary-300 transition-colors hover:bg-primary-500/20"
+                >
+                  <Headphones className="h-3.5 w-3.5" />
+                  Listen with Redwan
+                </button>
+              )}
             </div>
 
             <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
@@ -481,98 +662,8 @@ export default function LessonViewer() {
 
           {/* Markdown Content */}
           {lesson.content_md ? (
-            <div className="prose prose-slate max-w-none">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  h1: ({ children, ...props }) => {
-                    const hId = slugify(children);
-                    return (
-                      <h1
-                        id={hId}
-                        className="mt-8 mb-4 scroll-mt-24 text-2xl font-bold text-ink"
-                        {...props}
-                      >
-                        {children}
-                      </h1>
-                    );
-                  },
-                  h2: ({ children, ...props }) => {
-                    const hId = slugify(children);
-                    return (
-                      <h2
-                        id={hId}
-                        className="mt-7 mb-3 scroll-mt-24 text-xl font-bold text-ink border-b border-line pb-2"
-                        {...props}
-                      >
-                        {children}
-                      </h2>
-                    );
-                  },
-                  h3: ({ children, ...props }) => {
-                    const hId = slugify(children);
-                    return (
-                      <h3
-                        id={hId}
-                        className="mt-6 mb-2 scroll-mt-24 text-lg font-semibold text-ink"
-                        {...props}
-                      >
-                        {children}
-                      </h3>
-                    );
-                  },
-                  p: ({ children, ...props }) => (
-                    <p
-                      className="my-3 leading-relaxed text-body"
-                      {...props}
-                    >
-                      {children}
-                    </p>
-                  ),
-                  ul: ({ children, ...props }) => (
-                    <ul
-                      className="my-3 list-disc list-inside space-y-1 text-body"
-                      {...props}
-                    >
-                      {children}
-                    </ul>
-                  ),
-                  ol: ({ children, ...props }) => (
-                    <ol
-                      className="my-3 list-decimal list-inside space-y-1 text-body"
-                      {...props}
-                    >
-                      {children}
-                    </ol>
-                  ),
-                  code: ({ inline, className, children, ...props }) => {
-                    return inline ? (
-                      <code
-                        className="rounded bg-raised px-1.5 py-0.5 font-mono text-xs text-primary-700"
-                        {...props}
-                      >
-                        {children}
-                      </code>
-                    ) : (
-                      <pre className="my-4 overflow-x-auto rounded-xl bg-canvas p-4 font-mono text-xs text-ink">
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      </pre>
-                    );
-                  },
-                  blockquote: ({ children, ...props }) => (
-                    <blockquote
-                      className="my-4 border-l-4 border-primary-500 bg-primary-500/10 py-2 pl-4 italic text-body"
-                      {...props}
-                    >
-                      {children}
-                    </blockquote>
-                  ),
-                }}
-              >
-                {lesson.content_md}
-              </ReactMarkdown>
+            <div ref={contentRef} className="prose prose-slate max-w-none" data-narration-active={narration.active || undefined}>
+              {renderedLesson}
             </div>
           ) : (
             <EmptyState
@@ -663,7 +754,20 @@ export default function LessonViewer() {
 
         {/* Right Column: Sticky Table of Contents & Lesson Info */}
         <div className="lg:col-span-4">
-          <div className="sticky top-20 space-y-6">
+          <div className="sticky top-20 max-h-[calc(100vh-6rem)] space-y-6 overflow-y-auto pr-1">
+            {lesson.content_md && (
+              <div className="hidden lg:block">
+                <LessonNarrator
+                  variant="panel"
+                  narration={narration}
+                  live={live}
+                  voice={voice}
+                  avatar={avatar}
+                  onAsk={askWhileListening}
+                  onContinue={continueListening}
+                />
+              </div>
+            )}
             {/* Outline Card */}
             {outline.length > 0 && (
               <Card className="p-5">

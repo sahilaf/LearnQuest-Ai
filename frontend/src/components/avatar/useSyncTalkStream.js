@@ -213,6 +213,9 @@ export default function useSyncTalkStream({
   // While any is open the reply is still coming, whatever the audio clock says.
   const openUtterancesRef = useRef(0);
   const holdSinceRef = useRef(null);
+  // Audio scheduled since resetClock(): how much of it has been heard is the
+  // clock a lesson narrator highlights words by.
+  const clockRef = useRef([]);
 
   // Read inside the render loop, so changing them must not restart the stream.
   const fpsRef = useRef(fps);
@@ -374,6 +377,7 @@ export default function useSyncTalkStream({
     const startAt = Math.max(audioCtx.currentTime + PREBUFFER_SECONDS, nextStartRef.current);
     source.start(startAt);
     nextStartRef.current = startAt + buffer.duration;
+    clockRef.current.push({ startAt, duration: buffer.duration });
     sourcesRef.current.add(source);
     source.onended = () => sourcesRef.current.delete(source);
 
@@ -708,6 +712,17 @@ export default function useSyncTalkStream({
     nextStartRef.current = 0;
   }, [interrupt, releaseSegment]);
 
+  /** Start counting heard audio from zero. */
+  const resetClock = useCallback(() => { clockRef.current = []; }, []);
+
+  /** Seconds of audio scheduled since resetClock() that have been played. */
+  const heardSeconds = useCallback(() => {
+    const now = audioCtxRef.current?.currentTime ?? 0;
+    return clockRef.current.reduce(
+      (sum, c) => sum + Math.min(c.duration, Math.max(0, now - c.startAt)), 0,
+    );
+  }, []);
+
   /** Browsers start an AudioContext suspended until a user gesture. */
   const resume = useCallback(() => {
     audioCtxRef.current?.resume?.().catch(() => {});
@@ -715,6 +730,6 @@ export default function useSyncTalkStream({
 
   return {
     canvasRef, status, error, speaking, speak, interrupt, resume,
-    streamAudio, endStream, stopNow, isAudible,
+    streamAudio, endStream, stopNow, isAudible, resetClock, heardSeconds,
   };
 }

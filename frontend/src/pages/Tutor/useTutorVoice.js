@@ -75,6 +75,32 @@ export default function useTutorVoice({ avatarRef, useAvatar, muted }) {
     else player().enqueue(chunk);
   }, [avatarRef, player]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Prepared audio (a lesson narrator's), on whichever path is live. Resolves
+   * once it is handed over - for the face that is paced at real time, for
+   * the speakers it is queued at once - so a caller can await it in a loop.
+   */
+  const playPcm = useCallback(async (pcm) => {
+    if (viaAvatar()) {
+      avatarRef.current.resume?.();
+      await avatarRef.current.speakPcm(pcm, SAMPLE_RATE);
+    } else {
+      player().enqueue(pcm);
+    }
+  }, [avatarRef, player]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Count heard audio from zero, on the path in use. */
+  const resetClock = useCallback(() => {
+    if (viaAvatar()) avatarRef.current.resetClock();
+    else player().resetClock();
+  }, [avatarRef, player]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Seconds heard since resetClock(). */
+  const heardSeconds = useCallback(() => {
+    if (viaAvatar()) return avatarRef.current.heardSeconds();
+    return playerRef.current?.heardSeconds() ?? 0;
+  }, [avatarRef]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /** The live tutor finished a reply. */
   const endStream = useCallback(() => {
     avatarRef.current?.endStream(SAMPLE_RATE);
@@ -92,6 +118,7 @@ export default function useTutorVoice({ avatarRef, useAvatar, muted }) {
 
   return {
     speakText, stop, streamChunk, endStream, isAudible,
+    playPcm, resetClock, heardSeconds,
     synthesizing, avatarLine, onAvatarLineEnd,
   };
 }

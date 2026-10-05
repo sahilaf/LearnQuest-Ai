@@ -390,6 +390,21 @@ get one wrong → the app names your misconception.
       before each reply, resume at `utterance_end`, 3-frame crossfades both ways.
       Verified live on the GPU: idle → speech → idle. 3 tests in
       `test_tts.py::TestAvatarSessionIdle` — @sahilaf, 2026-10-05
+- [x] **Redwan reads lessons aloud.** "Listen with Redwan" on every lesson: he
+      reads it through the avatar (or voice only), the word being said is
+      highlighted and its sentence shaded, the page follows along, and a
+      caption under his face shows the sentence. Pause / Ask / Continue: Ask
+      opens a live call that is told the passage you stopped on (and saved in a
+      conversation attached to the lesson); Continue resumes at that sentence
+      from audio already downloaded. Click any paragraph to read from there.
+      Word timing comes from the audio clock (`heardSeconds` on both voice
+      paths), so it waits through network gaps instead of running ahead.
+      Lesson audio is cached on disk (`purpose: "lesson"`), so a lesson costs
+      TTS quota once. Also fixed: inline `code` in lessons rendered as a code
+      block inside its paragraph (react-markdown 9 dropped `inline`), and the
+      Markdown remounted every paragraph each second.
+      `lib/narration.js`, `pages/Lesson/useLessonNarration.js`,
+      `LessonNarrator.jsx`; 7 unit + 2 E2E + 5 backend tests — @sahilaf, 2026-10-06
 - [x] **Tutor page rebuilt as three tabs: Live conversation, Teach Redwan, Chat.**
       *(Teach Redwan removed 2026-10-06 — see the note at the top.)*
       Nothing connects or plays on page load; the avatar connects only on

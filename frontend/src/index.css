@@ -256,3 +256,29 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* ------------------------------------------------------------------
+ * Lesson narration (pages/Lesson/useLessonNarration.js).
+ * The word Redwan is saying, its sentence more softly, and the block
+ * being read. Highlights are drawn by the browser over the text - no
+ * spans are inserted - so the rendered Markdown is never modified.
+ * ------------------------------------------------------------------ */
+::highlight(narration-sentence) {
+  background-color: rgb(var(--primary-500) / 0.14);
+}
+::highlight(narration-word) {
+  background-color: rgb(var(--primary-500) / 0.45);
+  color: rgb(var(--ink));
+}
+/* Browsers without the Highlight API mark the whole paragraph instead. */
+[data-narrating] {
+  border-radius: 4px;
+  transition: background-color 200ms;
+}
+[data-narrating='fallback'] {
+  background-color: rgb(var(--primary-500) / 0.14);
+}
+/* While reading, a paragraph can be clicked to read from there. */
+[data-narration-active] :is(p, li, h1, h2, h3, h4, blockquote, td, th) {
+  cursor: pointer;
+}

@@ -30,5 +30,9 @@ export const avatarSession = () => client.post('/api/avatar/session');
  *
  * Rejects with 503 when no speech provider is configured.
  */
-export const synthesizeSpeech = (text) =>
-  client.post('/api/avatar/speech', { text }, { responseType: 'arraybuffer' });
+export const synthesizeSpeech = (text, { purpose } = {}) =>
+  client.post(
+    '/api/avatar/speech',
+    purpose ? { text, purpose } : { text },
+    { responseType: 'arraybuffer' },
+  );

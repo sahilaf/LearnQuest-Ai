@@ -36,6 +36,20 @@ class TestLiveInstruction(unittest.TestCase):
         self.assertIn("long-term memory): floats", text)
         self.assertIn("LIVE SPOKEN conversation", text)
 
+    def test_the_paused_lesson_passage_is_in_context(self) -> None:
+        with patch.object(live_tutor, "database_is_configured", return_value=False), patch.object(
+            live_tutor, "build_tutor_context", return_value=_context()
+        ):
+            text = live_tutor.build_live_instruction(
+                USER, None, reading="  A primary key\n uniquely identifies a row. " + "x" * 3000
+            )
+        self.assertIn('"A primary key uniquely identifies a row.', text)
+        self.assertIn("press Continue", text)
+        self.assertLess(len(text), 6000)  # the passage is capped
+
+    def test_no_passage_no_reading_section(self) -> None:
+        self.assertNotIn("paused here", self._build(_context()))
+
     def test_earlier_turns_are_included_in_order(self) -> None:
         text = self._build(_context(
             {"role": "user", "content": "What is 0.1 + 0.2?"},

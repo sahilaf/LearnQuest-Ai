@@ -86,7 +86,7 @@ class LiveSocketTests(unittest.TestCase):
             patch("google.genai.Client", FakeClient),
             patch.object(live, "get_current_user", lambda auth: USER),
             patch.object(live.live_tutor, "resolve_conversation_id", lambda uid, ref: (CONV_ID, 7)),
-            patch.object(live.live_tutor, "build_live_instruction", lambda uid, cid: "context"),
+            patch.object(live.live_tutor, "build_live_instruction", lambda uid, cid, reading=None: "context"),
             patch.object(live.live_tutor, "save_turn", lambda cid, u, t: self.saved.append((cid, u, t))),
         ]
         for p in patches:

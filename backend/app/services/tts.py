@@ -25,12 +25,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import logging
 import os
 import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.config import settings
 
@@ -78,6 +80,49 @@ REQUEST_TIMEOUT_SECONDS = 45.0
 _CACHE_MAX_ENTRIES = 32
 _cache: OrderedDict[tuple[str, str], "Speech"] = OrderedDict()
 _cache_lock = asyncio.Lock()
+
+# Lesson narration is the same text for every student, read again on every
+# replay, so it is also kept on disk: a lesson costs TTS quota once, not once
+# per listen and per restart. Only callers that ask for it (persist=True) use
+# this - chat replies are one-off and stay in memory.
+_DISK_CACHE_MAX_FILES = 400
+
+
+def _disk_cache_dir() -> Path:
+    return Path(os.getenv("TTS_CACHE_DIR") or Path(__file__).resolve().parents[2] / ".cache" / "tts")
+
+
+def _disk_path(text: str, voice: str) -> Path:
+    digest = hashlib.sha256(f"{voice}|{text}".encode("utf-8")).hexdigest()
+    return _disk_cache_dir() / f"{digest}.pcm"
+
+
+def _disk_read(text: str, voice: str) -> "Speech | None":
+    path = _disk_path(text, voice)
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    # File layout: 4-byte little-endian sample rate, then the PCM.
+    if len(data) < 6:
+        return None
+    path.touch(exist_ok=True)  # recently used - pruned last
+    return Speech(pcm=data[4:], sample_rate=int.from_bytes(data[:4], "little"))
+
+
+def _disk_write(text: str, voice: str, speech: "Speech") -> None:
+    try:
+        folder = _disk_cache_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        path = _disk_path(text, voice)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(speech.sample_rate.to_bytes(4, "little") + speech.pcm)
+        tmp.replace(path)
+        files = sorted(folder.glob("*.pcm"), key=lambda f: f.stat().st_mtime)
+        for old in files[:-_DISK_CACHE_MAX_FILES]:
+            old.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("Could not cache speech on disk: %s", exc)
 
 
 @dataclass(frozen=True)
@@ -170,11 +215,12 @@ def _unwrap_wav(data: bytes) -> tuple[bytes, int] | None:
     return None
 
 
-async def synthesize(text: str, *, voice: str | None = None) -> Speech | None:
+async def synthesize(text: str, *, voice: str | None = None, persist: bool = False) -> Speech | None:
     """Speak `text`. Returns None whenever speech is not available.
 
     Never raises: a tutor that cannot find its voice should fall silent, not
-    take the request down with it.
+    take the request down with it. `persist` also keeps the audio on disk
+    (lesson narration - see _disk_read).
     """
     clean = (text or "").strip()
     if not clean:
@@ -202,6 +248,13 @@ async def synthesize(text: str, *, voice: str | None = None) -> Speech | None:
         if cached is not None:
             _cache.move_to_end(key)
             return cached
+
+    if persist:
+        stored = await asyncio.to_thread(_disk_read, clean, chosen_voice)
+        if stored is not None:
+            async with _cache_lock:
+                _cache[key] = stored
+            return stored
 
     from app.services.llm_client import get_http_client
 
@@ -281,6 +334,8 @@ async def synthesize(text: str, *, voice: str | None = None) -> Speech | None:
         _cache[key] = speech
         while len(_cache) > _CACHE_MAX_ENTRIES:
             _cache.popitem(last=False)
+    if persist:
+        await asyncio.to_thread(_disk_write, clean, chosen_voice, speech)
 
     return speech
 

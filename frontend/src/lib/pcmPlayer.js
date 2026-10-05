@@ -13,6 +13,9 @@ export function createPcmPlayer(sampleRate = 24000) {
   gain.connect(ctx.destination);
   let nextStart = 0;
   let sources = [];
+  // What has been scheduled since resetClock(), so a narrator can tell how
+  // much of its audio has actually been heard (see heardSeconds).
+  let clock = [];
 
   return {
     /** Queue one chunk (ArrayBuffer of int16 PCM). */
@@ -31,6 +34,7 @@ export function createPcmPlayer(sampleRate = 24000) {
       const startAt = nextStart > ctx.currentTime ? nextStart : ctx.currentTime + 0.25;
       source.start(startAt);
       nextStart = startAt + audio.duration;
+      clock.push({ startAt, duration: audio.duration });
       sources.push(source);
       source.onended = () => { sources = sources.filter((s) => s !== source); };
     },
@@ -38,6 +42,13 @@ export function createPcmPlayer(sampleRate = 24000) {
     isPlaying: () => ctx.currentTime < nextStart + 0.35,
     /** Seconds until the queue runs dry. */
     remaining: () => Math.max(0, nextStart - ctx.currentTime),
+    /** Start counting heard audio from zero. */
+    resetClock() { clock = []; },
+    /** Seconds of audio queued since resetClock() that have been played. */
+    heardSeconds() {
+      const now = ctx.currentTime;
+      return clock.reduce((sum, c) => sum + Math.min(c.duration, Math.max(0, now - c.startAt)), 0);
+    },
     /** Silence everything now (the student interrupted). */
     stop() {
       sources.forEach((s) => { try { s.stop(); } catch { /* already ended */ } });

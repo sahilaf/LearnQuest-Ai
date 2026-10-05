@@ -8,6 +8,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+# Lesson narration audio (services/tts.py)
+backend/.cache/
 
 # ---- Secrets ----
 .env

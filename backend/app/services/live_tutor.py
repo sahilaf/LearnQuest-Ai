@@ -48,7 +48,22 @@ def live_model() -> str:
     return os.getenv("LIVE_MODEL", DEFAULT_LIVE_MODEL)
 
 
-def build_live_instruction(user_id: uuid.UUID, conversation_id: uuid.UUID | None) -> str:
+# The lesson page pauses its narration to open a call; this is where it stopped.
+MAX_READING_CHARS = 1500
+
+READING_ADDENDUM = """The student was listening to you read this lesson aloud and paused here
+to ask you something:
+
+"{reading}"
+
+Their question is most likely about this passage. Answer it briefly and plainly.
+When they say they understand, tell them to press Continue to carry on with the
+lesson - do not continue reading the lesson yourself."""
+
+
+def build_live_instruction(
+    user_id: uuid.UUID, conversation_id: uuid.UUID | None, reading: str | None = None
+) -> str:
     """One system instruction carrying the whole tutor context."""
     db = get_session_factory()() if database_is_configured() else None
     try:
@@ -62,6 +77,9 @@ def build_live_instruction(user_id: uuid.UUID, conversation_id: uuid.UUID | None
 
     parts = [system[0] if system else "", LIVE_ADDENDUM]
     parts.extend(system[1:])  # the rolling summary, when there is one
+    reading = " ".join(str(reading or "").split())[:MAX_READING_CHARS]
+    if reading:
+        parts.append(READING_ADDENDUM.format(reading=reading))
 
     if turns:
         lines: list[str] = []

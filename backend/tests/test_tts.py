@@ -253,7 +253,7 @@ class TestSpeechEndpoint(TTSTestBase):
         pcm = b"\x01\x02" * 24000
         speech = tts.Speech(pcm=pcm, sample_rate=24000)
 
-        async def _fake(text):  # noqa: ANN001
+        async def _fake(text, **kwargs):  # noqa: ANN001
             return speech
 
         with patch("app.routers.avatar.synthesize", _fake):
@@ -264,8 +264,22 @@ class TestSpeechEndpoint(TTSTestBase):
         self.assertEqual(response.headers["X-Sample-Rate"], "24000")
         self.assertIn("rate=24000", response.headers["content-type"])
 
+    def test_only_lesson_narration_is_kept_on_disk(self) -> None:
+        seen: list[bool] = []
+
+        async def _fake(text, persist=False, **kwargs):  # noqa: ANN001
+            seen.append(persist)
+            return tts.Speech(pcm=b"\x01\x02" * 10, sample_rate=24000)
+
+        with patch("app.routers.avatar.synthesize", _fake):
+            client = self._client()
+            client.post("/api/avatar/speech", json={"text": "a chat reply"})
+            client.post("/api/avatar/speech", json={"text": "a lesson line", "purpose": "lesson"})
+
+        self.assertEqual(seen, [False, True])
+
     def test_mismatched_rate_is_refused_rather_than_shipped(self) -> None:
-        async def _fake(text):  # noqa: ANN001
+        async def _fake(text, **kwargs):  # noqa: ANN001
             return tts.Speech(pcm=b"\x00\x01" * 100, sample_rate=16000)
 
         with patch("app.routers.avatar.synthesize", _fake):
@@ -274,7 +288,7 @@ class TestSpeechEndpoint(TTSTestBase):
         self.assertEqual(response.status_code, 503)
 
     def test_no_voice_is_a_503(self) -> None:
-        async def _fake(text):  # noqa: ANN001
+        async def _fake(text, **kwargs):  # noqa: ANN001
             return None
 
         with patch("app.routers.avatar.synthesize", _fake):
@@ -363,3 +377,39 @@ class TestAvatarSessionIdle(TTSTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLessonDiskCache(TTSTestBase):
+    """Lesson narration is paid for once, then read from disk."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        import tempfile
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = patch.dict("os.environ", {"TTS_CACHE_DIR": self.tmp.name})
+        self.env.start()
+
+    def tearDown(self) -> None:
+        self.env.stop()
+        self.tmp.cleanup()
+        super().tearDown()
+
+    def test_lesson_audio_survives_a_restart_without_a_second_call(self) -> None:
+        pcm = b"\x01\x02" * 2400
+        http = _FakeHTTP(_Response(200, _audio_payload(pcm)))
+        with patch("app.services.llm_client.get_http_client", return_value=http):
+            first = _run(tts.synthesize("A primary key identifies a row.", persist=True))
+            tts.clear_cache()  # what a backend restart does to the memory cache
+            again = _run(tts.synthesize("A primary key identifies a row.", persist=True))
+
+        self.assertEqual(len(http.calls), 1)
+        self.assertEqual((again.pcm, again.sample_rate), (first.pcm, 24000))
+
+    def test_chat_replies_are_not_written_to_disk(self) -> None:
+        import os
+
+        http = _FakeHTTP(_Response(200, _audio_payload(b"\x01\x02" * 100)))
+        with patch("app.services.llm_client.get_http_client", return_value=http):
+            _run(tts.synthesize("Just a chat reply."))
+        self.assertEqual(os.listdir(self.tmp.name), [])

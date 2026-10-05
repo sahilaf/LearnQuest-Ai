@@ -143,7 +143,8 @@ export default function useLiveConversation({ voice }) {
     }
   }, [appendTranscript, fail]);
 
-  const start = useCallback(async (conversationRef) => {
+  // `reading`: the lesson passage the student paused on, for the tutor's context.
+  const start = useCallback(async (conversationRef, { reading = null } = {}) => {
     if (statusRef.current === LIVE_STATUS.CONNECTING || statusRef.current === LIVE_STATUS.LIVE) return;
     setError(null);
     setTurns([]);
@@ -176,7 +177,9 @@ export default function useLiveConversation({ voice }) {
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
     ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'start', token, conversation: conversationRef ?? null }));
+      ws.send(JSON.stringify({
+        type: 'start', token, conversation: conversationRef ?? null, ...(reading ? { reading } : {}),
+      }));
     };
     ws.onmessage = (msg) => {
       if (typeof msg.data === 'string') {
