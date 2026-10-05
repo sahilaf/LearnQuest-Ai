@@ -71,8 +71,12 @@ class TTSTestBase(unittest.TestCase):
             tts.settings, llm_provider="gemini", llm_api_key="test-key"
         )
         self.gemini.start()
+        # Gemini only, whatever backend/.env says about the local voice.
+        self.no_local = patch.dict("os.environ", {"LOCAL_TTS_URL": "", "TTS_PREFER": ""})
+        self.no_local.start()
 
     def tearDown(self) -> None:
+        self.no_local.stop()
         self.gemini.stop()
         tts.clear_cache()
 
@@ -413,3 +417,72 @@ class TestLessonDiskCache(TTSTestBase):
         with patch("app.services.llm_client.get_http_client", return_value=http):
             _run(tts.synthesize("Just a chat reply."))
         self.assertEqual(os.listdir(self.tmp.name), [])
+
+
+class _LocalResponse:
+    def __init__(self, status_code=200, content=b"", rate="24000"):
+        self.status_code = status_code
+        self.content = content
+        self.headers = {"X-Sample-Rate": rate} if rate else {}
+        self.text = ""
+
+
+class _Router:
+    """Answers the local Kokoro service and Gemini differently, and records both."""
+
+    def __init__(self, local, gemini):
+        self.local, self.gemini, self.calls = local, gemini, []
+
+    async def post(self, url, **kwargs):
+        local = url.endswith("/speak")
+        self.calls.append("local" if local else "gemini")
+        answer = self.local if local else self.gemini
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+class TestLocalVoice(TTSTestBase):
+    """The free local Kokoro voice goes first; Gemini is the fallback."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.local_on = patch.dict("os.environ", {"LOCAL_TTS_URL": "http://127.0.0.1:5002"})
+        self.local_on.start()
+
+    def tearDown(self) -> None:
+        self.local_on.stop()
+        super().tearDown()
+
+    def test_local_voice_is_used_first_and_gemini_is_not_billed(self) -> None:
+        router = _Router(_LocalResponse(content=b"" * 2400), _Response(200, _audio_payload(b"		")))
+        with patch("app.services.llm_client.get_http_client", return_value=router):
+            speech = _run(tts.synthesize("A primary key identifies a row."))
+        self.assertEqual(router.calls, ["local"])
+        self.assertEqual((speech.pcm, speech.sample_rate), (b"" * 2400, 24000))
+
+    def test_falls_back_to_gemini_when_the_local_voice_is_down(self) -> None:
+        router = _Router(ConnectionError("refused"), _Response(200, _audio_payload(b"		" * 10)))
+        with patch("app.services.llm_client.get_http_client", return_value=router):
+            first = _run(tts.synthesize("First line."))
+            _run(tts.synthesize("Second line."))
+        self.assertEqual(first.pcm, b"		" * 10)
+        # Down is remembered: the second line does not wait on a dead port again.
+        self.assertEqual(router.calls, ["local", "gemini", "gemini"])
+
+    def test_a_local_answer_without_a_rate_is_refused(self) -> None:
+        router = _Router(_LocalResponse(content=b"", rate=""), _Response(429, {}, "quota"))
+        with patch("app.services.llm_client.get_http_client", return_value=router):
+            self.assertIsNone(_run(tts.synthesize("No rate given.")))
+
+    def test_local_voice_alone_counts_as_available(self) -> None:
+        with patch.multiple(tts.settings, llm_provider="openai", llm_api_key=""):
+            self.assertTrue(tts.is_available())
+
+    def test_prefer_gemini_reverses_the_order(self) -> None:
+        router = _Router(_LocalResponse(content=b""), _Response(200, _audio_payload(b"		")))
+        with patch.dict("os.environ", {"TTS_PREFER": "gemini"}), patch(
+            "app.services.llm_client.get_http_client", return_value=router
+        ):
+            _run(tts.synthesize("Gemini first, please."))
+        self.assertEqual(router.calls, ["gemini"])

@@ -83,3 +83,7 @@ credentials.txt
 
 # dev.ps1 service logs
 .logs/
+
+# Kokoro model files and venv (tts-service/README)
+tts-service/models/
+tts-service/.venv/

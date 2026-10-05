@@ -32,17 +32,39 @@ import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from app.config import settings
 
 logger = logging.getLogger("learnquest.tts")
 
+
+@lru_cache(maxsize=1)
+def _dotenv() -> dict[str, str]:
+    from dotenv import dotenv_values
+
+    path = Path(__file__).resolve().parents[2] / ".env"
+    return {k: v for k, v in dotenv_values(path).items() if v is not None} if path.exists() else {}
+
+
+def _env(name: str, default: str = "") -> str:
+    """A TTS setting: the process environment, else backend/.env.
+
+    These are read here rather than added to config.py (a shared file), but
+    os.getenv alone never sees .env - pydantic loads it into `settings` only -
+    so a TTS_MODEL or LOCAL_TTS_URL written there used to be ignored. Set but
+    empty in the environment means "off", whatever .env says.
+    """
+    if name in os.environ:
+        return os.environ[name]
+    return _dotenv().get(name, default)
+
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
 # A distinct model from the chat one: the ordinary text models reject
 # responseModalities: ["AUDIO"]. Overridable through the environment so a model
-# rename does not need a code change - and read with os.getenv rather than added
+# rename does not need a code change - and read with _env() rather than added
 # to config.py, which is a shared file.
 #
 # 3.8 Flash Lite, measured 2026-10-05 against 2.5 Flash Preview on the same key:
@@ -138,12 +160,12 @@ class Speech:
 
 
 def tts_model() -> str:
-    return os.getenv("TTS_MODEL", DEFAULT_TTS_MODEL)
+    return _env("TTS_MODEL", DEFAULT_TTS_MODEL)
 
 
 def tts_models() -> list[str]:
     """The configured model, then `TTS_FALLBACK_MODELS`, without repeats."""
-    fallbacks = os.getenv("TTS_FALLBACK_MODELS", DEFAULT_TTS_FALLBACK_MODELS)
+    fallbacks = _env("TTS_FALLBACK_MODELS", DEFAULT_TTS_FALLBACK_MODELS)
     models = [tts_model(), *(m.strip() for m in fallbacks.split(","))]
     return list(dict.fromkeys(m for m in models if m))
 
@@ -161,7 +183,33 @@ def _retry_delay(response) -> float:  # noqa: ANN001
 
 
 def tts_voice() -> str:
-    return os.getenv("TTS_VOICE", DEFAULT_VOICE)
+    return _env("TTS_VOICE", DEFAULT_VOICE)
+
+
+# The local Kokoro service (tts-service/). Free and unlimited, so it goes first
+# when configured; Gemini is the fallback. TTS_PREFER=gemini reverses that.
+LOCAL_TIMEOUT_SECONDS = 60.0
+LOCAL_RETRY_SECONDS = 30.0
+_local_down_until: dict[str, float] = {}
+
+
+def local_tts_url() -> str:
+    return _env("LOCAL_TTS_URL").strip()
+
+
+def local_voice() -> str:
+    return _env("LOCAL_TTS_VOICE", "am_michael")
+
+
+def _gemini_configured() -> bool:
+    return settings.llm_provider.lower() == "gemini" and bool(settings.llm_api_key)
+
+
+def _providers() -> list[str]:
+    order = ["local", "gemini"]
+    if _env("TTS_PREFER").strip().lower() == "gemini":
+        order.reverse()
+    return [p for p in order if (p == "local" and local_tts_url()) or (p == "gemini" and _gemini_configured())]
 
 
 def is_available() -> bool:
@@ -174,7 +222,7 @@ def is_available() -> bool:
 
     if e2e_enabled():
         return True
-    return settings.llm_provider.lower() == "gemini" and bool(settings.llm_api_key)
+    return bool(local_tts_url()) or _gemini_configured()
 
 
 def _parse_sample_rate(mime_type: str) -> int | None:
@@ -240,21 +288,52 @@ async def synthesize(text: str, *, voice: str | None = None, persist: bool = Fal
         return Speech(pcm=e2e_fakes.tone_pcm(e2e_fakes.fake_speech_seconds(clean)),
                       sample_rate=e2e_fakes.SAMPLE_RATE)
 
-    chosen_voice = voice or tts_voice()
-    key = (clean, chosen_voice)
+    for provider in _providers():
+        provider_voice = local_voice() if provider == "local" else (voice or tts_voice())
+        # Keyed by provider and voice: a Kokoro line and a Gemini line of the
+        # same text are different audio.
+        voice_key = f"kokoro:{provider_voice}" if provider == "local" else provider_voice
+        key = (clean, voice_key)
 
-    async with _cache_lock:
-        cached = _cache.get(key)
-        if cached is not None:
-            _cache.move_to_end(key)
-            return cached
+        async with _cache_lock:
+            cached = _cache.get(key)
+            if cached is not None:
+                _cache.move_to_end(key)
+                return cached
 
-    if persist:
-        stored = await asyncio.to_thread(_disk_read, clean, chosen_voice)
-        if stored is not None:
-            async with _cache_lock:
-                _cache[key] = stored
-            return stored
+        if persist:
+            stored = await asyncio.to_thread(_disk_read, clean, voice_key)
+            if stored is not None:
+                async with _cache_lock:
+                    _cache[key] = stored
+                return stored
+
+        if provider == "local":
+            speech = await _local_speech(clean, provider_voice)
+        else:
+            speech = await _gemini_speech(clean, provider_voice)
+        if speech is None:
+            continue
+
+        logger.info(
+            "Synthesized %.2fs at %d Hz for %d chars via %s",
+            speech.duration_seconds, speech.sample_rate, len(clean), provider,
+        )
+        async with _cache_lock:
+            _cache[key] = speech
+            while len(_cache) > _CACHE_MAX_ENTRIES:
+                _cache.popitem(last=False)
+        if persist:
+            await asyncio.to_thread(_disk_write, clean, voice_key, speech)
+        return speech
+
+    return None
+
+
+async def _gemini_speech(clean: str, chosen_voice: str) -> Speech | None:
+    """One line from Gemini TTS, trying each model in the fallback chain."""
+    if not _gemini_configured():
+        return None
 
     from app.services.llm_client import get_http_client
 
@@ -322,25 +401,43 @@ async def synthesize(text: str, *, voice: str | None = None, persist: bool = Fal
     if not pcm:
         return None
 
-    speech = Speech(pcm=pcm, sample_rate=sample_rate)
-    logger.info(
-        "Synthesized %.2fs at %d Hz for %d chars",
-        speech.duration_seconds,
-        sample_rate,
-        len(clean),
-    )
+    return Speech(pcm=pcm, sample_rate=sample_rate)
 
-    async with _cache_lock:
-        _cache[key] = speech
-        while len(_cache) > _CACHE_MAX_ENTRIES:
-            _cache.popitem(last=False)
-    if persist:
-        await asyncio.to_thread(_disk_write, clean, chosen_voice, speech)
 
-    return speech
+async def _local_speech(clean: str, chosen_voice: str) -> Speech | None:
+    """One line from the local Kokoro service (tts-service/), or None."""
+    url = local_tts_url()
+    if not url or _local_down_until.get("local", 0.0) > time.monotonic():
+        return None
+    from app.services.llm_client import get_http_client
+
+    try:
+        response = await get_http_client().post(
+            f"{url.rstrip('/')}/speak",
+            json={"text": clean, "voice": chosen_voice},
+            timeout=LOCAL_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Not running: say so once, then leave it alone for a while rather
+        # than paying a failed connection on every line.
+        _local_down_until["local"] = time.monotonic() + LOCAL_RETRY_SECONDS
+        logger.warning("Local TTS at %s unreachable (%s); using Gemini", url, exc)
+        return None
+    if response.status_code != 200:
+        logger.warning("Local TTS returned %s: %s", response.status_code, response.text[:200])
+        return None
+    try:
+        rate = int(response.headers.get("X-Sample-Rate", "0"))
+    except ValueError:
+        rate = 0
+    if not rate or not response.content:
+        logger.warning("Local TTS gave no audio or no rate; refusing to guess")
+        return None
+    return Speech(pcm=response.content, sample_rate=rate)
 
 
 def clear_cache() -> None:
     """Drop cached audio and quota state. Used by tests."""
     _cache.clear()
     _exhausted_until.clear()
+    _local_down_until.clear()

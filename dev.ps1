@@ -1,15 +1,17 @@
-# Start LearnQuest - avatar service, backend and frontend - with one command.
+# Start LearnQuest - avatar service, voice, backend and frontend - with one command.
 #
 #   .\dev.ps1              everything, including the Alapon avatar (needs the GPU)
-#   .\dev.ps1 -NoAvatar    backend + frontend only; the tutor shows "avatar offline"
+#   .\dev.ps1 -NoAvatar    no avatar; the tutor shows "avatar offline"
+#   .\dev.ps1 -NoVoice     no local Kokoro voice; speech uses Gemini TTS (daily quota)
 #
 # Each service logs to .logs\<name>.log. Ctrl+C stops all of them.
 #
-# Already running something on 5001, 8000 or 5173? That service is left alone
+# Already running something on 5001, 5002, 8000 or 5173? That service is left alone
 # and reused, so you can restart just one piece by stopping it and re-running.
 
 param(
     [switch]$NoAvatar,
+    [switch]$NoVoice,
     [switch]$NoBrowser
 )
 
@@ -97,6 +99,19 @@ if ($avatar) {
     }
 }
 
+# The local voice (tts-service/: Kokoro on the CPU, free, no quota). Optional:
+# without it, speech falls back to Gemini TTS.
+$voicePy = Join-Path $root "tts-service\.venv\Scripts\python.exe"
+$voice = -not $NoVoice
+if ($voice) {
+    $voiceModel = Join-Path $root "tts-service\models\kokoro-v1.0.onnx"
+    if (-not (Test-Path $voicePy) -or -not (Test-Path $voiceModel)) {
+        Say "Local voice (tts-service) not set up - speech will use Gemini TTS and its daily quota." "Yellow"
+        Say "  (setup: tts-service\README.md, or pass -NoVoice to silence this)" "DarkGray"
+        $voice = $false
+    }
+}
+
 Say ""
 Say "Starting LearnQuest..." "Cyan"
 
@@ -114,6 +129,16 @@ if ($avatar) {
     }
 }
 
+# --- Local voice (Kokoro, loads in a couple of seconds) ----------------------
+if ($voice) {
+    if (Test-Port 5002) {
+        Say "  voice    already running on :5002 - reusing it"
+    } else {
+        $env:PYTHONUNBUFFERED = "1"
+        Start-DevService "voice" $voicePy @("server.py") (Join-Path $root "tts-service")
+    }
+}
+
 # --- Backend ---------------------------------------------------------------
 if (Test-Port 8000) {
     Say "  backend  already running on :8000 - reusing it"
@@ -121,6 +146,9 @@ if (Test-Port 8000) {
     # An empty AVATAR_SERVICE_URL overrides backend/.env, so the app reports
     # "avatar offline" immediately instead of probing a service that is not there.
     if (-not $avatar) { $env:AVATAR_SERVICE_URL = "" }
+    # Likewise for the voice: point the backend at it, or switch it off so
+    # every line goes straight to Gemini instead of trying a dead port first.
+    $env:LOCAL_TTS_URL = if ($voice) { "http://127.0.0.1:5002" } else { "" }
     Start-DevService "backend" $backendPy @("-m", "uvicorn", "app.main:app", "--reload", "--port", "8000") (Join-Path $root "backend")
 }
 
@@ -133,7 +161,7 @@ if (Test-Port 5173) {
 
 # --- Wait until each one is really up --------------------------------------
 Say ""
-$ready = @{ backend = $false; frontend = $false; avatar = (-not $avatar) }
+$ready = @{ backend = $false; frontend = $false; avatar = (-not $avatar); voice = (-not $voice) }
 $browserOpened = $NoBrowser
 $t0 = Get-Date
 
@@ -155,6 +183,10 @@ try {
             $ready.frontend = $true
             Say "  frontend ready   http://localhost:5173" "Green"
         }
+        if (-not $ready.voice -and (Get-Health "http://127.0.0.1:5002/health")) {
+            $ready.voice = $true
+            Say "  voice    ready   Kokoro (local, free)" "Green"
+        }
         if (-not $ready.avatar) {
             $health = Get-Health "http://127.0.0.1:5001/health"
             if ($health -and $health.models_loaded -and $health.idle_cache.ready) {
@@ -170,7 +202,7 @@ try {
                 Say "  (avatar still loading - about 2 minutes; the tutor page shows it once ready, reload if needed)" "DarkGray"
             }
         }
-        if ($ready.backend -and $ready.frontend -and $ready.avatar -and -not $announced) {
+        if ($ready.backend -and $ready.frontend -and $ready.avatar -and $ready.voice -and -not $announced) {
             $announced = $true
             Say ""
             Say "Everything is up ($([int]((Get-Date) - $t0).TotalSeconds)s). Logs in .logs\  -  Ctrl+C to stop all." "Cyan"
@@ -185,7 +217,7 @@ try {
 }
 finally {
     # Runs on Ctrl+C too. /T takes the children with it: uvicorn's reloader,
-    # npm's node, run.ps1's python.
+    # npm's node, run.ps1's python, the voice server.
     if ($started.Count) { Say ""; Say "Stopping..." "Cyan" }
     foreach ($svc in $started) {
         if (-not $svc.Process.HasExited) {
