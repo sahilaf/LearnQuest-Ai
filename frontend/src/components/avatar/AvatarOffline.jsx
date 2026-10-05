@@ -31,7 +31,7 @@ export default function AvatarOffline({ reason = null, compact = false, onBack =
   return (
     <div className={`panel w-full ${fill ? 'flex w-full flex-col lg:h-full' : 'aspect-square'}`}>
       <div className="panel-head">
-        <span className="label">Tutor</span>
+        <span className="label">Redwan</span>
         <span className="flex items-center gap-2 text-2xs font-medium text-faint">
           <span className="h-1.5 w-1.5 rounded-full bg-faint" />
           Offline

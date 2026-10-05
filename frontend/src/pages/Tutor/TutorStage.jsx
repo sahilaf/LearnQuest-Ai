@@ -13,7 +13,7 @@ import { Video, Volume2, VolumeX } from 'lucide-react';
 import AvatarStage from '../../components/avatar/AvatarStage';
 import { LiveStatusChip } from './LiveStatus';
 
-function StillPresence({ state, level, onConnect, muted, onToggleMute, compact, fill }) {
+function StillPresence({ state, level, onConnect, muted, onToggleMute, compact, fill, note = 'Voice only' }) {
   return (
     <div className={`panel ${fill ? 'flex w-full flex-col lg:h-full' : 'w-full'}`}>
       <div className="panel-head">
@@ -28,14 +28,16 @@ function StillPresence({ state, level, onConnect, muted, onToggleMute, compact, 
           >
             {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
-          <button
-            type="button"
-            onClick={onConnect}
-            className="inline-flex items-center gap-1.5 rounded border border-line-strong px-2.5 py-1 text-xs font-medium text-body transition-colors hover:border-muted hover:text-ink"
-          >
-            <Video className="h-3.5 w-3.5" />
-            Connect video
-          </button>
+          {onConnect && (
+            <button
+              type="button"
+              onClick={onConnect}
+              className="inline-flex items-center gap-1.5 rounded border border-line-strong px-2.5 py-1 text-xs font-medium text-body transition-colors hover:border-muted hover:text-ink"
+            >
+              <Video className="h-3.5 w-3.5" />
+              Connect video
+            </button>
+          )}
         </div>
       </div>
       <div className={`relative w-full overflow-hidden bg-canvas ${fill ? 'aspect-[4/3] lg:aspect-auto lg:min-h-0 lg:flex-1' : `aspect-[4/3] ${compact ? '' : 'lg:aspect-square'}`}`}>
@@ -50,7 +52,7 @@ function StillPresence({ state, level, onConnect, muted, onToggleMute, compact, 
           />
         </picture>
         <span className="absolute right-3 top-3 rounded-pill bg-canvas/80 px-2 py-0.5 text-2xs text-muted backdrop-blur">
-          Voice only
+          {note}
         </span>
         <div className="absolute inset-x-3 bottom-3">
           <LiveStatusChip state={state} level={level} />
@@ -74,13 +76,18 @@ export default function TutorStage({
   onToggleMute,
   compact = false,
   fill = false,
+  // false: no Connect button - the page connects video itself, and shows
+  // the still (voice only) while it connects or if it cannot.
+  showConnect = true,
+  onReady = null,
+  onOffline = null,
 }) {
   if (!connected) {
     return (
       <StillPresence
         state={state}
         level={level}
-        onConnect={onConnect}
+        onConnect={showConnect ? onConnect : null}
         muted={muted}
         onToggleMute={onToggleMute}
         compact={compact}
@@ -88,6 +95,18 @@ export default function TutorStage({
       />
     );
   }
+  const still = (phase) => (
+    <StillPresence
+      state={state}
+      level={level}
+      onConnect={null}
+      muted={muted}
+      onToggleMute={onToggleMute}
+      compact={compact}
+      fill={fill}
+      note={phase === 'checking' ? 'Connecting video...' : 'Voice only'}
+    />
+  );
   return (
     <AvatarStage
       connected
@@ -102,6 +121,9 @@ export default function TutorStage({
       overlay={<LiveStatusChip state={state} level={level} />}
       compact={compact}
       fill={fill}
+      offlineFallback={showConnect ? null : still}
+      onReady={onReady}
+      onOffline={onOffline}
     />
   );
 }

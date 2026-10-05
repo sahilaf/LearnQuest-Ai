@@ -100,8 +100,10 @@ test('half the screen is Redwan; the lesson scrolls in the other half, the page 
   expect(Math.abs(a.width - b.width)).toBeLessThan(40);
   expect(b.x).toBeGreaterThan(a.x + a.width - 1);
 
-  // Before starting, the controls are explained in plain words.
+  // Before starting, the controls are explained in plain words, and there
+  // is one thing to press: video connects with Play, not with its own button.
   await expect(page.getByText('Did not get something? Press Ask', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Connect video' })).toHaveCount(0);
 
   // Scrolling the lesson moves the lesson only; Redwan stays where he was.
   const pane = lesson.locator('.overflow-y-auto').first();

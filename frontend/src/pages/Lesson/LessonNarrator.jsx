@@ -14,7 +14,7 @@
  * On phones the face is left out (voice only) so the text keeps the screen;
  * the card sits above the lesson.
  */
-import { Hand, Headphones, Mic, MicOff, Pause, Play, RotateCcw, Square, Video } from 'lucide-react';
+import { Hand, Headphones, Mic, MicOff, Pause, Play, RotateCcw, Square } from 'lucide-react';
 
 import LivePanel from '../Tutor/LivePanel';
 import { LIVE_STATES, liveStateOf } from '../Tutor/LiveStatus';
@@ -67,7 +67,7 @@ const PRIMARY = 'inline-flex items-center justify-center gap-2 rounded bg-primar
 const SECONDARY = 'inline-flex items-center justify-center gap-1.5 rounded border border-line-strong px-3 py-2.5 text-sm font-medium text-body transition-colors hover:border-muted hover:text-ink disabled:opacity-40';
 
 /** Before anything starts: what this is and how to use it, in three lines. */
-function HowItWorks({ onStart, canRead }) {
+function HowItWorks({ onStart, canRead, preparing }) {
   const steps = [
     { icon: Play, title: 'Play', body: 'Redwan reads the lesson aloud. The word he is saying lights up in the text.' },
     { icon: Hand, title: 'Ask', body: 'Did not get something? Press Ask and say your question out loud.' },
@@ -96,19 +96,21 @@ function HowItWorks({ onStart, canRead }) {
           </li>
         ))}
       </ol>
-      <button type="button" onClick={onStart} disabled={!canRead} className={`${PRIMARY} w-full`}>
-        <Play className="h-4 w-4" />
-        Start listening
+      <button type="button" onClick={onStart} disabled={!canRead || preparing} className={`${PRIMARY} w-full`}>
+        {preparing ? (
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+        ) : (
+          <Play className="h-4 w-4" />
+        )}
+        {preparing ? 'Connecting Redwan...' : 'Start listening'}
       </button>
-      <p className="hidden items-center gap-1.5 text-xs text-faint lg:flex">
-        <Video className="h-3.5 w-3.5" />
-        Want to see him talk? Press Connect video on his picture. Optional.
-      </p>
     </div>
   );
 }
 
-export default function LessonNarrator({ narration, live, voice, onAsk, onContinue, avatar, canRead = true }) {
+export default function LessonNarrator({
+  narration, live, voice, onAsk, onContinue, onStart, preparing = false, avatar, canRead = true,
+}) {
   const inCall = live.status === LIVE_STATUS.LIVE || live.status === LIVE_STATUS.CONNECTING;
   const line = statusLine(narration, inCall, live);
   const started = narration.active || inCall;
@@ -116,7 +118,7 @@ export default function LessonNarrator({ narration, live, voice, onAsk, onContin
 
   let card;
   if (!started) {
-    card = <HowItWorks onStart={narration.play} canRead={canRead} />;
+    card = <HowItWorks onStart={onStart} canRead={canRead} preparing={preparing} />;
   } else if (inCall) {
     card = (
       <div className="space-y-3">
@@ -193,12 +195,13 @@ export default function LessonNarrator({ narration, live, voice, onAsk, onContin
       {/* The face: half the screen on wide screens; left out on phones. */}
       <div className="hidden min-h-0 flex-1 lg:flex lg:flex-col">
         <TutorStage
-          state={narratorStageState(narration, live)}
+          state={preparing ? 'connecting' : narratorStageState(narration, live)}
           level={live.level}
           connected={avatar.connected}
-          onConnect={avatar.connect}
           onDisconnect={avatar.disconnect}
-          onAvailabilityChange={avatar.setLive}
+          showConnect={false}
+          onReady={avatar.onReady}
+          onOffline={avatar.onOffline}
           controllerRef={avatar.ref}
           avatarLine={voice.avatarLine}
           onAvatarLineEnd={voice.onAvatarLineEnd}

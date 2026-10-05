@@ -13,7 +13,7 @@
  * Once connected the avatar either runs or says why it cannot; it never
  * quietly substitutes something else.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Sparkles, Video } from 'lucide-react';
 
 import AvatarOffline, { AvatarPreview } from './AvatarOffline';
@@ -30,7 +30,7 @@ function AvatarConnect({ onConnect }) {
   return (
     <div className="panel w-full">
       <div className="panel-head">
-        <span className="label">Tutor</span>
+        <span className="label">Redwan</span>
         <span className="flex items-center gap-2 text-2xs font-medium text-faint">
           <span className="h-1.5 w-1.5 rounded-full bg-line-strong" />
           Not connected
@@ -82,9 +82,20 @@ export default function AvatarStage({
   overlay = null,
   compact = false,
   fill = false,
+  // (phase: 'checking' | 'offline') => node, shown instead of the spinner and
+  // the offline panel - for pages where video is a bonus and voice carries on.
+  offlineFallback = null,
+  // The face is streaming and can be spoken through (true), or not (false).
+  onReady = null,
+  // The face will not come up (service offline or the stream failed).
+  onOffline = null,
 }) {
   const [availability, setAvailability] = useState(null);
   const [streamFailed, setStreamFailed] = useState(false);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const onOfflineRef = useRef(onOffline);
+  onOfflineRef.current = onOffline;
 
   useEffect(() => {
     if (preview || !connected) {
@@ -124,10 +135,26 @@ export default function AvatarStage({
 
   // Latched: once a stream has failed we stay offline until the student
   // disconnects and tries again, rather than hammering a box that is down.
-  const handleUnavailable = useCallback(() => setStreamFailed(true), []);
-  const handleStatusChange = useCallback((status) => {
-    if (status === STREAM_STATUS.LIVE) setStreamFailed(false);
+  const handleUnavailable = useCallback(() => {
+    setStreamFailed(true);
+    onReadyRef.current?.(false);
   }, []);
+  const handleStatusChange = useCallback((status) => {
+    if (status === STREAM_STATUS.LIVE) {
+      setStreamFailed(false);
+      onReadyRef.current?.(true);
+    }
+  }, []);
+  // Not ready any more once disconnected or gone.
+  useEffect(() => {
+    if (!connected) onReadyRef.current?.(false);
+    return () => onReadyRef.current?.(false);
+  }, [connected]);
+
+  const offline = Boolean(connected && !preview && ((availability && !availability.online) || streamFailed));
+  useEffect(() => {
+    if (offline) onOfflineRef.current?.();
+  }, [offline]);
 
   const live = Boolean(connected && availability?.online && !streamFailed);
   useEffect(() => {
@@ -137,6 +164,9 @@ export default function AvatarStage({
   if (preview) return <AvatarPreview />;
 
   if (!connected) return <AvatarConnect onConnect={onConnect} />;
+
+  if (availability === null && offlineFallback) return offlineFallback('checking');
+  if ((!availability?.online || streamFailed) && offlineFallback) return offlineFallback('offline');
 
   if (availability === null) {
     return (

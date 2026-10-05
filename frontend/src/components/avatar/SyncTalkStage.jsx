@@ -212,7 +212,7 @@ export default function SyncTalkStage({
   return (
     <div className={`panel ${fill ? 'flex w-full flex-col lg:h-full' : 'w-full'}`}>
       <div className="panel-head">
-        <span className="label">Tutor</span>
+        <span className="label">Redwan</span>
         <span className="flex items-center gap-3 text-2xs font-medium text-muted">
           {/* During a live call the overlay is the one source of truth; two
               status readouts that disagree for half a second is worse than one. */}
@@ -246,7 +246,9 @@ export default function SyncTalkStage({
         onKeyDown={resume}
         role="presentation"
       >
-        <canvas ref={canvasRef} className="h-full w-full object-cover object-top" />
+        {/* The frames are square; fitted, not cropped, whatever shape the
+            space is - covering a wide box cut off half the face. */}
+        <canvas ref={canvasRef} className="h-full w-full object-contain" />
 
         {overlay && !connecting && (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-start">{overlay}</div>

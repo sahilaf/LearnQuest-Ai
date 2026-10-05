@@ -29,6 +29,9 @@ import useTutorVoice from '../Tutor/useTutorVoice';
 import LessonNarrator from './LessonNarrator';
 import useLessonNarration from './useLessonNarration';
 
+/** How long Play waits for the face before reading voice-only. */
+const FACE_WAIT_MS = 12000;
+
 function slugify(text) {
   return String(text)
     .toLowerCase()
@@ -169,10 +172,16 @@ export default function LessonViewer() {
   const [shellHeight, setShellHeight] = useState(null);
   const [contentsOpen, setContentsOpen] = useState(false);
   const avatarRef = useRef(null);
+  // Video comes with Play: pressing it connects the face, no separate button.
+  // `faceReady` is true once the stream is up and can be spoken through.
   const [avatarConnected, setAvatarConnected] = useState(false);
-  const [avatarLive, setAvatarLive] = useState(false);
+  const [faceReady, setFaceReady] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const faceReadyRef = useRef(false);
+  faceReadyRef.current = faceReady;
+  const faceOfflineRef = useRef(false);
   const [muted, setMuted] = useState(false);
-  const voice = useTutorVoice({ avatarRef, useAvatar: avatarLive, muted });
+  const voice = useTutorVoice({ avatarRef, useAvatar: faceReady, muted });
   const live = useLiveConversation({ voice });
   const narration = useLessonNarration({
     containerRef: contentRef,
@@ -239,11 +248,29 @@ export default function LessonViewer() {
     }
   };
 
-  // The voice path changes when video connects or drops: pause rather than
-  // carry on with the clock of the old path.
+  // The face came up (or dropped) while reading: carry on through it from
+  // the same sentence, instead of finishing the lesson voice-only.
   const narrationRef = useRef(narration);
   narrationRef.current = narration;
-  useEffect(() => { narrationRef.current.pause(); }, [avatarLive]);
+  useEffect(() => { narrationRef.current.switchVoice(); }, [faceReady]);
+
+  /**
+   * Play: connect the face if it is not up, give it a moment, then read.
+   * If the avatar cannot come up he reads voice-only straight away; if it
+   * comes up later he switches over mid-lesson (above).
+   */
+  const startListening = async () => {
+    if (!avatarConnected && !faceOfflineRef.current) {
+      setAvatarConnected(true);
+      setPreparing(true);
+      const started = performance.now();
+      while (!faceReadyRef.current && !faceOfflineRef.current && performance.now() - started < FACE_WAIT_MS) {
+        await new Promise((resolve) => { setTimeout(resolve, 200); });
+      }
+      setPreparing(false);
+    }
+    narration.play();
+  };
 
   const renderedLesson = useMemo(() => (lesson?.content_md ? (
     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
@@ -277,9 +304,9 @@ export default function LessonViewer() {
   const avatar = {
     ref: avatarRef,
     connected: avatarConnected,
-    connect: () => setAvatarConnected(true),
-    disconnect: () => { avatarRef.current?.stopNow(); setAvatarConnected(false); setAvatarLive(false); },
-    setLive: setAvatarLive,
+    disconnect: () => { avatarRef.current?.stopNow(); setAvatarConnected(false); setFaceReady(false); },
+    onReady: setFaceReady,
+    onOffline: () => { faceOfflineRef.current = true; },
     muted,
     toggleMute: () => setMuted((m) => !m),
   };
@@ -590,6 +617,8 @@ export default function LessonViewer() {
             avatar={avatar}
             onAsk={askWhileListening}
             onContinue={continueListening}
+            onStart={startListening}
+            preparing={preparing}
             canRead={Boolean(lesson.content_md)}
           />
         </section>

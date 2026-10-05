@@ -268,6 +268,15 @@ export default function useLessonNarration({ containerRef, scrollRef = null, voi
     setStatus(NARRATION.PAUSED);
   }, [halt]);
 
+  /**
+   * The voice moved (the face came up, or went away): carry on from the
+   * start of this sentence on the new path, if reading.
+   */
+  const switchVoice = useCallback(() => {
+    const s = statusRef.current;
+    if (s === NARRATION.PLAYING || s === NARRATION.LOADING) run(unitRef.current);
+  }, [run]);
+
   /** Close narration: stop, clear the page. */
   const stop = useCallback(() => {
     halt();
@@ -349,6 +358,6 @@ export default function useLessonNarration({ containerRef, scrollRef = null, voi
     status, error, caption, progress, buffering,
     active: status !== NARRATION.IDLE,
     playing: status === NARRATION.PLAYING || status === NARRATION.LOADING,
-    play, pause, stop, passage,
+    play, pause, stop, passage, switchVoice,
   };
 }
