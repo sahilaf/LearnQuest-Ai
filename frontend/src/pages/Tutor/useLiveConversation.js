@@ -67,16 +67,20 @@ export default function useLiveConversation({ voice }) {
   const voicedMsRef = useRef(0);
   const lastVoiceAtRef = useRef(0);
 
+  // Decide which bubble the text belongs to *before* calling setTurns: React
+  // (in StrictMode, i.e. every dev run) calls updaters twice, and an updater
+  // that moved openTurnRef discarded its own new bubble on the second call -
+  // the live transcript silently never appeared. Found by the E2E suite.
   const appendTranscript = useCallback((role, text) => {
-    setTurns((prev) => {
-      const openId = openTurnRef.current[role];
-      if (openId != null) {
-        return prev.map((t) => (t.id === openId ? { ...t, text: t.text + text } : t));
-      }
-      turnSeq += 1;
-      openTurnRef.current[role] = turnSeq;
-      return [...prev, { id: turnSeq, role, text: text.replace(/^\s+/, '') }];
-    });
+    const openId = openTurnRef.current[role];
+    if (openId != null) {
+      setTurns((prev) => prev.map((t) => (t.id === openId ? { ...t, text: t.text + text } : t)));
+      return;
+    }
+    turnSeq += 1;
+    const id = turnSeq;
+    openTurnRef.current[role] = id;
+    setTurns((prev) => [...prev, { id, role, text: text.replace(/^\s+/, '') }]);
   }, []);
 
   const cleanup = useCallback(() => {

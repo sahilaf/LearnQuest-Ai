@@ -274,6 +274,11 @@ async def capture_misconception(db, user_id, topic_tag: str, question, user_answ
 
     row = _get_or_create_row(db, uid, topic_tag)
     row.misconception = misconception
+    # Stored together with the belief, so they can never come from different
+    # questions - whichever capture lands last, the pair stays consistent.
+    row.misconception_question_id = (
+        _as_uuid(question.get("question_id")) if isinstance(question, dict) else None
+    )
     row.misconception_updated_at = _now()
     row.misconception_correct_streak = 0  # a fresh misconception is active again
     row.misconception_cleared_at = None
@@ -359,6 +364,7 @@ def _load_answers_from_attempt(db, attempt_id) -> list[dict[str, Any]]:
             {
                 "topic_tag": answer.topic_tag
                 or (question.topic_tag if question is not None else None),
+                "question_id": str(answer.question_id) if answer.question_id else None,
                 "prompt": question.prompt if question is not None else "",
                 "correct_answer": question.correct_answer if question is not None else "",
                 "user_answer": answer.user_answer or "",

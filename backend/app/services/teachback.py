@@ -230,8 +230,11 @@ def pick_misconception(db, user_id, topic_tag: str | None = None):
     ).first()
 
 
-def _find_wrong_answer(db, user_id, topic_tag: str):
-    """The student's most recent wrong answer on this topic, with its question.
+def _find_wrong_answer(db, user_id, topic_tag: str, question_id=None):
+    """The question behind this misconception, else the most recent wrong one.
+
+    `question_id` is the question whose wrong answer produced the belief; it is
+    used when known, so the belief and the question always belong together.
 
     Teaching lands better against the actual question they got wrong than
     against a freshly invented one, so this is tried first.
@@ -241,6 +244,12 @@ def _find_wrong_answer(db, user_id, topic_tag: str):
     uid = _as_uuid(user_id)
     if uid is None:
         return None
+
+    qid = _as_uuid(question_id)
+    if qid is not None:
+        exact = db.query(Question).filter(Question.id == qid).first()
+        if exact is not None:
+            return exact
 
     try:
         return (
@@ -318,7 +327,9 @@ async def start_session(db, user_id, topic_tag: str | None = None):
     if row is None:
         return None, "no_misconception"
 
-    question = _find_wrong_answer(db, user_id, row.topic_tag)
+    question = _find_wrong_answer(
+        db, user_id, row.topic_tag, getattr(row, "misconception_question_id", None)
+    )
     if question is not None:
         q_id = question.id
         q_prompt = question.prompt

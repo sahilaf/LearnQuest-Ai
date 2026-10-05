@@ -188,6 +188,13 @@ class TopicMastery(Base):
     misconception_cleared_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # The question whose wrong answer revealed `misconception`. Teach-Back
+    # re-asks exactly this question. Without it, a quiz with several wrong
+    # answers on one topic paired the belief from one question with another
+    # question entirely (found by the end-to-end suite, 2026-10-06).
+    misconception_question_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     correct: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_practiced_at: Mapped[datetime | None] = mapped_column(

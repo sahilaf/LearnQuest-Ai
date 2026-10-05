@@ -57,11 +57,15 @@ export function AuthProvider({ children }) {
       if (userData) {
         const cleanEmail = (userData.email || baseUser.email || '').trim().toLowerCase();
         const isExplicitAdmin = cleanEmail === 'admin@learnquest.ai';
-        setUser((prev) => ({
-          ...(prev || baseUser),
+        // Merge into the signed-in user - never resurrect one. If the student
+        // signed out while this request was in flight, `prev` is null and must
+        // stay null; falling back to `baseUser` here signed them straight back
+        // in (found by the E2E suite: sign up, then sign out at once).
+        setUser((prev) => (prev ? {
+          ...prev,
           ...userData,
           role: isExplicitAdmin ? 'admin' : 'student',
-        }));
+        } : prev));
       }
     } catch (err) {
       console.warn('Backend user sync failed, falling back to session user:', err);

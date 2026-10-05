@@ -26,10 +26,13 @@ export default function Login() {
   }, []);
 
   // If already authenticated, redirect to dashboard
-  if (isAuthenticated) {
-    navigate('/dashboard', { replace: true });
-    return null;
-  }
+  // Redirect from an effect, not during render: navigating mid-render makes
+  // React warn "Cannot update a component while rendering a different one".
+  useEffect(() => {
+    if (isAuthenticated) navigate('/dashboard', { replace: true });
+  }, [isAuthenticated, navigate]);
+
+  if (isAuthenticated) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
