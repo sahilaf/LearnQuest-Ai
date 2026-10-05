@@ -86,16 +86,16 @@ class ScriptedLLMClient(MockLLMClient):
                 "Can you explain why it isn't?"
             )})
 
-        if "Decide honestly whether that explanation" in prompt:
-            explanation = re.search(r'The student just told you:\s*"(.*)"', prompt, re.S)
+        if "First JUDGE everything the student has said" in prompt:
+            explanation = re.search(r'latest message[^"]*"(.*)"', prompt, re.S)
             text = explanation.group(1) if explanation else ""
-            convinced = "because" in text.lower() and len(text) >= 60
-            reply = (
-                "Oh, I see now - that explains where my reasoning went wrong."
-                if convinced else
-                "I still don't follow. You told me I'm wrong, but not why. What does my belief miss?"
-            )
-            return json.dumps({"reply": reply, "convinced": convinced})
+            good = "because" in text.lower() and len(text) >= 60
+            return json.dumps({
+                "states_truth": good, "gives_reason": good, "repeats_belief": False,
+                "missing": "" if good else "Why is my belief wrong?",
+                "reply": ("Oh, I see now - that explains where my reasoning went wrong." if good
+                          else "I still don't follow. You told me I'm wrong, but not why. What does my belief miss?"),
+            })
 
         if "re-taking a question you previously got wrong" in prompt:
             if "did not explain why your belief is wrong" in prompt:

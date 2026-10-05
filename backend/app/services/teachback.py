@@ -119,32 +119,62 @@ Stay in character as a learner. Do not teach. Do not mention being an AI.
 Return ONLY JSON:
 {{"opening": "..."}}"""
 
-NOVA_REPLY_PROMPT = """You are Redwan, a student who holds this false belief:
+NOVA_REPLY_PROMPT = """You are Redwan, a student who held this false belief:
 
 "{misconception}"
 
 Topic: {topic}
 The question you got wrong: {question}
+The correct answer, FOR JUDGING ONLY - never say, quote or hint at it: {answer}
 
 Conversation so far:
 {transcript}
 
-The student just told you:
+The student's latest message (their explanation number {attempt}):
 "{explanation}"
 
-Decide honestly whether that explanation actually addresses your false belief.
+First JUDGE everything the student has said so far, taken together, like a
+fair classmate - not a professor hunting for objections:
+  states_truth   - they say what is actually true (consistent with the correct
+                   answer) instead of your belief.
+  gives_reason   - they explain WHY: a reason, an example, an analogy or the
+                   mechanism. Restating the answer as a fact is NOT a reason.
+  repeats_belief - their latest message asserts your false belief.
+  missing        - if states_truth or gives_reason is false: the ONE thing still
+                   missing, as a short question. Otherwise "".
+Judge only what is needed for the question - never internals, memory layout or
+design history the question does not ask about. Do not move the goalposts.
 
-- If it is vague, hand-waving, just asserts you are wrong, or only restates the
-  right answer without explaining WHY your belief fails: push back. Say what you
-  still do not follow, in your own words. Set "convinced": false.
-- If it genuinely explains why your belief is wrong: say what changed in your
-  understanding and what you now think. Set "convinced": true.
-- Never pretend to be convinced to be encouraging. Being too easily convinced
-  makes the whole exercise worthless.
-- Ask at most one follow-up question. Stay under 70 words. Never lecture.
+Then REPLY in character, under 60 words:
+  - if they gave the truth with a reason: say in your own words what you now
+    understand;
+  - otherwise: ask the missing thing. Never explain the correct idea yourself.
 
 Return ONLY JSON:
-{{"reply": "...", "convinced": true or false}}"""
+{{"states_truth": true/false, "gives_reason": true/false, "repeats_belief": true/false,
+  "missing": "...", "reply": "..."}}"""
+
+# Words and shapes that show a student gave a reason, not just an answer. The
+# model judges reasons too, but a small model sometimes "fills in" the why for
+# a one-line answer; this keeps "X is true." from ever passing as teaching.
+_REASON_MARKERS = re.compile(
+    r"\b(because|since|so that|so |which means|that means|this means|therefore|for example|"
+    r"for instance|e\.g\.|imagine|think of|like a|like two|as if|otherwise|instead|"
+    r"if you|when you|whereas|unlike)\b|`|=|\d",
+    re.IGNORECASE,
+)
+
+
+def _gave_a_reason(student_text: str) -> bool:
+    text = student_text.strip()
+    return bool(_REASON_MARKERS.search(text)) or len(text) >= 220
+
+
+# What Redwan says when his own wording disagrees with the verdict - so the
+# reply always matches whether he is convinced.
+_REPLY_NEEDS_REASON = "I hear you, but why is that? Can you give me a reason or an example?"
+_REPLY_NEEDS_TRUTH = "Hmm, that still sounds like what I believed. What actually happens instead?"
+_REPLY_CONVINCED = "Okay, that makes sense - I can see why my belief does not hold now."
 
 NOVA_RETAKE_PROMPT = """You are Redwan. You are re-taking a question you previously got wrong.
 
@@ -486,21 +516,43 @@ async def student_turn(db, session, explanation: str) -> dict[str, Any]:
         return {"reply": reply, "convinced": False, "can_retake": False}
 
     release_connection(db)  # also saves the student's turn before Redwan answers
+    taught_so_far = [t.get("content", "") for t in (session.turns or []) if t.get("role") == "student"]
     try:
         raw = await _ask_llm(
             NOVA_REPLY_PROMPT.format(
                 misconception=session.misconception[:300],
                 topic=session.topic_tag,
                 question=session.question_prompt[:500],
+                answer=session.question_correct_answer[:200],
                 transcript=_transcript(session),
                 explanation=text[:1500],
+                attempt=len(taught_so_far),
             ),
-            max_tokens=400,
-            temperature=0.5,
+            max_tokens=450,
+            temperature=0.3,
         )
         data = _extract_json(raw) or {}
         reply = str(data.get("reply") or "").strip()
-        convinced = bool(data.get("convinced"))
+        states_truth = bool(data.get("states_truth"))
+        gives_reason = bool(data.get("gives_reason")) and _gave_a_reason(" ".join(taught_so_far))
+        repeats_belief = bool(data.get("repeats_belief"))
+        # Convinced is decided here, from the judgement - not from Redwan's
+        # tone. A model playing a character drifts both ways: it moved the
+        # goalposts on good explanations and "filled in" missing reasons.
+        convinced = states_truth and gives_reason and not repeats_belief
+        # Make the words agree with the verdict. A reply "sounds convinced"
+        # when it uses an agreeing phrase and asks nothing back.
+        agreeing = re.search(
+            r"^\W*(oh|ok|okay|i see|i get it|got it|ah|fair)\b|makes sense|i understand now|i was wrong",
+            reply, re.I,
+        )
+        sounds_convinced = bool(agreeing) and "?" not in reply
+        if convinced and "?" in reply and not agreeing:
+            reply = _REPLY_CONVINCED
+        elif not convinced and sounds_convinced:
+            reply = _REPLY_NEEDS_TRUTH if (repeats_belief or not states_truth) else _REPLY_NEEDS_REASON
+        if not convinced and reply and _gives_answer_away(reply, session.question_correct_answer):
+            reply = str(data.get("missing") or "").strip() or _REPLY_NEEDS_REASON
     except Exception as exc:  # noqa: BLE001
         logger.warning("Redwan reply failed: %s", exc)
         reply, convinced = "", False

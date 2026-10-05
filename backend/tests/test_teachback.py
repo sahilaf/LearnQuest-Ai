@@ -718,3 +718,65 @@ class TestHintsAndStudy(TeachBackTestBase):
             self.db.query(Lesson).delete()
             self.db.query(Course).delete()
             self.db.commit()
+
+
+class TestRedwanJudgesFairly(TeachBackTestBase):
+    """Redwan is convinced by the truth with a reason - not by tone, and not
+    by the answer alone."""
+
+    GOOD = (
+        "An INNER JOIN only keeps a row when the key exists in both tables, because "
+        "it pairs rows by the condition and drops any row with no partner."
+    )
+
+    def _turn(self, judgement: dict, text: str) -> dict:
+        from app.services import teachback
+
+        self._seed_misconception()
+        fake = _FakeLLM([
+            json.dumps({"opening": "Joins keep every row, surely?"}),
+            json.dumps(judgement),
+        ])
+        with patch("app.services.llm_client.get_llm", return_value=fake):
+            session, _ = _run(teachback.start_session(self.db, self.user_id))
+            return _run(teachback.student_turn(self.db, session, text))
+
+    def test_the_truth_with_a_reason_convinces_him(self) -> None:
+        result = self._turn(
+            {"states_truth": True, "gives_reason": True, "repeats_belief": False,
+             "missing": "", "reply": "Oh, so rows with no partner are dropped."},
+            self.GOOD,
+        )
+        self.assertTrue(result["convinced"])
+
+    def test_the_answer_alone_does_not_convince_him(self) -> None:
+        """A model that 'fills in' a reason is overruled when none was given."""
+        result = self._turn(
+            {"states_truth": True, "gives_reason": True, "repeats_belief": False,
+             "missing": "", "reply": "Okay, that makes sense."},
+            "The right answer is the inner join one, it keeps the matching rows only.",
+        )
+        self.assertFalse(result["convinced"])
+        # His words follow the verdict: no "that makes sense" while unconvinced.
+        from app.services import teachback
+        self.assertEqual(result["reply"], teachback._REPLY_NEEDS_REASON)
+
+    def test_a_good_explanation_is_not_met_with_a_new_doubt(self) -> None:
+        """Convinced, but the model asked another question: the reply agrees."""
+        from app.services import teachback
+
+        result = self._turn(
+            {"states_truth": True, "gives_reason": True, "repeats_belief": False,
+             "missing": "", "reply": "But how is it stored in memory?"},
+            self.GOOD,
+        )
+        self.assertTrue(result["convinced"])
+        self.assertEqual(result["reply"], teachback._REPLY_CONVINCED)
+
+    def test_repeating_his_belief_never_convinces_him(self) -> None:
+        result = self._turn(
+            {"states_truth": True, "gives_reason": True, "repeats_belief": True,
+             "missing": "What happens to rows with no match?", "reply": "Ah, fair enough."},
+            "It keeps every row from both tables because that is what a join does.",
+        )
+        self.assertFalse(result["convinced"])
