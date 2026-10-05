@@ -7,6 +7,7 @@
  * When Supabase keys are not configured, runs in DEV MODE and provides a developer user.
  */
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { setTokenProvider, setUnauthorizedHandler } from '../api/client';
 import { syncUser } from '../api/users';
@@ -14,13 +15,6 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
-const DEV_USER = {
-  id: '00000000-0000-0000-0000-000000000001',
-  email: 'admin@learnquest.ai',
-  full_name: 'Admin (Admin)',
-  role: 'admin',
-  avatar_url: null,
-};
 
 function generateDevUserId(email) {
   if (email === 'admin@learnquest.ai') {
@@ -50,6 +44,7 @@ function toAppUser(session) {
 }
 
 export function AuthProvider({ children }) {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -268,8 +263,11 @@ export function AuthProvider({ children }) {
         }
       }
       setUser(null);
+      // The backend refused this session (expired, revoked, or not a real
+      // token): back to the landing page, not a broken half-loaded screen.
+      navigate('/', { replace: true, state: { sessionEnded: true } });
     });
-  }, []);
+  }, [navigate]);
 
   const value = useMemo(
     () => ({

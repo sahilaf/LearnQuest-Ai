@@ -290,7 +290,12 @@ def get_current_user(
             raise _unauthorized("Empty bearer token.", "AUTH_EMPTY_TOKEN")
 
         # Dev token support for local testing with dummy accounts: Bearer dev:<user_id>:<email>
+        # Only in dev mode. These tokens carry no signature, so accepting them
+        # anywhere else let anyone become any user - including the admin, by
+        # naming admin@learnquest.ai as the email.
         if token.startswith("dev:"):
+            if not settings.allow_anonymous:
+                raise _unauthorized("Dev tokens are disabled.", "AUTH_TOKEN_INVALID")
             parts = token.split(":")
             try:
                 dev_id = uuid.UUID(parts[1])
@@ -311,8 +316,13 @@ def get_current_user(
         try:
             claims = verify_supabase_token(token)
         except Exception as exc:
-            if settings.allow_anonymous:
-                # If token is a JWT from Supabase, extract real claims without signature verification in dev mode
+            # A token that fails verification is rejected - fail closed (G5).
+            # The one exception is a dev box with no way to verify at all (no
+            # JWT secret, no Supabase URL for its keys): there the claims are
+            # read unverified so a local sign-in still works. Once either is
+            # configured, an unverifiable token is an attack, not a dev setup.
+            can_verify = bool(settings.supabase_jwt_secret or settings.supabase_url)
+            if settings.allow_anonymous and not can_verify:
                 try:
                     claims = jwt.decode(token, options={"verify_signature": False})
                     if not claims or "sub" not in claims:

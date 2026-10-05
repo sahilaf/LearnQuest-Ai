@@ -11,12 +11,11 @@
  * Styling follows docs/DESIGN_GUIDELINES.md.
  */
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import {
   Sparkles,
   MessageSquare,
   BookOpen,
-  Trophy,
   BarChart3,
   ArrowRight,
   Check,
@@ -158,6 +157,8 @@ function FeaturedCourses() {
 
 export default function Landing() {
   const { isAuthenticated, loading } = useAuth();
+  // Set when the backend refused the session and AuthContext sent us here.
+  const sessionEnded = Boolean(useLocation().state?.sessionEnded);
 
   // Wait for the session check so we never flash marketing at a signed-in user.
   if (loading) {
@@ -171,6 +172,11 @@ export default function Landing() {
 
   return (
     <div className="min-h-full bg-canvas">
+      {sessionEnded && (
+        <div role="status" className="border-b border-line bg-medium/10 px-4 py-2 text-center text-sm text-body">
+          Your session ended. <Link to="/login" className="font-medium text-primary-300 hover:underline">Sign in again</Link> to continue.
+        </div>
+      )}
       {/* ---------- Nav ---------- */}
       <header className="sticky top-0 z-30 border-b-2 border-line bg-surface">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
@@ -237,7 +243,7 @@ export default function Landing() {
             <div className="mb-4 flex items-center gap-2 border-b-2 border-line pb-3">
               <span className="h-2.5 w-2.5 rounded-full bg-primary-600" />
               <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Nova · your tutor
+                Redwan · your tutor
               </span>
             </div>
             <div className="mx-auto w-full max-w-[280px] animate-bob">
