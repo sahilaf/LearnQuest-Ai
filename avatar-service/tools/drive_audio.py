@@ -16,7 +16,7 @@ Usage
 -----
     # from the repo root, using the backend venv (needs websockets + httpx only)
     backend/.venv/Scripts/python.exe avatar-service/tools/drive_audio.py \
-        --wav "C:/Users/sahil/Dropbox/PC/Documents/projects/Fydp_v2/SyncTalk_2D/dataset/redwan/aud.wav" \
+        --wav dataset/redwan/aud.wav \
         --seconds 5 --save-frames out/
 
 Deliberately stdlib-only for audio (`wave`), so it runs in the backend venv

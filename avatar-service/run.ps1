@@ -8,12 +8,12 @@
 $ErrorActionPreference = "Stop"
 
 $defaults = @{
-    SYNCTALK_CHECKPOINT = "./checkpoint/final_v2/59.pth"
-    SYNCTALK_DATASET    = "C:/Users/sahil/Dropbox/PC/Documents/projects/Fydp_v2/SyncTalk_2D/dataset/redwan"
+    SYNCTALK_CHECKPOINT = "./checkpoint/alapon/59.pth"
+    SYNCTALK_DATASET    = "./dataset/redwan"
     SYNCTALK_MODE       = "ave"
-    SYNCTALK_HOST       = "0.0.0.0"
+    SYNCTALK_HOST       = "127.0.0.1"
     SYNCTALK_PORT       = "5001"
-    SYNCTALK_OUT_SIZE   = "0"
+    SYNCTALK_OUT_SIZE   = "720"
 }
 
 if (Test-Path ".env") {

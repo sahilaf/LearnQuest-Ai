@@ -94,6 +94,13 @@ def apply_mouth_mask(img320, version=MASK_V2):
     out = img320.copy()
     if version == MASK_LEGACY:
         out[5:310, 5:315] = 0      # leaves rows 310-319 (the jaw) visible
+    elif isinstance(version, str) and version.startswith("jaw"):
+        # Ablation dial: "jawN" leaves the bottom N rows of jaw visible, so the
+        # leak can be varied continuously while nothing else changes. jaw10 is
+        # byte-identical to legacy and jaw0 to v2_no_jaw - assert that before
+        # trusting any arm, since the whole point is that the mask is the ONLY
+        # variable across runs.
+        out[5:320 - int(version[3:]), 5:315] = 0
     else:
         out[5:, 5:315] = 0         # jaw hidden
     return out
@@ -184,6 +191,38 @@ def blend_bottom_edge(pred_bgr, real_bgr, feather=16):
     ramp = np.linspace(1.0, 0.0, feather, dtype=np.float32)[:, None, None]
     out = pred_bgr.astype(np.float32).copy()
     out[tail] = out[tail] * ramp + real_bgr[tail].astype(np.float32) * (1.0 - ramp)
+    return np.clip(out, 0.0, 255.0).astype(np.uint8)
+
+
+def blend_top_and_sides(pred_bgr, real_bgr, feather=14):
+    """Ramp the generated crop back to the source along its top and side edges.
+
+    The UNet's outermost pixels are its least reliable - padding leaves the
+    border convolutions little real context - and the top-left corner is the
+    worst: on alapon_v2 at epoch 12 it averaged 81 grey levels brighter than
+    the source (4 elsewhere off the mouth), a bright dot on the cheek beside
+    the nose in every frame. These edges are exactly the strip the mask leaves
+    unmasked, so the source pixels there are the answer the model was given;
+    fading to them removes the dot and any seam, and the mouth, ~100 px in,
+    is untouched. The bottom edge has its own ramp (blend_bottom_edge).
+
+    Args:
+        pred_bgr: generated crop, uint8 BGR.
+        real_bgr: the same crop from the source frame, uint8 BGR, same shape.
+        feather: pixels to ramp over from each edge. 0 restores the hard paste.
+    """
+    if pred_bgr.shape != real_bgr.shape:
+        raise ValueError(f"shape mismatch: {pred_bgr.shape} vs {real_bgr.shape}")
+    if feather <= 0:
+        return pred_bgr
+    h, w = pred_bgr.shape[:2]
+    ys = np.arange(h, dtype=np.float32)[:, None]
+    xs = np.arange(w, dtype=np.float32)[None, :]
+    # distance to the nearest of top / left / right, as a 0..1 weight on pred;
+    # 0 on the edge pixel itself, so the join with the source is continuous
+    dist = np.minimum(np.minimum(ys, xs), (w - 1) - xs)
+    weight = np.clip(dist / feather, 0.0, 1.0)[..., None]
+    out = pred_bgr.astype(np.float32) * weight + real_bgr.astype(np.float32) * (1.0 - weight)
     return np.clip(out, 0.0, 255.0).astype(np.uint8)
 
 

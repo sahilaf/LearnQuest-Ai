@@ -66,8 +66,8 @@ avatar-service/*.png
 *.tar.gz
 *.zip
 # Keep the small human-readable training artefacts
-!avatar-service/checkpoint/final_v2/train_config.json
-!avatar-service/checkpoint/final_v2/loss_log.csv
+!avatar-service/checkpoint/alapon/train_config.json
+!avatar-service/checkpoint/alapon/loss_log.csv
 .coverage
 htmlcov/
 
@@ -78,3 +78,6 @@ credentials.txt
 
 # Local editor/agent config - machine-specific, not shared.
 .claude/
+
+# dev.ps1 service logs
+.logs/

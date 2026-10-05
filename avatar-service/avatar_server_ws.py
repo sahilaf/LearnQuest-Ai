@@ -25,6 +25,7 @@ import asyncio
 import argparse
 import tempfile
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Dict, Optional, List
 
 import cv2
@@ -42,6 +43,7 @@ from scipy.signal import resample_poly
 
 from utils import (AudioEncoder, AudDataset, get_audio_features as _get_audio_features,
                    apply_mouth_mask, read_mask_version, blend_bottom_edge,
+                   blend_top_and_sides,
                    melspectrogram)
 
 
@@ -88,7 +90,44 @@ IDLE_FPS = 25
 #   v3: reference frames must be CONTIGUOUS (v2 scattered them and the head
 #       appeared to skip between unrelated poses)
 #   v4: idle uses the ORIGINAL frames, no model inference at all
-IDLE_CACHE_VERSION = 4
+#   v5: runs are split at recording glitches (see GLITCH_JUMP_FACTOR), and the
+#       cache records which source frames it was built from
+#   v6: runs also avoid unsteady footage - leaning, zooming (STEADY_FACTOR)
+#   v7: cache one verified closed-mouth source frame for all idle output
+#   v8: use Redwan's recorded end-of-video idle segment
+IDLE_CACHE_VERSION = 8
+
+# A head jump between two consecutive source frames bigger than this many
+# times the video's median head motion is treated as a glitch in the recording
+# (a dropped frame or a cut), never as motion. redwan has 3 such jumps in 7717
+# frames; one, at 7638->7639 (20 px against a 2.4 px median), sat inside the
+# old idle run and made the head snap once per idle loop. Natural head motion
+# stays under ~7x the median, so 8x only catches the glitches.
+GLITCH_JUMP_FACTOR = 8.0
+
+# The idle run is also the speech walk's head footage, so it should be steady
+# as well as glitch-free. A step whose head motion - centre shift plus face
+# width change, so leaning in and zooming count - exceeds this many times the
+# video's median is treated as a break when choosing the run. alapon_v2's
+# first pick, 524..655, held a lean towards the camera (face 389 -> 442 px over
+# 14 frames); the speech walk swung through it, so the head bobbed in and out
+# under a mouth generated on a resizing crop. Falls back to glitch-only breaks
+# if no steady run is long enough.
+STEADY_FACTOR = 3.0
+
+# The Redwan recording ends with a deliberate, closed-mouth idle segment.
+# These inclusive source frames exclude the preceding recording glitch at
+# 7638->7639 and provide natural head motion without speech-mouth footage.
+DEFAULT_IDLE_RANGE = (7639, 7716)
+
+# --idle_range START END can override the default for a different recording.
+IDLE_RANGE: Optional[tuple] = DEFAULT_IDLE_RANGE
+
+# Use the recorded talking section as the source walk while generating speech.
+# Its mouth is masked before inference, so the live audio remains the only
+# lip-sync driver; this range supplies natural head and face motion instead.
+DEFAULT_SPEECH_RANGE = (1643, 1857)
+SPEECH_RANGE: Optional[tuple] = DEFAULT_SPEECH_RANGE
 
 # Idle needs no lip-sync, and the source video already contains real footage of
 # this person sitting quietly. Running the generator over it can only
@@ -101,6 +140,10 @@ IDLE_CACHE_VERSION = 4
 # that keeps the transition from popping.
 IDLE_USE_RAW_FRAMES = True
 
+# The source recording includes a real idle clip at its end, so replay that
+# footage instead of freezing a single frame.
+IDLE_USE_STATIC_FRAME = False
+
 # Inner-lip landmarks in this 110-point layout. 90-101 is the outer lip ring,
 # 102-109 the inner one; the gap between the inner rows is mouth aperture.
 INNER_LIP_UPPER = [103, 104, 105]
@@ -109,6 +152,7 @@ INNER_LIP_LOWER = [107, 108, 109]
 # Populated at startup by initialize_idle_inputs()
 silence_feats: Optional[np.ndarray] = None      # encoded TRUE silence, not zeros
 idle_ref_indices: List[int] = []                # a contiguous closed-mouth run
+idle_static_index: Optional[int] = None          # verified closed-mouth idle frame
 
 # --- Reference-frame leakage -------------------------------------------------
 # Training feeds channels 0-2 a RANDOM DIFFERENT frame (datasetsss_328.py picks
@@ -131,15 +175,18 @@ MASK_VERSION = "legacy"
 # edge. The v2 mask leaves no unmasked strip there, so a hard paste puts the
 # invented jaw straight against untouched source. 0 restores the hard paste.
 FEATHER_ROWS = 16
+# Same idea for the top and side edges, where the UNet's corner pixels go
+# wrong (a bright dot beside the nose). See utils.blend_top_and_sides.
+FEATHER_BORDER = 14
 fixed_ref_tensor: Optional[torch.Tensor] = None   # [3,320,320], set at startup
 fixed_ref_index: Optional[int] = None             # which source frame it came from
 
 # End-of-batch marker in the frame_index header field (also carries the PCM).
 END_MARKER = 0xFFFFFFFF
 
-# Source frames the speech walk may use as base footage. Set to the idle run at
-# startup so idle and speech share the same footage and transitions stay
-# pose-continuous; falls back to the whole video if no run was found.
+# Source frames used as base footage during generated speech. This is separate
+# from the idle source range so natural talking motion is retained beneath the
+# audio-driven generated mouth.
 speech_window: List[int] = []
 
 # Idle cache position -> source frame index, so the client can hand the walk
@@ -226,6 +273,13 @@ def _align_walk(sess: SessionState, source_idx: int):
     first speech frame continues from the same footage instead of jumping.
     """
     if not speech_window:
+        return
+    # Idle and speech intentionally use different source ranges. An idle frame
+    # cannot be aligned by its source number to a disjoint talking clip, so
+    # begin a new reply at the talking clip's natural start instead.
+    if source_idx < min(speech_window) or source_idx > max(speech_window):
+        sess.img_idx = 0
+        sess.step_stride = 1
         return
     pos = min(range(len(speech_window)),
               key=lambda i: abs(speech_window[i] - source_idx))
@@ -458,11 +512,35 @@ def _reshape_audio_feat(a, mode_str: str) -> torch.Tensor:
 
 
 def _generate_frame(sess: SessionState, audio_feats: np.ndarray, frame_idx: int) -> np.ndarray:
-    """Generate one lip-synced frame.
+    """Generate one lip-synced frame, start to finish.
 
     frame_idx selects the audio feature window; the base frame comes from the
     walk. Calls must be strictly sequential - the walk mutates shared state.
+    The streaming path splits this in two (see FramePipeline) so the CPU half
+    of one frame overlaps the GPU half of the next.
     """
+    return _finish_frame(_start_frame(sess, audio_feats, frame_idx))
+
+
+# Pinned host buffers for the model output, so the GPU->CPU copy can run
+# asynchronously. Two, because at most two frames are in flight at once.
+_pred_host_bufs: List[torch.Tensor] = []
+_pred_host_next = 0
+
+
+def _pred_host_buffer(like: torch.Tensor) -> torch.Tensor:
+    global _pred_host_next
+    if not _pred_host_bufs or _pred_host_bufs[0].shape != like.shape:
+        _pred_host_bufs[:] = [torch.empty(like.shape, dtype=like.dtype, pin_memory=True)
+                              for _ in range(2)]
+    buf = _pred_host_bufs[_pred_host_next]
+    _pred_host_next = (_pred_host_next + 1) % len(_pred_host_bufs)
+    return buf
+
+
+def _start_frame(sess: SessionState, audio_feats: np.ndarray, frame_idx: int) -> dict:
+    """CPU prep for one frame, then queue its forward pass on the GPU and
+    return without waiting for it. _finish_frame collects the result."""
     ref_index = _pingpong_next(sess)
 
     src, lms = _read_source_frame(ref_index)
@@ -481,7 +559,7 @@ def _generate_frame(sess: SessionState, audio_feats: np.ndarray, frame_idx: int)
 
     crop = img[ymin:ymax, xmin:xmax]
     if crop.size == 0:
-        return cv2.resize(img, (img_w, img_h), interpolation=cv2.INTER_AREA)
+        return {"img": img, "pred": None}
 
     h, w = crop.shape[:2]
     crop_img = cv2.resize(crop, (328, 328), interpolation=cv2.INTER_CUBIC)
@@ -513,15 +591,41 @@ def _generate_frame(sess: SessionState, audio_feats: np.ndarray, frame_idx: int)
     a = _get_audio_features(audio_feats, frame_idx)
     a = _reshape_audio_feat(a, mode).to(device)
 
-    # Generate prediction
+    # Queue the forward pass and an async copy of its output into pinned host
+    # memory; the event marks when that copy has landed.
     with torch.no_grad():
         pred = synctalk_model(img_concat_T, a)[0]
+    ready = None
+    if pred.is_cuda:
+        host = _pred_host_buffer(pred)
+        host.copy_(pred.detach(), non_blocking=True)
+        ready = torch.cuda.Event()
+        ready.record()
+        pred = host
 
-    pred = (pred.detach().cpu().numpy().transpose(1, 2, 0) * 255).astype(np.uint8)
+    return {"img": img, "pred": pred, "ready": ready,
+            "box": (ymin, ymax, xmin, xmax), "size": (w, h),
+            "crop_img_ori": crop_img_ori, "img_real_ex_ori": img_real_ex_ori}
+
+
+def _finish_frame(job: dict) -> np.ndarray:
+    """Wait for a frame's GPU output, then composite and resize it."""
+    img = job["img"]
+    if job["pred"] is None:           # empty crop: nothing was generated
+        return cv2.resize(img, (img_w, img_h), interpolation=cv2.INTER_AREA)
+    if job["ready"] is not None:
+        job["ready"].synchronize()    # only this frame's copy, not later work
+
+    pred = (job["pred"].numpy().transpose(1, 2, 0) * 255).astype(np.uint8)
+    img_real_ex_ori = job["img_real_ex_ori"]
+    crop_img_ori = job["crop_img_ori"]
+    ymin, ymax, xmin, xmax = job["box"]
+    w, h = job["size"]
 
     # Composite back. img_real_ex_ori is the untouched crop, so the fade at the
     # bottom edge lands on real pixels rather than on the masked input.
     pred = blend_bottom_edge(pred, img_real_ex_ori, FEATHER_ROWS)
+    pred = blend_top_and_sides(pred, img_real_ex_ori, FEATHER_BORDER)
     crop_img_ori[4:324, 4:324] = pred
     crop_img_ori = cv2.resize(crop_img_ori, (w, h), interpolation=cv2.INTER_CUBIC)
     img[ymin:ymax, xmin:xmax] = crop_img_ori
@@ -631,7 +735,7 @@ def initialize_idle_inputs():
     generated mouth tracked whatever the reference happened to be doing. We now
     only use frames whose mouth is actually closed.
     """
-    global silence_feats, idle_ref_indices
+    global silence_feats, idle_ref_indices, idle_static_index
 
     # --- 1. encode real silence -------------------------------------------
     try:
@@ -654,11 +758,35 @@ def initialize_idle_inputs():
     # frames jump between unrelated head poses and the avatar looks like it is
     # skipping. A single continuous stretch keeps natural head motion.
     ap = np.full(len_img, np.nan, dtype=np.float32)
+    head = np.full((len_img, 2), np.nan, dtype=np.float32)   # landmark centre
+    face_w = np.full(len_img, np.nan, dtype=np.float32)      # crop width, as cropped
     for i in range(len_img):
         try:
-            ap[i] = _mouth_aperture(_load_landmarks(os.path.join(lms_dir, f"{i}.lms")))
+            lms = _load_landmarks(os.path.join(lms_dir, f"{i}.lms"))
+            ap[i] = _mouth_aperture(lms)
+            head[i] = lms.mean(axis=0)
+            face_w[i] = lms[31][0] - lms[1][0]
         except Exception:
             continue
+
+    # glitch[i]: the recording jumps between frame i and i+1, so no run may
+    # span that step. A missing landmark file is not a glitch.
+    jump = np.linalg.norm(np.diff(head, axis=0), axis=1)
+    glitch = np.zeros(len_img, dtype=bool)
+    if np.isfinite(jump).any():
+        glitch_px = GLITCH_JUMP_FACTOR * float(np.nanmedian(jump))
+        glitch[:-1] = np.nan_to_num(jump, nan=0.0) > glitch_px
+        log(f"[Idle] Recording glitches (head jump > {glitch_px:.1f}px): "
+            f"{int(glitch.sum())} at frames {[int(i) for i in np.flatnonzero(glitch)][:10]}")
+
+    # unsteady[i]: the head moves or rescales unusually between i and i+1
+    motion = (np.nan_to_num(jump, nan=0.0)
+              + np.nan_to_num(np.abs(np.diff(face_w)), nan=0.0))
+    unsteady = np.zeros(len_img, dtype=bool)
+    if motion.any():
+        steady_px = STEADY_FACTOR * float(np.median(motion))
+        unsteady[:-1] = motion > steady_px
+        log(f"[Idle] Unsteady steps (head motion > {steady_px:.1f}px): {int(unsteady.sum())}")
 
     valid = ~np.isnan(ap)
     if not valid.any():
@@ -666,15 +794,16 @@ def initialize_idle_inputs():
         log("[Idle] WARNING: no landmarks readable; idle will use the first frames.")
         return
 
-    def longest_run(mask):
+    def longest_run(mask, breaks=glitch):
+        """Longest stretch where mask holds and no break is crossed."""
         best_start, best_len, start = 0, 0, None
         for i, v in enumerate(mask):
-            if v and start is None:
-                start = i
-            elif not v and start is not None:
+            if start is not None and (not v or breaks[i - 1]):
                 if i - start > best_len:
                     best_start, best_len = start, i - start
                 start = None
+            if v and start is None:
+                start = i
         if start is not None and len(mask) - start > best_len:
             best_start, best_len = start, len(mask) - start
         return best_start, best_len
@@ -692,12 +821,27 @@ def initialize_idle_inputs():
     log(f"[Idle] Mouth aperture across {int(valid.sum())} frames: "
           f"min={v.min():.1f} median={float(np.median(v)):.1f} max={v.max():.1f}")
 
+    # A full-length run means idle never has to reverse, but it is not worth
+    # an open mouth or a glitch: the client plays idle back and forth, so
+    # half the length is enough (n_idle // 2 + 2 frames covers n_idle
+    # distinct steps). Try the full length at closed-mouth thresholds, then
+    # the minimum, and only then widen the threshold.
+    # Steady footage first; glitch-free only as the fallback.
     chosen = None
-    for q in (10, 15, 20, 25, 30, 35, 45, 60, 100):
-        thr = float(np.percentile(v, q))
-        start, length = longest_run(valid & (ap <= thr))
-        if length >= needed:
-            chosen = (start, length, thr, q)
+    for label, breaks in (("steady", glitch | unsteady), ("glitch-free", glitch)):
+        for want, qs in ((needed, (10, 15, 20, 25, 30, 35)),
+                         (n_idle // 2 + 2, (10, 15, 20, 25, 30, 35)),
+                         (needed, (45, 60, 100))):
+            for q in qs:
+                thr = float(np.percentile(v, q))
+                start, length = longest_run(valid & (ap <= thr), breaks)
+                if length >= want:
+                    chosen = (start, length, thr, q)
+                    break
+            if chosen is not None:
+                break
+        if chosen is not None:
+            log(f"[Idle] Run chosen with {label} breaks")
             break
 
     if chosen is None:
@@ -708,18 +852,59 @@ def initialize_idle_inputs():
         log("[Idle] WARNING: no long closed-mouth run found; using the best available.")
 
     start, length, thr, q = chosen
+    pinned = IDLE_RANGE is not None
+    if pinned:
+        a, b = max(0, int(IDLE_RANGE[0])), min(len_img - 1, int(IDLE_RANGE[1]))
+        start, length = a, b - a + 1
+        crossed = [int(i) for i in np.flatnonzero(glitch[a:b]) + a]
+        log(f"[Idle] Using pinned --idle_range {a}..{b}"
+            + (f" (WARNING: crosses recording glitches at {crossed})" if crossed else ""))
+    # Trim the ends while the face is still settling: a slow lean or zoom
+    # moves only a few px per frame, so it passes the per-step steadiness test
+    # and can sit at the edge of the run (alapon_v2: 559..563, the tail of a
+    # lean, before the face settles at ~448 px). Only while enough is left.
+    w_run = face_w[start:start + length]
+    if not pinned and np.isfinite(w_run).any():
+        w_mid = float(np.nanmedian(w_run))
+        off = lambda i: not np.isfinite(face_w[i]) or abs(face_w[i] - w_mid) > 0.025 * w_mid
+        floor = n_idle // 2 + 2
+        trimmed = 0
+        while length > floor and off(start):
+            start += 1; length -= 1; trimmed += 1
+        while length > floor and off(start + length - 1):
+            length -= 1; trimmed += 1
+        if trimmed:
+            log(f"[Idle] Trimmed {trimmed} frames whose face size was still settling")
     idle_ref_indices = list(range(start, start + length))
     seg = ap[start:start + length]
     log(f"[Idle] Idle reference run: frames {start}..{start + length - 1} "
-          f"({length} frames, {length / IDLE_FPS:.1f}s) at <={thr:.1f} ({q}th pct)")
+          f"({length} frames, {length / IDLE_FPS:.1f}s)"
+          + (" [pinned]" if pinned else f" at <={thr:.1f} ({q}th pct)"))
     log(f"[Idle] Aperture in run: mean={np.nanmean(seg):.2f} max={np.nanmax(seg):.2f} "
           f"(video median {float(np.median(v)):.1f})")
 
-    # Speech base frames come from the same run: idle plays this footage, so
-    # starting speech inside it means the transition cannot jump to an
-    # unrelated pose, and the small working set stays hot in the page cache.
+    # A long enough source run can still contain speech frames: the selector
+    # deliberately widens its threshold when the recording offers no long
+    # quiet segment. Keep that run for speech, but choose its quietest frame as
+    # the only frame used for idle playback.
+    in_run = np.zeros(len_img, dtype=bool)
+    in_run[idle_ref_indices] = True
+    pool = valid & in_run if (valid & in_run).any() else valid
+    idle_static_index = int(np.nanargmin(np.where(pool, ap, np.nan)))
+    log(f"[Idle] Static frame = {idle_static_index} "
+          f"(aperture {ap[idle_static_index]:.2f})")
+
+    # Speech base frames are deliberately separate from idle: use recorded
+    # talking footage for natural facial and head motion while the model
+    # generates its masked mouth from live audio.
     global speech_window
-    if length >= 25:
+    if SPEECH_RANGE is not None:
+        a, b = max(0, int(SPEECH_RANGE[0])), min(len_img - 1, int(SPEECH_RANGE[1]))
+        if a <= b:
+            speech_window = list(range(a, b + 1))
+            log(f"[Walk] Speech base frames set to talking range {a}..{b} "
+                f"({len(speech_window)} frames)")
+    elif length >= 25:
         speech_window = list(idle_ref_indices)
         log(f"[Walk] Speech base frames constrained to the idle run "
               f"({len(speech_window)} frames)")
@@ -727,7 +912,17 @@ def initialize_idle_inputs():
     # --- 3. build the fixed reference frame for channels 0-2 ---------------
     if USE_FIXED_REFERENCE:
         try:
-            quietest = int(np.nanargmin(np.where(valid, ap, np.nan)))
+            # Quietest mouth WITHIN the speech run, not the whole video.
+            # The mouth region (and the beard under it) is drawn from this
+            # frame's appearance onto the run's footage, so it must share that
+            # footage's lighting and pose. The global minimum on alapon_v2 was
+            # frame 18 - camera exposure still settling (brighter, greener)
+            # and head roll 2 deg off - which tinted the face and pulled the
+            # soul patch diagonally into the lower lip.
+            speech_mask = np.zeros(len_img, dtype=bool)
+            speech_mask[speech_window] = True
+            pool = valid & speech_mask if (valid & speech_mask).any() else valid
+            quietest = int(np.nanargmin(np.where(pool, ap, np.nan)))
             _set_fixed_reference(quietest)
             log(f"[Ref] Fixed reference frame = {quietest} (aperture {ap[quietest]:.2f}). "
                   "Channels 0-2 no longer track the current frame.")
@@ -840,6 +1035,26 @@ def _generate_idle_frame(img_idx: int, mode_str: str) -> np.ndarray:
     return cv2.resize(img, (img_w, img_h), interpolation=cv2.INTER_AREA)
 
 
+def warm_speech_path(n_frames: int = 12):
+    """Pay first-use costs at startup instead of in the first reply.
+
+    Measured on a fresh server: the first utterance rendered at 46 ms/frame
+    and re-sent a quarter of its frames, later ones at ~35 ms with none - the
+    difference being the first JPEG decode of each speech-window frame (~8 ms
+    each at 1080p) and the GPU's first forward passes. Loading the window into
+    the frame cache and rendering a few throwaway frames moves both here.
+    """
+    t0 = time.perf_counter()
+    for idx in speech_window[:FRAME_CACHE_MAX]:
+        _read_source_frame(idx)
+    feats = silence_feats if silence_feats is not None else np.zeros((n_frames, 512), np.float32)
+    scratch = SimpleNamespace(img_idx=0, step_stride=1)   # never a real session's walk
+    for i in range(n_frames):
+        _generate_frame(scratch, feats, min(i, len(feats) - 1))
+    log(f"[Warmup] {min(len(speech_window), FRAME_CACHE_MAX)} source frames cached, "
+        f"{n_frames} warm-up renders in {time.perf_counter() - t0:.1f}s")
+
+
 def initialize_idle_cache():
     """Generate or load cached idle animation frames"""
     global idle_cache, img_w, img_h, mode, idle_source_map
@@ -853,7 +1068,10 @@ def initialize_idle_cache():
     # cache position -> source frame; deterministic, so valid for a loaded
     # cache too (the generation loop below walks the identical sequence).
     refs_for_map = idle_ref_indices if idle_ref_indices else list(range(len_img))
-    idle_source_map = _idle_walk_indices(refs_for_map, num_frames)
+    if IDLE_USE_STATIC_FRAME and idle_static_index is not None:
+        idle_source_map = [idle_static_index] * num_frames
+    else:
+        idle_source_map = _idle_walk_indices(refs_for_map, num_frames)
     
     # Check if cache exists and is valid
     if os.path.exists(cache_file) and os.path.exists(meta_file):
@@ -865,7 +1083,11 @@ def initialize_idle_cache():
                 meta.get("img_w") == img_w and
                 meta.get("img_h") == img_h and
                 meta.get("mode") == mode and
-                meta.get("version") == IDLE_CACHE_VERSION):
+                meta.get("version") == IDLE_CACHE_VERSION and
+                meta.get("ref_start") == (idle_ref_indices[0] if idle_ref_indices else None) and
+                meta.get("ref_len") == len(idle_ref_indices) and
+                meta.get("static_frame") == (
+                    idle_static_index if IDLE_USE_STATIC_FRAME else None)):
                 
                 log(f"[IdleCache] Loading {num_frames} cached idle frames...")
                 with open(cache_file, "rb") as f:
@@ -925,6 +1147,11 @@ def initialize_idle_cache():
             "fps": IDLE_FPS,
             "version": IDLE_CACHE_VERSION,
             "closed_mouth_refs": len(idle_ref_indices),
+            # The source run the frames came from; the cache is only valid for
+            # the same run, since the client maps cache positions onto it.
+            "ref_start": idle_ref_indices[0] if idle_ref_indices else None,
+            "ref_len": len(idle_ref_indices),
+            "static_frame": idle_static_index if IDLE_USE_STATIC_FRAME else None,
             "silence_features": silence_feats is not None,
         }, f)
     
@@ -972,7 +1199,8 @@ async def session_worker(sess: SessionState, fps: int = 25):
                                    # frames reach the client in one burst per
                                    # batch, so shorter batches = smoother flow
     CATCHUP_BEHIND = 10            # frames behind real time before skipping
-    CLIENT_GATE_S = 0.30           # client's prebuffer, used to anchor "behind"
+    CLIENT_GATE_S = 0.60           # client's prebuffer (PREBUFFER_SECONDS in the
+                                   # browser), used to anchor "behind"
     EMIT_CHUNK = 12                # frames rendered before yielding to the loop
 
     extractor = StreamingFeatureExtractor()
@@ -981,6 +1209,11 @@ async def session_worker(sess: SessionState, fps: int = 25):
     batch_t0: Optional[float] = None
     utt_anchor: Optional[float] = None         # wall clock of client playback start
     last_jpg: Optional[bytes] = None
+    # Per-utterance render stats for the "Utterance done" line: how many frames
+    # were really rendered vs re-sent to catch up, and what a render costs here.
+    n_rendered = 0
+    n_repeated = 0
+    render_s = 0.0
 
     def make_header(segment_id: int, frame_idx: int, total_frames: int, audio_dur_ms: int) -> bytes:
         return (
@@ -990,16 +1223,29 @@ async def session_worker(sess: SessionState, fps: int = 25):
             audio_dur_ms.to_bytes(4, "little", signed=False)
         )
 
-    def render(feats: np.ndarray, fi: int) -> Optional[bytes]:
-        """Generate frame fi of the utterance and JPEG-encode it. Thread-safe
-        to run in a worker thread only because calls are strictly sequential."""
-        frame = _generate_frame(sess, feats, fi)
+    def encode(frame: np.ndarray) -> Optional[bytes]:
         ok, jpg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
         return jpg.tobytes() if ok else None
 
+    # One frame is kept in flight so the CPU and GPU work at the same time:
+    # each step queues frame fi's forward pass, then composites and encodes
+    # the previous frame while the GPU is busy. Serially the two halves added
+    # up to ~46 ms/frame on a laptop RTX 3050 - over the 40 ms that 25 fps
+    # allows - so the server fell behind, re-sent frames to catch up, and the
+    # client dropped the late ones: the stutter and head jumps in live video.
+    # Both run in worker threads, one call at a time, because the walk inside
+    # _start_frame mutates shared state.
+    def render_step(feats: np.ndarray, fi: int, prev_job: Optional[dict]):
+        job = _start_frame(sess, feats, fi)
+        prev_jpg = encode(_finish_frame(prev_job)) if prev_job is not None else None
+        return job, prev_jpg
+
+    def render_finish(job: dict) -> Optional[bytes]:
+        return encode(_finish_frame(job))
+
     async def emit(n: int, feats: np.ndarray):
         """Send audio for frames [sent, sent+n), then stream those frames."""
-        nonlocal sent, utt_anchor, last_jpg
+        nonlocal sent, utt_anchor, last_jpg, n_rendered, n_repeated, render_s
         if n <= 0:
             return
         sess.segment_id += 1
@@ -1016,27 +1262,53 @@ async def session_worker(sess: SessionState, fps: int = 25):
         if utt_anchor is None:
             utt_anchor = time.monotonic() + CLIENT_GATE_S
 
+        async def send(i: int, jpg: Optional[bytes]):
+            nonlocal last_jpg
+            if jpg is None:
+                jpg = last_jpg
+            if jpg is None:
+                return                              # nothing renderable yet
+            last_jpg = jpg
+            await sess.frame_q.put(make_header(seg, i, n, dur_ms) + jpg)
+            sess.frames_generated += 1
+
+        pending: Optional[tuple] = None             # (job, i) started, not sent
         for i in range(n):
             fi = sent + i
             behind = (time.monotonic() - utt_anchor) * fps - fi
             if behind > CATCHUP_BEHIND and last_jpg is not None:
-                jpg = last_jpg                      # skip render, catch up
+                if pending is not None:             # keep frames in order
+                    t_render = time.perf_counter()
+                    jpg = await asyncio.to_thread(render_finish, pending[0])
+                    render_s += time.perf_counter() - t_render
+                    await send(pending[1], jpg)
+                    pending = None
+                await send(i, last_jpg)             # skip render, catch up
+                n_repeated += 1
             else:
-                jpg = await asyncio.to_thread(render, feats, fi)
-                if jpg is None:
-                    jpg = last_jpg
-                if jpg is None:
-                    continue                        # nothing renderable yet
-            last_jpg = jpg
-            await sess.frame_q.put(make_header(seg, i, n, dur_ms) + jpg)
-            sess.frames_generated += 1
+                t_render = time.perf_counter()
+                job, prev_jpg = await asyncio.to_thread(
+                    render_step, feats, fi, pending[0] if pending else None)
+                render_s += time.perf_counter() - t_render
+                n_rendered += 1
+                if pending is not None:
+                    await send(pending[1], prev_jpg)
+                pending = (job, i)
+        # Flush the frame still in flight so this batch arrives complete.
+        if pending is not None:
+            t_render = time.perf_counter()
+            jpg = await asyncio.to_thread(render_finish, pending[0])
+            render_s += time.perf_counter() - t_render
+            await send(pending[1], jpg)
         sent += n
 
     def reset_utterance():
-        nonlocal extractor, sent, utt_anchor
+        nonlocal extractor, sent, utt_anchor, n_rendered, n_repeated, render_s
         extractor = StreamingFeatureExtractor()
         sent = 0
         utt_anchor = None
+        n_rendered = n_repeated = 0
+        render_s = 0.0
 
     log(f"[Session {sess.sid}] Worker started (streaming, segment={SEGMENT_S}s, "
           f"window={len(speech_window)}f)")
@@ -1131,7 +1403,9 @@ async def session_worker(sess: SessionState, fps: int = 25):
                     "end_source_idx": int(end_idx),
                 }))
                 log(f"[Session {sess.sid}] Utterance done: {sent} frames, "
-                    f"{len(extractor.pcm24) / SR:.2f}s audio, walk at {end_idx}")
+                    f"{len(extractor.pcm24) / SR:.2f}s audio, walk at {end_idx} | "
+                    f"rendered {n_rendered}, repeated {n_repeated} to catch up, "
+                    f"{1000 * render_s / max(1, n_rendered):.1f} ms/render")
                 reset_utterance()
             elif extractor.n_raw > 0:
                 # Frame fi's feature window reaches raw[fi+6], so emitting at
@@ -1149,6 +1423,7 @@ async def session_worker(sess: SessionState, fps: int = 25):
         import traceback
         traceback.print_exc()
     finally:
+        sessions.pop(sess.sid, None)
         log(f"[Session {sess.sid}] Worker stopped. Total frames: {sess.frames_generated}")
 
 
@@ -1210,8 +1485,30 @@ async def get_idle_frame(index: int):
     return Response(content=frame_bytes, media_type="image/jpeg")
 
 
+# A session nobody connects to within this long is abandoned (a page that
+# opened one and went away, or a stray request) and is closed. Without this
+# its worker waited forever: the service only closed sessions whose sockets
+# had connected and then dropped.
+SESSION_CONNECT_TIMEOUT_S = 30.0
+
+# One GPU renders one utterance at a time. Beyond a handful of open sessions
+# every user gets a stuttering face, so refuse more instead.
+MAX_SESSIONS = 4
+
+
+async def _close_if_never_connected(sess: SessionState) -> None:
+    await asyncio.sleep(SESSION_CONNECT_TIMEOUT_S)
+    if not (sess.audio_connected or sess.video_connected) and not sess.closed.is_set():
+        log(f"[Session {sess.sid}] Never connected in {SESSION_CONNECT_TIMEOUT_S:.0f}s, closing")
+        sess.closed.set()
+
+
 @app.post("/session")
 async def create_session():
+    open_sessions = sum(1 for s in sessions.values() if not s.closed.is_set())
+    if open_sessions >= MAX_SESSIONS:
+        log(f"[Session] Refused: {open_sessions} sessions already open")
+        return JSONResponse({"error": "Avatar is busy - too many open sessions."}, status_code=503)
     sid = uuid.uuid4().hex[:12]
     sess = SessionState(
         sid=sid,
@@ -1221,6 +1518,7 @@ async def create_session():
     )
     sessions[sid] = sess
     asyncio.create_task(session_worker(sess))
+    asyncio.create_task(_close_if_never_connected(sess))
     log(f"[Session {sid}] Created")
     return {"session_id": sid, "idle_cache_ready": idle_cache is not None}
 
@@ -1361,23 +1659,36 @@ async def ws_video(ws: WebSocket, sid: str):
 # Main
 # -----------------------------
 def main():
-    global OUT_SIZE
+    global OUT_SIZE, IDLE_RANGE, SPEECH_RANGE
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--mode", type=str, default="ave", choices=["ave", "hubert", "wenet"])
-    parser.add_argument("--host", type=str, default="0.0.0.0")
+    # This machine only by default: the service has no authentication, so on
+    # 0.0.0.0 anyone on the same network could open GPU sessions. Pass
+    # --host 0.0.0.0 deliberately when the backend runs on another machine.
+    parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5001)
     parser.add_argument("--out_size", type=int, default=OUT_SIZE,
                         help="Longest side of streamed frames; 0 = native. "
                              "Smaller is faster to encode, send, and decode.")
+    parser.add_argument("--idle_range", type=int, nargs=2, metavar=("START", "END"),
+                        default=DEFAULT_IDLE_RANGE,
+                        help="Source frames used for the idle clip (inclusive) "
+                             "instead of choosing a run automatically.")
+    parser.add_argument("--speech_range", type=int, nargs=2, metavar=("START", "END"),
+                        default=DEFAULT_SPEECH_RANGE,
+                        help="Source frames used beneath the generated mouth while speaking.")
     args = parser.parse_args()
     OUT_SIZE = args.out_size
+    IDLE_RANGE = tuple(args.idle_range) if args.idle_range else None
+    SPEECH_RANGE = tuple(args.speech_range) if args.speech_range else None
 
     initialize_models(args.checkpoint, args.dataset, args.mode)
     
     # Generate or load idle animation cache
     initialize_idle_cache()
+    warm_speech_path()
 
     print(f"\n✨ WS Avatar Server running on http://{args.host}:{args.port}")
     print("  GET  /health")
