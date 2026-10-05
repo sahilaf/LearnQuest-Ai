@@ -117,7 +117,7 @@ together from the repo root (PowerShell):
 .\dev.ps1
 ```
 
-It waits until each service answers its health check, opens the tutor page, and
+It waits until each service answers its health check, opens the landing page, and
 **Ctrl+C stops all three**. Logs go to `.logs\<service>.log`.
 
 No GPU? Skip the avatar; the tutor page shows "avatar offline" and everything

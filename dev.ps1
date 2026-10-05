@@ -165,7 +165,7 @@ try {
 
         if ($ready.backend -and $ready.frontend -and -not $browserOpened) {
             $browserOpened = $true
-            Start-Process "http://localhost:5173/tutor"
+            Start-Process "http://localhost:5173/"
             if (-not $ready.avatar) {
                 Say "  (avatar still loading - about 2 minutes; the tutor page shows it once ready, reload if needed)" "DarkGray"
             }
