@@ -9,7 +9,6 @@ import ReactMarkdown from 'react-markdown';
 import { Link } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
 import {
-  BookOpen,
   Plus,
   Search,
   CheckCircle2,
@@ -23,7 +22,6 @@ import {
   Clock,
   ArrowUp,
   ArrowDown,
-  Layers,
   AlertCircle,
   Save,
   Check,
@@ -44,9 +42,7 @@ import {
   Badge,
   Button,
   Card,
-  Input,
   Modal,
-  Select,
   Spinner,
 } from '../../components/ui';
 
@@ -77,7 +73,7 @@ function slugify(text) {
 
 export default function AdminCourses() {
   const [courses, setCourses] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);

@@ -5,7 +5,6 @@
  */
 import { useEffect, useState } from 'react';
 import {
-  Users,
   Search,
   Shield,
   GraduationCap,

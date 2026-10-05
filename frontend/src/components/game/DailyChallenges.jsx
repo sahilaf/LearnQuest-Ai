@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Award, CheckCircle2, Sparkles, Zap, Clock } from 'lucide-react';
+import { CheckCircle2, Sparkles, Zap, Clock } from 'lucide-react';
 import { todaysChallenges, claimChallenge } from '../../api/gamification';
 import { Card, Button, ProgressBar } from '../ui';
 

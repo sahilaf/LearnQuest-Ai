@@ -8,14 +8,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react';
 
 import PageHeader from '../../components/layout/PageHeader';
 import {
   Badge,
   Button,
   Card,
-  CardHeader,
   EmptyState,
   Input,
   Modal,
@@ -162,7 +161,6 @@ export default function QuizPlayer() {
   const currentQuestion = questions[currentIndex];
   const totalQuestions = questions.length;
   const answeredCount = Object.values(answers).filter((v) => String(v).trim().length > 0).length;
-  const isAnswered = String(answers[currentQuestion?.id] || '').trim().length > 0;
   const isLastQuestion = currentIndex === totalQuestions - 1;
 
   return (

@@ -12,7 +12,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   UploadCloud,
   FileText,
-  CheckCircle2,
   AlertCircle,
   ArrowRight,
   BookOpen,

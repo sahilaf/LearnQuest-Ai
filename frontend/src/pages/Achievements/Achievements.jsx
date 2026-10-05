@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Award, CheckCircle2, Lock, Sparkles, Trophy, Zap } from 'lucide-react';
+import { Award, CheckCircle2, Lock } from 'lucide-react';
 import PageHeader from '../../components/layout/PageHeader';
 import { Card, EmptyState, Spinner, ProgressBar } from '../../components/ui';
 import { myAchievements } from '../../api/gamification';

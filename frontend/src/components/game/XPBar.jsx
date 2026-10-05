@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
 
 /**
  * XPBar Component

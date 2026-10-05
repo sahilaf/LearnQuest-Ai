@@ -12,17 +12,11 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
-  BookOpen,
   Calendar,
   CheckCircle2,
-  ChevronRight,
-  GraduationCap,
-  RotateCcw,
-  Sparkles,
-  Trophy,
   XCircle,
 } from 'lucide-react';
 
@@ -50,7 +44,6 @@ function whenDue(iso) {
 }
 
 export default function ReviewScreen() {
-  const navigate = useNavigate();
 
   const [items, setItems] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -193,7 +186,6 @@ export default function ReviewScreen() {
   // The grader abstained: not marked wrong, schedule untouched.
   const isUngraded = Boolean(feedback?.needs_review);
   const totalDue = items.length;
-  const progressPct = Math.round((currentIndex / totalDue) * 100);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-16">

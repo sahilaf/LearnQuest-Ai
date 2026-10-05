@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Circle, Code2, Search, Sparkles } from 'lucide-react';
+import { CheckCircle2, Circle } from 'lucide-react';
 
 import PageHeader from '../../components/layout/PageHeader';
 import {

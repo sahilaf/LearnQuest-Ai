@@ -19,9 +19,7 @@ import {
   CheckCircle2,
   Clock,
   Code2,
-  Play,
   RotateCcw,
-  Sparkles,
   Trophy,
   XCircle,
 } from 'lucide-react';
@@ -31,7 +29,6 @@ import {
   Button,
   Card,
   EmptyState,
-  ProgressBar,
   Spinner,
 } from '../../components/ui';
 import { getProblem, submitProblem } from '../../api/practice';

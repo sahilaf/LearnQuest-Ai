@@ -12,17 +12,12 @@ import {
   Code2,
   UploadCloud,
   Sparkles,
-  Plus,
-  X,
-  Play,
-  CheckCircle2,
 } from 'lucide-react';
 
-import { useAuth } from '../../context/AuthContext';
-import { listCourses, myProgress, generateCourse } from '../../api/courses';
+
+import { myProgress, generateCourse } from '../../api/courses';
 import { myQuota } from '../../api/jobs';
 import useGenerationJob from '../../hooks/useGenerationJob';
-import PageHeader from '../../components/layout/PageHeader';
 import {
   Badge,
   Button,
@@ -62,7 +57,6 @@ function getDifficultyTone(difficulty) {
 export default function LearnHub() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   const tabParam = searchParams.get('tab') || 'my-courses';
   const activeTab = useMemo(() => {

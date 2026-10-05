@@ -14,7 +14,6 @@ import {
   ArrowRight,
   ShieldCheck,
   RefreshCw,
-  Clock,
 } from 'lucide-react';
 
 import { overview, listCourses, listUsers } from '../../api/admin';

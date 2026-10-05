@@ -3,19 +3,13 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Map,
   BookOpen,
-  Code2,
   Sparkles,
   Shield,
   Users,
   LogOut,
   Trophy,
-  BarChart3,
-  History,
-  UploadCloud,
   RotateCcw,
-  Medal,
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
