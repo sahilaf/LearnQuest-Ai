@@ -1,76 +1,195 @@
 /**
- * Public marketing landing page - the app's front door at "/".
+ * Public landing page - the app's front door at "/".
  *
  * Unauthenticated visitors land here; signed-in users go straight to their
  * dashboard so the marketing page never sits between them and the app.
  *
- * Connected to the backend: the "Live catalogue" strip reads real published
- * courses from GET /api/courses (public, no token). It degrades quietly when
- * the API is unreachable so the page still renders standalone.
+ * It sells what is actually different about LearnQuest, in the order a
+ * student meets it: a wrong answer is traced to the belief behind it, and you
+ * fix that belief by teaching Redwan - a tutor with a real face and voice.
+ * Every claim on this page is something the product does today.
  *
- * Styling follows docs/DESIGN_GUIDELINES.md.
+ * The "courses" strip reads real published courses from GET /api/courses
+ * (public, no token) and disappears quietly when the API is unreachable.
+ *
+ * Styling follows docs/DESIGN_GUIDELINES.md: tokens only, depth from borders
+ * not shadows, violet only for the primary action and the tutor.
  */
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import {
-  Sparkles,
-  MessageSquare,
-  BookOpen,
-  BarChart3,
   ArrowRight,
+  BookOpen,
   Check,
-  Flame,
-  Zap,
+  Code2,
+  FileUp,
+  GraduationCap,
+  Lightbulb,
+  LineChart,
+  MessageSquare,
+  Mic,
+  PenLine,
+  Repeat,
+  Sparkles,
 } from 'lucide-react';
 
 import { listCourses } from '../../api/courses';
 import { useAuth } from '../../context/AuthContext';
-import AvatarStage from '../../components/avatar/AvatarStage';
-import Button from '../../components/ui/Button';
-import Badge from '../../components/ui/Badge';
-import Spinner from '../../components/ui/Spinner';
+import { Badge, Spinner, buttonClasses } from '../../components/ui';
+
+const LOOP = [
+  {
+    icon: BookOpen,
+    title: 'Learn',
+    body: 'Short lessons, with a tutor you can ask about any line.',
+  },
+  {
+    icon: PenLine,
+    title: 'Quiz',
+    body: 'Answer in your own words, not only multiple choice.',
+  },
+  {
+    icon: Lightbulb,
+    title: 'Diagnose',
+    body: 'A wrong answer is traced to the exact belief behind it.',
+  },
+  {
+    icon: GraduationCap,
+    title: 'Teach Redwan',
+    body: 'He holds your old belief. Explain until he gets it right - his score is your grade.',
+  },
+];
+
+const MODES = [
+  {
+    icon: Mic,
+    title: 'Live conversation',
+    body: 'Talk out loud, like a call. Redwan answers in a second or two, with the transcript on screen.',
+  },
+  {
+    icon: GraduationCap,
+    title: 'Teach Redwan',
+    body: 'Explaining is how understanding sticks. He pushes back until your explanation really works.',
+  },
+  {
+    icon: MessageSquare,
+    title: 'Chat',
+    body: 'Type a question any time. He remembers your lessons and what you have already discussed.',
+  },
+];
 
 const FEATURES = [
   {
-    icon: MessageSquare,
-    color: 'bg-info-bg text-info-fg',
-    title: 'A tutor that talks back',
-    body: 'Ask anything and get a Socratic answer from an animated avatar with real-time lipsync.',
+    icon: Repeat,
+    title: 'Review at the right time',
+    body: 'Topics come back a day after you study them, then at growing intervals.',
   },
   {
-    icon: BookOpen,
-    color: 'bg-easy-bg text-easy-fg',
-    title: 'Courses that adapt',
-    body: 'Lessons adjust to what you already know, and your weak topics carry across sessions.',
+    icon: Code2,
+    title: 'SQL practice, really graded',
+    body: 'Your query runs against hidden test cases - no guessing, no partial credit for looking right.',
   },
   {
-    icon: Flame,
-    color: 'bg-medium-bg text-medium-fg',
-    title: 'Streaks that stick',
-    body: 'XP, streaks and quests turn steady practice into something you want to keep up.',
+    icon: LineChart,
+    title: 'Progress you can see',
+    body: 'Mastery per topic, a map of the beliefs you have fixed, streaks, badges and a leaderboard.',
   },
   {
-    icon: BarChart3,
-    color: 'bg-medium-bg text-medium-fg',
-    title: 'See what stuck',
-    body: 'Mastery tracking surfaces the things you are about to forget, before you forget them.',
+    icon: FileUp,
+    title: 'Courses from your notes',
+    body: 'Upload your slides or notes and get a course built from them.',
   },
 ];
 
-const STEPS = [
-  { n: 1, title: 'Pick a course', body: 'Browse the catalogue and enrol in whatever you want to learn.' },
-  { n: 2, title: 'Learn with your tutor', body: 'Work through lessons and ask the avatar anything, any time.' },
-  { n: 3, title: 'Prove it', body: 'Take quizzes, build streaks, and watch your mastery map fill in.' },
-];
+const DIFFICULTY_TONE = { beginner: 'easy', intermediate: 'medium', advanced: 'hard' };
 
-const DIFFICULTY_TONE = { beginner: 'easy', intermediate: 'info', advanced: 'danger' };
+function SectionIntro({ label, title, body, center = false }) {
+  return (
+    <div className={center ? 'mx-auto max-w-2xl text-center' : 'max-w-2xl'}>
+      {label && <span className="label">{label}</span>}
+      <h2 className="display mt-2 text-3xl sm:text-4xl">{title}</h2>
+      {body && <p className="mt-3 text-lg leading-relaxed text-muted">{body}</p>}
+    </div>
+  );
+}
 
-function FeaturedCourses() {
+/** The product, as it looks: Redwan in a live call, mid-answer. */
+function HeroPreview() {
+  return (
+    <div className="panel w-full">
+      <div className="panel-head">
+        <span className="label">Redwan · Live conversation</span>
+        <span className="flex items-center gap-2 text-2xs font-medium text-primary-200">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary-400" />
+          Speaking
+        </span>
+      </div>
+      <div className="relative aspect-square w-full bg-canvas">
+        <picture>
+          <source srcSet="/landing/redwan.webp" type="image/webp" />
+          <img
+            src="/landing/redwan.jpg"
+            alt="Redwan, the LearnQuest tutor, on a live call"
+            width="720"
+            height="720"
+            className="h-full w-full object-cover"
+          />
+        </picture>
+        <div className="absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-pill border border-primary-400/40 bg-canvas/80 px-3 py-1.5 backdrop-blur">
+          <span className="flex h-3.5 items-end gap-0.5" aria-hidden>
+            {[6, 11, 14, 9, 5].map((h) => (
+              <span key={h} className="w-0.5 rounded-sm bg-primary-300" style={{ height: `${h}px` }} />
+            ))}
+          </span>
+          <span className="text-sm font-semibold text-primary-200">Redwan is speaking</span>
+        </div>
+      </div>
+      <div className="space-y-3 border-t border-line p-4">
+        <div className="flex flex-col items-end">
+          <span className="mb-1 text-2xs text-faint">You</span>
+          <p className="max-w-[85%] rounded-lg rounded-tr-sm bg-primary-600 px-3.5 py-2 text-sm text-white">
+            Doesn&apos;t a LEFT JOIN drop the rows that don&apos;t match?
+          </p>
+        </div>
+        <div className="flex flex-col items-start">
+          <span className="mb-1 text-2xs text-faint">Redwan</span>
+          <p className="max-w-[90%] rounded-lg rounded-tl-sm border border-line bg-raised px-3.5 py-2 text-sm text-body">
+            That&apos;s the belief to fix. A LEFT JOIN keeps every row from the left table - so what
+            fills the columns that had no match?
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** What "diagnose" produces, drawn the way the quiz result shows it. */
+function DiagnosisCard() {
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="label">Misconception detected</span>
+        <Badge tone="medium">Active</Badge>
+      </div>
+      <p className="mt-3 text-lg font-medium leading-snug text-ink">
+        &ldquo;You believe a LEFT JOIN drops the rows that have no match.&rdquo;
+      </p>
+      <p className="mt-2 text-sm text-muted">
+        From your answer to question 2 of the SQL Joins quiz.
+      </p>
+      <div className="mt-4 flex items-center gap-2 rounded border border-line bg-raised px-3 py-2.5 text-sm text-body">
+        <GraduationCap className="h-4 w-4 shrink-0 text-primary-300" />
+        Teach Redwan why this is wrong - his score is your grade.
+      </div>
+    </div>
+  );
+}
+
+function Courses() {
   const [state, setState] = useState({ status: 'loading', courses: [], total: 0 });
 
   useEffect(() => {
     let cancelled = false;
-
     listCourses({ page: 1, page_size: 3 })
       .then((res) => {
         if (cancelled) return;
@@ -81,7 +200,6 @@ function FeaturedCourses() {
         // The landing page must render with or without a backend.
         if (!cancelled) setState({ status: 'error', courses: [], total: 0 });
       });
-
     return () => {
       cancelled = true;
     };
@@ -89,47 +207,37 @@ function FeaturedCourses() {
 
   if (state.status === 'loading') {
     return (
-      <div className="flex min-h-[240px] items-center justify-center">
+      <div className="flex min-h-[200px] items-center justify-center">
         <Spinner size="lg" label="Loading courses" />
       </div>
     );
   }
-
   // Empty catalogue or no backend - skip rather than advertise an empty shelf.
   if (state.courses.length === 0) return null;
 
   return (
-    <section className="border-t-2 border-line bg-surface py-20">
+    <section id="courses" className="scroll-mt-20 border-t border-line bg-surface py-20">
       <div className="mx-auto max-w-6xl px-4">
-        <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <span className="label">Live catalogue</span>
-            <h2 className="display mt-2 text-3xl sm:text-4xl">
-              Start with one of these
-            </h2>
-            <p className="mt-2 font-semibold text-muted">
-              {state.total} {state.total === 1 ? 'course' : 'courses'} published and ready to learn.
-            </p>
-          </div>
-          <Link to="/courses">
-            <Button variant="secondary">
-              All courses
-              <ArrowRight className="h-4 w-4" />
-            </Button>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <SectionIntro
+            label="Courses"
+            title="Start with one of these"
+            body={`${state.total} ${state.total === 1 ? 'course' : 'courses'} ready now, each with quizzes and practice.`}
+          />
+          <Link to="/register" className={buttonClasses('secondary', 'md')}>
+            See all courses
+            <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {state.courses.map((course) => (
             <Link
               key={course.id ?? course.slug}
               to={`/courses/${course.slug}`}
-              className="card row-interactive flex flex-col p-6"
+              className="card group flex flex-col p-6 transition-colors hover:border-line-strong hover:bg-raised"
             >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary-100 text-primary-900">
-                <BookOpen className="h-6 w-6" />
-              </div>
-              <div className="mb-2.5 flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {course.subject && <Badge tone="neutral">{course.subject}</Badge>}
                 {course.difficulty && (
                   <Badge tone={DIFFICULTY_TONE[String(course.difficulty).toLowerCase()] ?? 'neutral'}>
@@ -137,15 +245,13 @@ function FeaturedCourses() {
                   </Badge>
                 )}
               </div>
-              <h3 className="text-lg font-semibold leading-snug">{course.title}</h3>
+              <h3 className="mt-4 text-lg font-semibold leading-snug text-ink">{course.title}</h3>
               {course.description && (
-                <p className="mt-2 line-clamp-3 text-sm font-semibold leading-relaxed text-muted">
-                  {course.description}
-                </p>
+                <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted">{course.description}</p>
               )}
-              <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700">
+              <span className="mt-auto inline-flex items-center gap-1.5 pt-5 text-sm font-medium text-primary-300">
                 View course
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </span>
             </Link>
           ))}
@@ -177,112 +283,139 @@ export default function Landing() {
           Your session ended. <Link to="/login" className="font-medium text-primary-300 hover:underline">Sign in again</Link> to continue.
         </div>
       )}
+
       {/* ---------- Nav ---------- */}
-      <header className="sticky top-0 z-30 border-b-2 border-line bg-surface">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
+      <header className="sticky top-0 z-30 border-b border-line bg-canvas/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
           <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white">
-              <Sparkles className="h-5 w-5" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600 text-white">
+              <Sparkles className="h-4 w-4" />
             </span>
-            <span className="text-xl font-semibold tracking-tight text-primary-600">LearnQuest</span>
+            <span className="text-lg font-semibold tracking-tight text-ink">LearnQuest</span>
           </Link>
+          <nav className="hidden items-center gap-5 text-sm text-muted md:flex">
+            <a href="#how" className="transition-colors hover:text-ink">How it works</a>
+            <a href="#tutor" className="transition-colors hover:text-ink">The tutor</a>
+            <a href="#courses" className="transition-colors hover:text-ink">Courses</a>
+          </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Link to="/login">
-              <Button variant="ghost" size="sm">Sign in</Button>
-            </Link>
-            <Link to="/register" className="hidden sm:block">
-              <Button size="sm">Get started</Button>
+            <Link to="/login" className={buttonClasses('ghost', 'sm')}>Sign in</Link>
+            <Link to="/register" className={buttonClasses('secondary', 'sm', 'hidden sm:inline-flex')}>
+              Get started
             </Link>
           </div>
         </div>
       </header>
 
       {/* ---------- Hero ---------- */}
-      <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 lg:grid-cols-2 lg:py-24">
-        <div>
-          <span className="label">Free · AI avatar tutor</span>
-          <h1 className="display mt-4 text-4xl leading-[1.05] sm:text-5xl lg:text-6xl">
-            The free, fun way to
-            <span className="text-primary-600"> actually learn it</span>
-          </h1>
+      <section className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_75%_35%,rgb(var(--primary-600)/0.14),transparent_55%)]"
+          aria-hidden
+        />
+        <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 lg:grid-cols-[1.1fr_1fr] lg:py-24">
+          <div>
+            <Badge tone="primary">AI tutor with a real face and voice</Badge>
+            <h1 className="display mt-5 text-4xl leading-[1.08] sm:text-5xl lg:text-[3.5rem]">
+              A tutor that knows <span className="text-primary-300">why</span> you got it wrong.
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
+              LearnQuest traces every wrong answer to the belief behind it. Then Redwan, your tutor,
+              takes that belief on - and you teach him out of it. Talk to him out loud, or type.
+            </p>
 
-          <p className="mt-6 max-w-xl text-lg font-semibold leading-relaxed text-muted">
-            Bite-sized lessons, a talking AI tutor that explains things your way, and streaks that
-            keep you coming back. Learning that feels like a game, because it is one.
-          </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link to="/register" className={buttonClasses('primary', 'lg', 'w-full sm:w-auto')}>
+                Start learning
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+              <Link to="/login" className={buttonClasses('secondary', 'lg', 'w-full sm:w-auto')}>
+                Sign in
+              </Link>
+            </div>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link to="/register" className="sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto">
-                Get started
-              </Button>
-            </Link>
-            <Link to="/login" className="sm:w-auto">
-              <Button size="lg" variant="secondary" className="w-full sm:w-auto">
-                I already have an account
-              </Button>
-            </Link>
+            <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted">
+              {['Free for students', 'Talk out loud or type', 'Lessons, quizzes and SQL practice'].map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <Check className="h-4 w-4 shrink-0 text-easy" strokeWidth={2.5} />
+                  {item}
+                </li>
+              ))}
+            </ul>
           </div>
 
-          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
-            {['Always free', 'No card needed', 'Unlimited questions'].map((item) => (
-              <li
-                key={item}
-                className="flex items-center gap-2 text-sm font-medium text-muted"
-              >
-                <Check className="h-4 w-4 shrink-0 text-easy" strokeWidth={3} />
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* The real tutor component, idle - the product demoing itself. */}
-        <div className="relative mx-auto w-full max-w-md">
-          <div className="card p-5">
-            <div className="mb-4 flex items-center gap-2 border-b-2 border-line pb-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary-600" />
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Redwan · your tutor
-              </span>
-            </div>
-            <div className="mx-auto w-full max-w-[280px] animate-bob">
-              <AvatarStage preview />
-            </div>
-            <div className="mt-5 space-y-2.5">
-              <div className="ml-auto w-fit max-w-[85%] rounded-lg rounded-br-md bg-primary-600 px-4 py-2.5 text-sm text-white">
-                Why does recursion need a base case?
-              </div>
-              <div className="w-fit max-w-[90%] rounded-lg rounded-bl-md border border-line bg-surface px-4 py-2.5 text-sm text-body">
-                Good question — what do you think happens without one?
-              </div>
-            </div>
+          <div className="mx-auto w-full max-w-md lg:max-w-none">
+            <HeroPreview />
           </div>
         </div>
       </section>
 
-      {/* ---------- Features ---------- */}
-      <section className="border-t-2 border-line bg-surface py-20">
+      {/* ---------- The loop ---------- */}
+      <section id="how" className="scroll-mt-20 border-t border-line bg-surface py-20">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="display text-3xl sm:text-4xl">
-              Everything you need to actually finish
-            </h2>
-            <p className="mt-3 font-semibold text-muted">
-              Most courses are a video and a hope. This one watches how you are doing and adjusts.
-            </p>
-          </div>
+          <SectionIntro
+            label="How it works"
+            title="Every mistake becomes something you teach"
+            body="Most apps tell you an answer was wrong. LearnQuest finds out what you were thinking, and makes fixing it the lesson."
+          />
 
-          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map(({ icon: Icon, color, title, body }) => (
+          <div className="mt-12 grid items-start gap-10 lg:grid-cols-[1.25fr_1fr]">
+            <ol className="grid gap-4 sm:grid-cols-2">
+              {LOOP.map(({ icon: Icon, title, body }, i) => (
+                <li key={title} className="card flex gap-4 p-5">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-raised text-ink">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-2xs font-medium text-faint">Step {i + 1}</p>
+                    <h3 className="text-base font-semibold text-ink">{title}</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted">{body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <DiagnosisCard />
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- Three ways to learn with the tutor ---------- */}
+      <section id="tutor" className="scroll-mt-20 py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <SectionIntro
+            label="The tutor"
+            title="Three ways to learn with Redwan"
+            body="One tutor who remembers you, whichever way you choose to work."
+            center
+          />
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {MODES.map(({ icon: Icon, title, body }) => (
               <div key={title} className="card p-6">
-                <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-lg ${color}`}>
-                  <Icon className="h-6 w-6" />
-                </div>
-                <h3 className="text-base font-semibold">{title}</h3>
-                <p className="mt-2 text-sm font-semibold leading-relaxed text-muted">
-                  {body}
-                </p>
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary-500/30 bg-primary-500/10 text-primary-300">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <h3 className="mt-4 text-lg font-semibold text-ink">{title}</h3>
+                <p className="mt-2 leading-relaxed text-muted">{body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- What keeps it learned ---------- */}
+      <section className="border-t border-line bg-surface py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <SectionIntro
+            label="Built to stick"
+            title="Everything after the lesson, too"
+            body="Understanding something once is the start. These keep it."
+          />
+          <div className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURES.map(({ icon: Icon, title, body }) => (
+              <div key={title}>
+                <Icon className="h-6 w-6 text-muted" />
+                <h3 className="mt-3 text-base font-semibold text-ink">{title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted">{body}</p>
               </div>
             ))}
           </div>
@@ -290,68 +423,49 @@ export default function Landing() {
       </section>
 
       {/* ---------- Live catalogue from the API ---------- */}
-      <FeaturedCourses />
+      <Courses />
 
-      {/* ---------- How it works ---------- */}
-      <section className="py-20">
-        <div className="mx-auto max-w-6xl px-4">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="display text-3xl sm:text-4xl">How it works</h2>
-            <p className="mt-3 font-semibold text-muted">
-              Three steps, then you are learning.
+      {/* ---------- Final call to action ---------- */}
+      <section className="px-4 py-20">
+        <div className="relative mx-auto max-w-4xl overflow-hidden rounded-xl border border-primary-500/30 bg-surface px-6 py-14 text-center">
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgb(var(--primary-600)/0.18),transparent_60%)]"
+            aria-hidden
+          />
+          <div className="relative">
+            <h2 className="display text-3xl sm:text-4xl">Your first lesson takes five minutes</h2>
+            <p className="mx-auto mt-3 max-w-xl text-lg text-muted">
+              Create an account, pick a course, and ask Redwan your first question.
             </p>
-          </div>
-
-          <div className="mt-14 grid gap-5 md:grid-cols-3">
-            {STEPS.map(({ n, title, body }) => (
-              <div key={n} className="card p-6 text-center">
-                <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-2xl font-semibold text-white">
-                  {n}
-                </span>
-                <h3 className="text-lg font-semibold">{title}</h3>
-                <p className="mt-2 text-sm font-semibold leading-relaxed text-muted">
-                  {body}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------- Final CTA ---------- */}
-      <section className="px-4 pb-20">
-        <div className="mx-auto max-w-4xl rounded-xl border border-primary-500/40 bg-primary-600 px-6 py-14 text-center">
-          <Zap className="mx-auto h-12 w-12 text-white" strokeWidth={2.5} />
-          <h2 className="display mt-4 text-3xl text-white sm:text-4xl">
-            Your tutor is waiting
-          </h2>
-          <p className="mx-auto mt-3 max-w-xl text-lg text-primary-100">
-            Create an account and ask your first question in under a minute.
-          </p>
-          <div className="mt-8 flex justify-center">
-            <Link to="/register">
-              <Button size="lg" variant="secondary">
-                Create free account
-              </Button>
+            <Link to="/register" className={buttonClasses('primary', 'lg', 'mt-8')}>
+              Create your free account
+              <ArrowRight className="h-5 w-5" />
             </Link>
           </div>
         </div>
       </section>
 
       {/* ---------- Footer ---------- */}
-      <footer className="border-t-2 border-line py-8">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-primary-600 text-white">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            <span className="font-semibold text-body">LearnQuest AI</span>
+      <footer className="border-t border-line">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-600 text-white">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <span className="font-semibold text-ink">LearnQuest</span>
+            </div>
+            <p className="mt-2 text-sm text-muted">A tutor that models your mind, not your score.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-5 text-xs font-semibold uppercase tracking-wide text-muted">
-            <Link to="/courses" className="transition-colors hover:text-primary-600">Courses</Link>
-            <Link to="/login" className="transition-colors hover:text-primary-600">Sign in</Link>
-            <Link to="/register" className="transition-colors hover:text-primary-600">Get started</Link>
-          </div>
+          <nav className="flex flex-wrap items-center gap-5 text-sm text-muted">
+            <a href="#how" className="transition-colors hover:text-ink">How it works</a>
+            <a href="#tutor" className="transition-colors hover:text-ink">The tutor</a>
+            <Link to="/login" className="transition-colors hover:text-ink">Sign in</Link>
+            <Link to="/register" className="transition-colors hover:text-ink">Get started</Link>
+          </nav>
+        </div>
+        <div className="border-t border-line py-4 text-center text-xs text-faint">
+          © 2026 LearnQuest
         </div>
       </footer>
     </div>

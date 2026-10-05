@@ -33,6 +33,19 @@ const SIZES = {
   lg: 'h-12 px-6 text-lg gap-2.5',
 };
 
+const BASE = 'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded font-medium '
+  + 'transition-colors disabled:cursor-not-allowed disabled:opacity-40';
+
+/**
+ * The same look for a link: `<Link className={buttonClasses('primary', 'lg')}>`.
+ * A <button> inside an <a> is invalid HTML and reads as two controls to a
+ * screen reader, so navigation that should look like a button uses this.
+ */
+export function buttonClasses(variant = 'primary', size = 'md', className = '') {
+  const isLink = variant === 'link';
+  return `${BASE} ${VARIANTS[variant] ?? VARIANTS.primary} ${isLink ? '' : (SIZES[size] ?? SIZES.md)} ${className}`;
+}
+
 const Button = forwardRef(function Button(
   {
     variant = 'primary',
