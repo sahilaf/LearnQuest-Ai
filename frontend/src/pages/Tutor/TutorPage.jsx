@@ -71,12 +71,14 @@ export default function TutorPage() {
     muted,
   });
   const live = useLiveConversation({ voice });
-  // Redwan speaks Teach lines only while the Teach tab is open.
+  // Redwan speaks Teach lines only while the Teach tab is open, and only
+  // through the video face - without video he stays silent and you read.
+  // (A voice from nowhere on opening the tab was reported as a bug.)
   const tabRef = useRef(tab);
   tabRef.current = tab;
   const teach = useTeachBack({
     initialTopic: topicParam,
-    speak: (text) => { if (tabRef.current === 'teach') voice.speakText(text); },
+    speak: (text) => { if (tabRef.current === 'teach') voice.speakText(text, { onlyWithVideo: true }); },
   });
 
   // Is Redwan audible right now (face or voice-only)? Polled, because the

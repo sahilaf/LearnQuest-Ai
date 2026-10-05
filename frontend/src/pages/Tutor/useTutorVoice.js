@@ -48,8 +48,14 @@ export default function useTutorVoice({ avatarRef, useAvatar, muted }) {
   }, [avatarRef]);
 
   /** Speak a line of text in the tutor's voice. */
-  const speakText = useCallback(async (text) => {
+  /**
+   * `onlyWithVideo`: speak through the face or not at all. Used for lines the
+   * student did not ask to hear (Teach-Back), so opening a tab never starts a
+   * voice playing out of nowhere. An explicit "Listen" still plays voice-only.
+   */
+  const speakText = useCallback(async (text, { onlyWithVideo = false } = {}) => {
     if (!text?.trim()) return;
+    if (onlyWithVideo && !viaAvatar()) return;
     stop();
     if (viaAvatar()) {
       setAvatarLine({ text, speaking: true });

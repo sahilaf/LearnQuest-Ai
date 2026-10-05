@@ -124,3 +124,27 @@ test('before teaching: study the lesson first, and take hints when stuck', async
   await page.getByRole('button', { name: 'Teach', exact: true }).first().click();
   await expect(page.getByText('Hint 3 · only you can see this')).toBeVisible();
 });
+
+test('without video connected, Teach Redwan stays silent', async ({ page }) => {
+  // Regression: opening Teach used to start Redwan talking voice-only.
+  const speech = [];
+  page.on('request', (req) => {
+    if (req.url().includes('/api/avatar/speech')) speech.push(req.url());
+  });
+  await signUp(page);
+  await failQuiz1(page);
+  await page.goto('/tutor?mode=teachback');
+  await page.getByRole('button', { name: 'Teach', exact: true }).first().click();
+  await expect(page.getByText(/I'm confident my answer was right/)).toBeVisible();
+
+  const box = page.getByPlaceholder('Explain why what he believes is wrong...');
+  await box.fill('No, that is not right at all, think again about it please.');
+  await box.press('Enter');
+  await expect(page.getByText(/still don't follow|walk me through/)).toBeVisible();
+  await page.getByRole('button', { name: 'Ask Redwan to re-take the question' }).click();
+  await expect(page.getByText('Redwan still got it wrong')).toBeVisible();
+
+  await page.waitForTimeout(1000);
+  expect(speech).toEqual([]);
+  await expect(page.getByRole('button', { name: 'Connect video' })).toBeVisible();
+});
