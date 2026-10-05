@@ -6,10 +6,10 @@
  * previous/next navigation, and "Ask the tutor about this" integration.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Headphones } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ListTree, Sparkles } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import { getLesson, updateProgress } from '../../api/lessons';
 import { createConversation, explain } from '../../api/tutor';
@@ -21,11 +21,10 @@ import {
   Card,
   EmptyState,
   Modal,
-  ProgressBar,
   Skeleton,
   Spinner,
 } from '../../components/ui';
-import useLiveConversation, { LIVE_STATUS } from '../Tutor/useLiveConversation';
+import useLiveConversation from '../Tutor/useLiveConversation';
 import useTutorVoice from '../Tutor/useTutorVoice';
 import LessonNarrator from './LessonNarrator';
 import useLessonNarration from './useLessonNarration';
@@ -51,7 +50,7 @@ const MARKDOWN_COMPONENTS = {
     return (
       <h1
         id={hId}
-        className="mt-8 mb-4 scroll-mt-24 text-2xl font-bold text-ink"
+        className="mt-8 mb-4 scroll-mt-4 text-2xl font-bold text-ink"
         {...props}
       >
         {children}
@@ -63,7 +62,7 @@ const MARKDOWN_COMPONENTS = {
     return (
       <h2
         id={hId}
-        className="mt-7 mb-3 scroll-mt-24 text-xl font-bold text-ink border-b border-line pb-2"
+        className="mt-7 mb-3 scroll-mt-4 text-xl font-bold text-ink border-b border-line pb-2"
         {...props}
       >
         {children}
@@ -75,7 +74,7 @@ const MARKDOWN_COMPONENTS = {
     return (
       <h3
         id={hId}
-        className="mt-6 mb-2 scroll-mt-24 text-lg font-semibold text-ink"
+        className="mt-6 mb-2 scroll-mt-4 text-lg font-semibold text-ink"
         {...props}
       >
         {children}
@@ -149,6 +148,8 @@ export default function LessonViewer() {
   const secondsSpentRef = useRef(0);
   const isCompletedRef = useRef(false);
   const scrollRestoredRef = useRef(false);
+  // Read on leaving, when the lesson pane is already gone.
+  const lastScrollTopRef = useRef(0);
 
   // Tutor modal state
   const [tutorModalOpen, setTutorModalOpen] = useState(false);
@@ -161,6 +162,12 @@ export default function LessonViewer() {
   // Redwan reading the lesson aloud (see useLessonNarration). The avatar is
   // opt-in, as on the tutor page; without it he reads voice only.
   const contentRef = useRef(null);
+  // The lesson text scrolls in its own pane, beside Redwan; everything that
+  // used to read window.scrollY (progress, resume, follow-along) reads this.
+  const scrollRef = useRef(null);
+  const shellRef = useRef(null);
+  const [shellHeight, setShellHeight] = useState(null);
+  const [contentsOpen, setContentsOpen] = useState(false);
   const avatarRef = useRef(null);
   const [avatarConnected, setAvatarConnected] = useState(false);
   const [avatarLive, setAvatarLive] = useState(false);
@@ -169,6 +176,7 @@ export default function LessonViewer() {
   const live = useLiveConversation({ voice });
   const narration = useLessonNarration({
     containerRef: contentRef,
+    scrollRef,
     voice,
     contentKey: `${currentLessonId}:${lesson?.content_md?.length ?? 0}`,
   });
@@ -275,7 +283,6 @@ export default function LessonViewer() {
     muted,
     toggleMute: () => setMuted((m) => !m),
   };
-  const inCall = live.status === LIVE_STATUS.LIVE || live.status === LIVE_STATUS.CONNECTING;
 
   // 1. Fetch lesson data
   const fetchLessonData = useCallback(() => {
@@ -305,7 +312,7 @@ export default function LessonViewer() {
         if (savedPos && savedPos > 50 && !scrollRestoredRef.current) {
           scrollRestoredRef.current = true;
           setTimeout(() => {
-            window.scrollTo({ top: savedPos, behavior: 'smooth' });
+            scrollRef.current?.scrollTo({ top: savedPos, behavior: 'smooth' });
           }, 250);
         }
       })
@@ -338,11 +345,10 @@ export default function LessonViewer() {
     }, 1000);
 
     const heartbeat = setInterval(() => {
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
       updateProgress(currentLessonId, {
         status: isCompletedRef.current ? 'completed' : 'in_progress',
         seconds_spent: secondsSpentRef.current,
-        last_position: Math.round(scrollTop),
+        last_position: Math.round(lastScrollTopRef.current),
       }).catch(() => {});
     }, 30000);
 
@@ -351,29 +357,27 @@ export default function LessonViewer() {
       clearInterval(heartbeat);
 
       // Best effort flush on leave
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
       updateProgress(currentLessonId, {
         status: isCompletedRef.current ? 'completed' : 'in_progress',
         seconds_spent: secondsSpentRef.current,
-        last_position: Math.round(scrollTop),
+        last_position: Math.round(lastScrollTopRef.current),
       }).catch(() => {});
     };
   }, [currentLessonId]);
 
-  // 3. Scroll tracking & 90% auto-completion
+  // 3. Reading progress & auto-completion at ~90%, from the lesson pane.
   useEffect(() => {
+    const pane = scrollRef.current;
+    if (!pane) return undefined;
     const handleScroll = () => {
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = document.documentElement.clientHeight;
-      const totalScrollable = scrollHeight - clientHeight;
-
+      const scrollTop = pane.scrollTop;
+      lastScrollTopRef.current = scrollTop;
+      const totalScrollable = pane.scrollHeight - pane.clientHeight;
       if (totalScrollable <= 0) return;
 
       const pct = Math.min(100, Math.max(0, (scrollTop / totalScrollable) * 100));
       setScrollProgress(Math.round(pct));
 
-      // Auto-complete at ~90% scroll depth
       if (pct >= 88 && !isCompletedRef.current) {
         isCompletedRef.current = true;
         setIsCompleted(true);
@@ -387,9 +391,30 @@ export default function LessonViewer() {
       }
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [currentLessonId]);
+    pane.addEventListener('scroll', handleScroll, { passive: true });
+    return () => pane.removeEventListener('scroll', handleScroll);
+  }, [currentLessonId, lesson]);
+
+  // The two halves fill the screen below the app's header, and only the
+  // lesson pane scrolls: Redwan stays in view the whole time.
+  useLayoutEffect(() => {
+    const el = shellRef.current;
+    if (!el) return undefined;
+    const fit = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const wide = window.matchMedia('(min-width: 1024px)').matches;
+      // Whatever the layout puts below us (padding; on phones it covers the
+      // fixed tab bar) is measured, not guessed, so the page itself never
+      // scrolls - only the lesson pane does.
+      const below = document.documentElement.scrollHeight - (top + el.offsetHeight);
+      const reserve = Math.max(below, 16);
+      setShellHeight(Math.max(wide ? 520 : 420, Math.floor(window.innerHeight - top - reserve)));
+      window.scrollTo(0, 0);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [lesson]);
 
   // 4. Extract Headings for Table of Contents / Outline
   const outline = useMemo(() => {
@@ -412,10 +437,8 @@ export default function LessonViewer() {
   }, [lesson?.content_md]);
 
   const scrollToHeading = (idToScroll) => {
-    const el = document.getElementById(idToScroll);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    setContentsOpen(false);
+    document.getElementById(idToScroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   // 5. "Ask the tutor about this" handler
@@ -547,365 +570,231 @@ export default function LessonViewer() {
   const nextLesson = lesson.next_lesson;
   const topicTags = Array.isArray(lesson.topic_tags) ? lesson.topic_tags : [];
 
+  const percentRead = isCompleted ? 100 : scrollProgress;
+  const siblings = course?.lessons || [];
+  const TOOL = 'inline-flex items-center gap-1.5 rounded border border-line px-2.5 py-1.5 text-xs font-medium text-body transition-colors hover:border-muted hover:text-ink';
+
   return (
-    <div className={`space-y-6 ${narration.active || inCall ? 'pb-36 lg:pb-20' : 'pb-20'}`}>
-      <LessonNarrator
-        variant="bar"
-        narration={narration}
-        live={live}
-        voice={voice}
-        avatar={avatar}
-        onAsk={askWhileListening}
-        onContinue={continueListening}
-      />
-      {/* Top Breadcrumb & Progress Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
-        <div className="flex items-center gap-2 text-sm text-muted">
-          <Link
-            to="/courses"
-            className="hover:text-ink"
-          >
-            Courses
-          </Link>
-          {course && (
-            <>
-              <span>/</span>
-              <Link
-                to={`/courses/${courseSlug}`}
-                className="hover:text-ink"
-              >
-                {course.title}
-              </Link>
-            </>
-          )}
-          <span>/</span>
-          <span className="font-medium text-ink">
-            Lesson {lesson.order_index ?? 1}
-          </span>
-        </div>
+    <>
+      <div
+        ref={shellRef}
+        style={shellHeight ? { height: shellHeight } : undefined}
+        className="-mb-6 flex flex-col gap-4 lg:-mb-12 lg:grid lg:grid-cols-2 lg:gap-6"
+      >
+        {/* ---- Left half: Redwan ---- */}
+        <section aria-label="Redwan, your tutor" className="shrink-0 lg:min-h-0">
+          <LessonNarrator
+            narration={narration}
+            live={live}
+            voice={voice}
+            avatar={avatar}
+            onAsk={askWhileListening}
+            onContinue={continueListening}
+            canRead={Boolean(lesson.content_md)}
+          />
+        </section>
 
-        <div className="flex items-center gap-3">
-          {isCompleted ? (
-            <Badge tone="easy">✓ Completed</Badge>
-          ) : (
-            <div className="flex items-center gap-2 text-xs text-muted">
-              <span>{scrollProgress}% read</span>
-              <div className="w-24">
-                <ProgressBar value={scrollProgress} max={100} />
-              </div>
-            </div>
-          )}
+        {/* ---- Right half: the lesson, scrolling on its own ---- */}
+        <section aria-label="Lesson" className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-surface">
+          <header className="shrink-0 border-b border-line px-4 py-3 sm:px-6">
+            <div className="flex items-center gap-2">
+              <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-muted">
+                <Link to="/courses" className="shrink-0 hover:text-ink">Courses</Link>
+                {course && (
+                  <>
+                    <ChevronRight className="h-3 w-3 shrink-0" />
+                    <Link to={`/courses/${courseSlug}`} className="truncate hover:text-ink">{course.title}</Link>
+                  </>
+                )}
+                <ChevronRight className="h-3 w-3 shrink-0" />
+                <span className="shrink-0 font-medium text-ink">Lesson {lesson.order_index ?? 1}</span>
+              </nav>
 
-          <Button variant="secondary" size="sm" onClick={handleOpenTutor}>
-            ✨ Ask the tutor about this
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Grid: Content Area & Sticky Outline */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        {/* Left Column: Lesson Content */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Lesson Header */}
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <Badge tone="primary">Lesson {lesson.order_index ?? 1}</Badge>
-              {lesson.estimated_minutes && (
-                <span className="text-xs text-muted">
-                  ⏱ {lesson.estimated_minutes} min read
-                </span>
-              )}
-              {lesson.content_md && !narration.active && !inCall && (
+              <div className="relative flex shrink-0 items-center gap-1.5">
+                {(outline.length > 0 || siblings.length > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => setContentsOpen((open) => !open)}
+                    aria-expanded={contentsOpen}
+                    aria-label="Contents"
+                    className={TOOL}
+                  >
+                    <ListTree className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Contents</span>
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={narration.play}
-                  className="ml-auto inline-flex items-center gap-1.5 rounded border border-primary-500/40 bg-primary-500/10 px-3 py-1.5 text-xs font-medium text-primary-300 transition-colors hover:bg-primary-500/20"
+                  onClick={handleOpenTutor}
+                  aria-label="Explain a selection"
+                  className={TOOL}
+                  title="Highlight text in the lesson first, then press this"
                 >
-                  <Headphones className="h-3.5 w-3.5" />
-                  Listen with Redwan
+                  <Sparkles className="h-3.5 w-3.5 text-primary-300" />
+                  <span className="hidden sm:inline">Explain a selection</span>
                 </button>
-              )}
-            </div>
 
-            <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-              {lesson.title}
-            </h1>
-
-            {topicTags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {topicTags.map((tag) => (
-                  <Badge key={tag} tone="default" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
+                {contentsOpen && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Close contents"
+                      className="fixed inset-0 z-20 cursor-default"
+                      onClick={() => setContentsOpen(false)}
+                    />
+                    <div className="card absolute right-0 top-full z-30 mt-2 max-h-[60vh] w-72 overflow-y-auto p-3">
+                      {outline.length > 0 && (
+                        <>
+                          <p className="label px-2 pb-1.5">In this lesson</p>
+                          {outline.map((item, i) => (
+                            <button
+                              key={`${item.id}-${i}`}
+                              type="button"
+                              onClick={() => scrollToHeading(item.id)}
+                              className={`block w-full rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-raised hover:text-ink ${
+                                item.level === 1 ? 'font-medium text-ink' : item.level === 2 ? 'pl-4 text-body' : 'pl-6 text-xs text-muted'
+                              }`}
+                            >
+                              {item.text}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                      {siblings.length > 0 && (
+                        <>
+                          <p className="label px-2 pb-1.5 pt-3">Lessons in this course</p>
+                          {siblings.map((sibling) => {
+                            const isCurrent = String(sibling.id) === String(lesson.id);
+                            return (
+                              <Link
+                                key={sibling.id}
+                                to={`/lessons/${sibling.id}`}
+                                onClick={() => setContentsOpen(false)}
+                                className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm transition-colors ${
+                                  isCurrent ? 'bg-primary-500/15 font-medium text-ink' : 'text-body hover:bg-raised'
+                                }`}
+                              >
+                                <span className="truncate">{sibling.order_index}. {sibling.title}</span>
+                                {isCurrent && <span className="shrink-0 text-2xs text-primary-300">Here</span>}
+                              </Link>
+                            );
+                          })}
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
-            )}
-          </div>
-
-          {/* Video Embed (if available) */}
-          {lesson.video_url && (
-            <div className="aspect-video w-full overflow-hidden rounded-lg bg-black shadow-sm">
-              {lesson.video_url.includes('youtube.com') ||
-              lesson.video_url.includes('youtu.be') ? (
-                <iframe
-                  src={lesson.video_url.replace('watch?v=', 'embed/')}
-                  title={lesson.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="h-full w-full border-0"
-                />
-              ) : (
-                <video src={lesson.video_url} controls className="h-full w-full" />
-              )}
             </div>
-          )}
 
-          {/* Markdown Content */}
-          {lesson.content_md ? (
-            <div ref={contentRef} className="prose prose-slate max-w-none" data-narration-active={narration.active || undefined}>
-              {renderedLesson}
+            <div className="mt-2.5 flex items-center gap-3">
+              <div className="h-1 flex-1 overflow-hidden rounded-pill bg-line">
+                <div className="h-full bg-easy transition-[width] duration-300" style={{ width: `${percentRead}%` }} />
+              </div>
+              <span className={`shrink-0 text-xs ${isCompleted ? 'text-easy-fg' : 'text-muted'}`}>
+                {isCompleted ? '✓ Completed' : `${percentRead}% read`}
+              </span>
             </div>
-          ) : (
-            <EmptyState
-              title="No Content Yet"
-              description="This lesson does not have written content published."
-            />
-          )}
+          </header>
 
-          {/* Completion Celebration Card */}
-          {isCompleted && (
-            <Card className="border-easy/30 bg-easy-bg/60 p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="font-semibold text-easy-fg">
-                    🎉 Lesson Completed!
-                  </h3>
-                  <p className="text-xs text-easy-fg">
-                    You have finished reading this lesson. Ready to test your understanding with a quiz?
-                  </p>
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <article className="mx-auto max-w-2xl px-4 py-6 sm:px-8 sm:py-8">
+              <div className="mb-6">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                  <Badge tone="primary">Lesson {lesson.order_index ?? 1}</Badge>
+                  {lesson.estimated_minutes && <span>{lesson.estimated_minutes} min read</span>}
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    loading={generatingQuiz}
-                    disabled={generatingQuiz}
-                    onClick={handleStartQuiz}
-                  >
-                    {generatingQuiz ? 'Generating quiz (~8s)...' : 'Quiz me →'}
-                  </Button>
-                  {nextLesson ? (
-                    <Link
-                      to={`/lessons/${nextLesson.id}`}
-                      className="text-xs font-semibold text-muted hover:text-ink transition-colors"
-                    >
-                      Skip to next lesson →
+                <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">{lesson.title}</h1>
+                {topicTags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {topicTags.map((tag) => (
+                      <Badge key={tag} tone="default" className="text-xs">{tag}</Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {lesson.video_url && (
+                <div className="mb-6 aspect-video w-full overflow-hidden rounded-lg bg-black">
+                  {lesson.video_url.includes('youtube.com') || lesson.video_url.includes('youtu.be') ? (
+                    <iframe
+                      src={lesson.video_url.replace('watch?v=', 'embed/')}
+                      title={lesson.title}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="h-full w-full border-0"
+                    />
+                  ) : (
+                    <video src={lesson.video_url} controls className="h-full w-full" />
+                  )}
+                </div>
+              )}
+
+              {lesson.content_md ? (
+                <div ref={contentRef} className="prose prose-slate max-w-none" data-narration-active={narration.active || undefined}>
+                  {renderedLesson}
+                </div>
+              ) : (
+                <EmptyState title="No content yet" description="This lesson does not have written content published." />
+              )}
+
+              {/* ---- End of the lesson: one next step ---- */}
+              <div className="mt-10 space-y-5 border-t border-line pt-6">
+                <div className="rounded-lg border border-line bg-raised p-5">
+                  <p className="text-base font-semibold text-ink">
+                    {isCompleted ? 'Lesson complete - check what you learned' : 'Finished reading? Check what you learned'}
+                  </p>
+                  <p className="mt-1 text-sm text-muted">
+                    A short quiz on this lesson. A wrong answer shows you the exact idea you mixed up.
+                  </p>
+                  {quizGenError && (
+                    <p className="mt-3 rounded border border-hard/40 bg-hard-bg p-2.5 text-xs text-hard-fg">{quizGenError}</p>
+                  )}
+                  {quota && quota.remaining <= 0 && !lesson.quiz_id && !quizGenError && (
+                    <p className="mt-3 rounded border border-medium/40 bg-medium-bg p-2.5 text-xs text-medium-fg">
+                      Today&apos;s quiz generation limit has been reached.
+                    </p>
+                  )}
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Button variant="primary" loading={generatingQuiz} disabled={generatingQuiz} onClick={handleStartQuiz}>
+                      {generatingQuiz ? 'Generating quiz (~8s)...' : 'Quiz me →'}
+                    </Button>
+                    {quota && !lesson.quiz_id && (
+                      <span className="text-xs text-muted">
+                        {quota.remaining} quiz generation{quota.remaining === 1 ? '' : 's'} left today
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <nav aria-label="Lessons" className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                  {prevLesson ? (
+                    <Link to={`/lessons/${prevLesson.id}`} className="inline-flex min-w-0 items-center gap-1 text-muted hover:text-ink">
+                      <ChevronLeft className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{prevLesson.title}</span>
                     </Link>
                   ) : (
-                    <Link
-                      to={`/courses/${courseSlug}`}
-                      className="text-xs font-semibold text-muted hover:text-ink transition-colors"
-                    >
-                      Course Completed ✓
+                    <Link to={`/courses/${courseSlug}`} className="inline-flex items-center gap-1 text-muted hover:text-ink">
+                      <ChevronLeft className="h-4 w-4" />
+                      Course overview
                     </Link>
                   )}
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* Bottom Navigation Buttons */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
-            {prevLesson ? (
-              <Link to={`/lessons/${prevLesson.id}`}>
-                <Button variant="secondary">
-                  ← Previous: {prevLesson.title}
-                </Button>
-              </Link>
-            ) : (
-              <Link to={`/courses/${courseSlug}`}>
-                <Button variant="secondary">
-                  ← Course Overview
-                </Button>
-              </Link>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start sm:justify-end">
-              {nextLesson && (
-                <Link
-                  to={`/lessons/${nextLesson.id}`}
-                  className="text-xs font-semibold text-muted hover:text-ink transition-colors mr-1"
-                >
-                  Skip to next lesson →
-                </Link>
-              )}
-              <Button
-                variant="primary"
-                size="md"
-                loading={generatingQuiz}
-                disabled={generatingQuiz}
-                onClick={handleStartQuiz}
-              >
-                {generatingQuiz ? 'Generating (~8s)...' : 'Quiz me →'}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Sticky Table of Contents & Lesson Info */}
-        <div className="lg:col-span-4">
-          <div className="sticky top-20 max-h-[calc(100vh-6rem)] space-y-6 overflow-y-auto pr-1">
-            {lesson.content_md && (
-              <div className="hidden lg:block">
-                <LessonNarrator
-                  variant="panel"
-                  narration={narration}
-                  live={live}
-                  voice={voice}
-                  avatar={avatar}
-                  onAsk={askWhileListening}
-                  onContinue={continueListening}
-                />
-              </div>
-            )}
-            {/* Outline Card */}
-            {outline.length > 0 && (
-              <Card className="p-5">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">
-                  On this page
-                </h3>
-                <nav className="space-y-1 text-sm max-h-[50vh] overflow-y-auto pr-1">
-                  {outline.map((item, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => scrollToHeading(item.id)}
-                      className={`block w-full text-left transition-colors hover:text-primary-600 ${
-                        item.level === 1
-                          ? 'font-medium text-ink py-1'
-                          : item.level === 2
-                          ? 'pl-3 text-xs text-body py-0.5'
-                          : 'pl-6 text-[11px] text-muted py-0.5'
-                      }`}
-                    >
-                      {item.text}
-                    </button>
-                  ))}
+                  {nextLesson ? (
+                    <Link to={`/lessons/${nextLesson.id}`} className="inline-flex min-w-0 items-center gap-1 font-medium text-body hover:text-ink">
+                      <span className="truncate">Next: {nextLesson.title}</span>
+                      <ChevronRight className="h-4 w-4 shrink-0" />
+                    </Link>
+                  ) : (
+                    <Link to={`/courses/${courseSlug}`} className="inline-flex items-center gap-1 font-medium text-body hover:text-ink">
+                      Back to the course
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  )}
                 </nav>
-              </Card>
-            )}
-
-            {/* Assessment / Practice Quiz Card */}
-            <Card className="border-line bg-surface p-5">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="label text-easy-fg">
-                    Assessment
-                  </span>
-                  {quota && (
-                    <span className="font-mono text-xs text-muted">
-                      {quota.remaining} gen{quota.remaining === 1 ? '' : 's'} left
-                    </span>
-                  )}
-                </div>
-                <h4 className="text-base font-semibold text-ink">
-                  Practice This Lesson
-                </h4>
-                <p className="text-xs leading-relaxed text-muted">
-                  Generate an AI quiz directly from this lesson's key concepts to test your understanding.
-                </p>
-
-                {quizGenError && (
-                  <div className="rounded border border-hard/40 bg-hard-bg p-2.5 text-xs text-hard-fg">
-                    {quizGenError}
-                  </div>
-                )}
-
-                {quota && quota.remaining <= 0 && !quizGenError && (
-                  <div className="rounded border border-medium/40 bg-medium-bg p-2.5 text-xs text-medium-fg">
-                    Today's generation limit has been reached.
-                  </div>
-                )}
-
-                <div className="space-y-2 pt-1">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    loading={generatingQuiz}
-                    disabled={generatingQuiz}
-                    onClick={handleStartQuiz}
-                    className="w-full"
-                  >
-                    {generatingQuiz ? 'Generating quiz (~8s)...' : 'Quiz me →'}
-                  </Button>
-
-                  {nextLesson && (
-                    <div className="text-center pt-1">
-                      <Link
-                        to={`/lessons/${nextLesson.id}`}
-                        className="text-xs text-muted hover:text-ink transition-colors"
-                      >
-                        Skip to next lesson →
-                      </Link>
-                    </div>
-                  )}
-                </div>
               </div>
-            </Card>
-
-            {/* Tutor Shortcut Card. A violet tint on the dark surface - the
-                old bg-primary-50 is near-white in the dark theme, which put
-                near-white text on near-white and hid the whole card. */}
-            <Card className="border-primary-500/30 bg-primary-500/10 p-5">
-              <div className="space-y-2">
-                <span className="label text-primary-300">
-                  Personal AI tutor
-                </span>
-                <h4 className="text-base font-semibold text-ink">Need clarification?</h4>
-                <p className="text-sm leading-relaxed text-body">
-                  Highlight any text on the page, then ask Redwan to break it down for you.
-                </p>
-                <Button size="sm" onClick={handleOpenTutor} className="mt-2 w-full">
-                  Ask about this lesson
-                </Button>
-              </div>
-            </Card>
-
-            {/* Course Syllabus Drawer / Sibling Lessons */}
-            {course?.lessons && course.lessons.length > 0 && (
-              <Card className="p-5">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">
-                  Course Lessons
-                </h3>
-                <div className="space-y-1.5 max-h-[35vh] overflow-y-auto text-xs pr-1">
-                  {course.lessons.map((sibling) => {
-                    const isCurrent = String(sibling.id) === String(lesson.id);
-                    return (
-                      <Link
-                        key={sibling.id}
-                        to={`/lessons/${sibling.id}`}
-                        className={`flex items-center justify-between rounded-lg px-2.5 py-2 transition-colors ${
-                          isCurrent
-                            ? 'bg-primary-500/15 font-semibold text-ink'
-                            : 'text-body hover:bg-raised'
-                        }`}
-                      >
-                        <span className="truncate pr-2">
-                          {sibling.order_index}. {sibling.title}
-                        </span>
-                        {isCurrent && (
-                          <span className="shrink-0 text-[10px] text-primary-600 font-bold">
-                            Current
-                          </span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </Card>
-            )}
+            </article>
           </div>
-        </div>
+        </section>
       </div>
 
       {/* Tutor Interaction Modal */}
@@ -999,6 +888,6 @@ export default function LessonViewer() {
           )}
         </div>
       </Modal>
-    </div>
+    </>
   );
 }

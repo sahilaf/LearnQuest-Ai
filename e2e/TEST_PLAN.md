@@ -1,7 +1,7 @@
 # LearnQuest — End-to-End Test Plan and Report
 
 **Tool:** Playwright 1.x (Chromium) · **Suite:** `e2e/tests/` · **Last run:** 2026-10-06 —
-**16 / 16 passed**, stable across consecutive runs, ~55 s per run.
+**17 / 17 passed**, stable across consecutive runs, ~60 s per run.
 
 ## 1. What "end to end" means here
 
@@ -48,8 +48,9 @@ production** whatever the environment says.
 | 12 | Turn status | `04-tutor` | Start a call | Status always shows whose turn it is, including "Redwan is speaking" | ✅ |
 | 13 | SQL practice | `05-practice-progress` | Submit a wrong query, then a correct one | Wrong one fails the hidden tests; correct one passes (queries are really executed) | ✅ |
 | 14 | Gamification | `05-practice-progress` | Finish a quiz; open Achievements and Leaderboard | First badge earned (1/15); student listed on the leaderboard as "You" | ✅ |
-| 15 | **Lesson read aloud** | `06-lesson-narration` | Open a lesson, press "Listen with Redwan"; Pause; Ask; Continue the lesson; close | Nothing plays before asked; the highlighted word moves on as he reads; audio is requested as lesson narration with no Markdown in it; Pause freezes the highlight; Ask opens a live call carrying the paused passage and the lesson's conversation; Continue resumes with no part downloaded twice; close clears every highlight | ✅ |
+| 15 | **Lesson read aloud** | `06-lesson-narration` | Open a lesson, press "Start listening"; Pause; Ask; Continue the lesson; close | Nothing plays before asked; the highlighted word moves on as he reads; audio is requested as lesson narration with no Markdown in it; Pause freezes the highlight; Ask opens a live call carrying the paused passage and the lesson's conversation; Continue resumes with no part downloaded twice; close clears every highlight | ✅ |
 | 16 | Read from here | `06-lesson-narration` | While listening, click a later paragraph | Narration jumps there; its first word is highlighted | ✅ |
+| 17 | Lesson layout | `06-lesson-narration` | Open a lesson; scroll the lesson text | Redwan and the lesson are side by side, half each; the controls are explained before starting; the lesson pane scrolls while the page and Redwan stay put; reading progress moves | ✅ |
 
 ## 4. Defects found by this suite (all fixed)
 

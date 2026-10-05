@@ -99,17 +99,20 @@ export default function AppLayout() {
   }, [user]);
 
   return (
-    <div className="min-h-full bg-canvas">
+    // The dev banner takes its height from the frame below it (--banner),
+    // instead of adding it on top of a full-screen frame - which made every
+    // page 32px taller than the screen in dev mode.
+    <div className="flex min-h-full flex-col bg-canvas" style={{ '--banner': devMode ? '2rem' : '0px' }}>
       {devMode && (
-        <div className="border-b border-medium/30 bg-medium-bg px-4 py-1.5 text-center text-xs font-medium text-medium-fg">
+        <div className="flex h-8 shrink-0 items-center justify-center border-b border-medium/30 bg-medium-bg px-4 text-xs font-medium text-medium-fg">
           Dev mode — signed in as a local test user
         </div>
       )}
 
-      <div className="flex min-h-full">
+      <div className="flex min-h-0 flex-1">
         {/* Sidebar, anchored to the viewport edge rather than floating inside
             a centred container. */}
-        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface lg:flex">
+        <aside className="sticky top-0 hidden h-[calc(100vh-var(--banner))] w-60 shrink-0 flex-col border-r border-line bg-surface lg:flex">
           <NavLink
             to="/dashboard"
             className="flex h-16 shrink-0 items-center gap-2.5 border-b border-line px-5"

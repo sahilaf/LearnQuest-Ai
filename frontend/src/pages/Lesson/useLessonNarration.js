@@ -43,7 +43,11 @@ export const NARRATION = {
 
 const highlightsSupported = () => typeof CSS !== 'undefined' && Boolean(CSS.highlights) && typeof Highlight !== 'undefined';
 
-export default function useLessonNarration({ containerRef, voice, contentKey }) {
+/**
+ * containerRef: the rendered lesson text. scrollRef: the element that scrolls
+ * it (the lesson pane); without one, the window.
+ */
+export default function useLessonNarration({ containerRef, scrollRef = null, voice, contentKey }) {
   const [status, setStatus] = useState(NARRATION.IDLE);
   const [error, setError] = useState(null);
   // Re-rendered only when the spoken word changes.
@@ -105,10 +109,17 @@ export default function useLessonNarration({ containerRef, voice, contentKey }) 
       CSS.highlights.delete('narration-sentence');
     }
 
-    // Follow along: keep the spoken line in the upper-middle of the screen.
+    // Follow along: keep the spoken line in the upper-middle of the pane.
     if (performance.now() > followPausedUntilRef.current) {
       const rect = (wordRange || block.el).getBoundingClientRect();
-      if (rect.top < 96 || rect.bottom > window.innerHeight * 0.72) {
+      const box = scrollRef?.current;
+      if (box) {
+        const view = box.getBoundingClientRect();
+        const top = rect.top - view.top;
+        if (top < 48 || rect.bottom - view.top > view.height * 0.72) {
+          box.scrollTo({ top: box.scrollTop + top - view.height * 0.3, behavior: 'smooth' });
+        }
+      } else if (rect.top < 96 || rect.bottom > window.innerHeight * 0.72) {
         window.scrollTo({ top: window.scrollY + rect.top - window.innerHeight * 0.35, behavior: 'smooth' });
       }
     }
@@ -116,7 +127,7 @@ export default function useLessonNarration({ containerRef, voice, contentKey }) 
     const words = plan.units.slice(sentence.start, sentence.end + 1).map((x) => x.text);
     setCaption({ words, active: u - sentence.start });
     setProgress(plan.units.length > 1 ? u / (plan.units.length - 1) : 1);
-  }, []);
+  }, [scrollRef]);
 
   /* ---- the script and its audio ---- */
 
@@ -235,10 +246,13 @@ export default function useLessonNarration({ containerRef, voice, contentKey }) 
   /** Where reading should start: the top, or the first paragraph in view. */
   const startingUnit = useCallback(() => {
     const script = ensureScript();
-    if (!script || window.scrollY < 200) return 0;
-    const index = script.blocks.findIndex((b) => b.el.getBoundingClientRect().top >= 80);
+    const box = scrollRef?.current;
+    const scrolled = box ? box.scrollTop : window.scrollY;
+    if (!script || scrolled < 200) return 0;
+    const top = box ? box.getBoundingClientRect().top + 24 : 80;
+    const index = script.blocks.findIndex((b) => b.el.getBoundingClientRect().top >= top);
     return index > 0 ? script.plan.blockFirstUnit[index] : 0;
-  }, [ensureScript]);
+  }, [ensureScript, scrollRef]);
 
   const play = useCallback(() => {
     const s = statusRef.current;

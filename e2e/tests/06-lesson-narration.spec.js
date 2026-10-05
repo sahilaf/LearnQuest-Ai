@@ -32,7 +32,7 @@ test('the lesson is read aloud with the spoken word highlighted; pause, ask, con
   await page.waitForTimeout(1000);
   expect(speech).toEqual([]);
 
-  await page.getByRole('button', { name: 'Listen with Redwan' }).click();
+  await page.getByRole('button', { name: 'Start listening' }).click();
 
   // Reading: one block marked, and the highlighted word moves on.
   await expect(narrator(page).getByText('Reading', { exact: true })).toBeVisible({ timeout: 15_000 });
@@ -77,7 +77,7 @@ test('the lesson is read aloud with the spoken word highlighted; pause, ask, con
 test('clicking a paragraph while listening reads from there', async ({ page }) => {
   await signUp(page);
   await page.goto(`/lessons/${LESSON_1}`);
-  await page.getByRole('button', { name: 'Listen with Redwan' }).click();
+  await page.getByRole('button', { name: 'Start listening' }).click();
   await expect(narrator(page).getByText('Reading', { exact: true })).toBeVisible({ timeout: 15_000 });
 
   const target = page.locator('.prose p').nth(3);
@@ -85,4 +85,29 @@ test('clicking a paragraph while listening reads from there', async ({ page }) =
   await expect(target).toHaveAttribute('data-narrating', /block|fallback/);
   const firstWord = (await target.innerText()).trim().split(/\s+/)[0];
   await expect.poll(() => highlightedWord(page), { timeout: 10_000 }).toBe(firstWord);
+});
+
+test('half the screen is Redwan; the lesson scrolls in the other half, the page does not', async ({ page }) => {
+  await signUp(page);
+  await page.goto(`/lessons/${LESSON_1}`);
+  const tutor = page.getByRole('region', { name: 'Redwan, your tutor' });
+  const lesson = page.getByRole('region', { name: 'Lesson' });
+  await expect(tutor).toBeVisible();
+  await expect(lesson).toBeVisible();
+
+  // Side by side, roughly half each.
+  const [a, b] = [await tutor.boundingBox(), await lesson.boundingBox()];
+  expect(Math.abs(a.width - b.width)).toBeLessThan(40);
+  expect(b.x).toBeGreaterThan(a.x + a.width - 1);
+
+  // Before starting, the controls are explained in plain words.
+  await expect(page.getByText('Did not get something? Press Ask', { exact: false })).toBeVisible();
+
+  // Scrolling the lesson moves the lesson only; Redwan stays where he was.
+  const pane = lesson.locator('.overflow-y-auto').first();
+  await pane.evaluate((el) => el.scrollTo(0, 800));
+  await expect.poll(() => pane.evaluate((el) => el.scrollTop)).toBeGreaterThan(400);
+  expect(await page.evaluate(() => window.scrollY)).toBeLessThan(5);
+  expect((await tutor.boundingBox()).y).toBeCloseTo(a.y, 0);
+  await expect(page.getByText(/\d+% read/)).not.toHaveText('0% read');
 });
