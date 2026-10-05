@@ -287,21 +287,17 @@ export default function QuizResult() {
             </div>
 
             <p className="text-xs text-body leading-relaxed max-w-xl">
-              Explaining this concept to someone else is the proven way to rewire your mental model.
-              Teach Redwan why this belief is wrong — his score is your grade.
+              Ask Redwan to walk you through where this belief goes wrong, then try a review
+              question on it.
             </p>
 
             <div className="pt-1">
               <Link
-                to={
-                  primaryMisconception?.topic
-                    ? `/tutor?topic=${encodeURIComponent(primaryMisconception.topic)}&mode=teachback`
-                    : '/tutor?mode=teachback'
-                }
+                to="/tutor?tab=chat"
               >
                 <Button variant="primary" size="lg" className="font-semibold px-6">
                   <GraduationCap className="h-4 w-4" />
-                  Teach Redwan to fix it →
+                  Ask Redwan about it →
                 </Button>
               </Link>
             </div>
@@ -421,15 +417,13 @@ export default function QuizResult() {
                       <Link
                         to={
                           quizDetails?.lesson_id
-                            ? `/tutor?lessonId=${quizDetails.lesson_id}&mode=teachback`
-                            : item.topic_tag
-                            ? `/tutor?topic=${encodeURIComponent(item.topic_tag)}&mode=teachback`
-                            : '/tutor'
+                            ? `/tutor?lessonId=${quizDetails.lesson_id}&tab=chat`
+                            : '/tutor?tab=chat'
                         }
                       >
                         <Button variant="secondary" size="sm">
                           <GraduationCap className="h-3.5 w-3.5 text-primary-500" />
-                          Teach Redwan
+                          Ask Redwan
                         </Button>
                       </Link>
                     </div>
@@ -493,15 +487,11 @@ export default function QuizResult() {
             )}
 
             <Link
-              to={
-                primaryMisconception?.topic
-                  ? `/tutor?topic=${encodeURIComponent(primaryMisconception.topic)}&mode=teachback`
-                  : '/tutor?mode=teachback'
-              }
+              to="/tutor?tab=chat"
             >
               <Button variant="primary">
                 <GraduationCap className="h-4 w-4" />
-                Teach Redwan to fix it →
+                Ask Redwan about it →
               </Button>
             </Link>
           </>

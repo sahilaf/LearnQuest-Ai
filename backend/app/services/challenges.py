@@ -62,14 +62,6 @@ CHALLENGE_POOL = [
         "xp_reward": 35,
         "coin_reward": 5,
     },
-    {
-        "challenge_type": "teachback_complete",
-        "title": "The Teacher",
-        "description": "Successfully guide Redwan through a Teach-Back session.",
-        "target_value": 1,
-        "xp_reward": 50,
-        "coin_reward": 10,
-    },
 ]
 
 
@@ -426,16 +418,6 @@ def on_tutor_session_challenges(db: Session, user_id: Any, payload: dict[str, An
         logger.warning("Error updating challenge progress on tutor.session: %s", e)
 
 
-@register_handler("teachback.completed")
-def on_teachback_completed_challenges(
-    db: Session, user_id: Any, payload: dict[str, Any]
-) -> None:
-    try:
-        update_challenge_progress(db, user_id, "teachback_complete", increment=1)
-    except Exception as e:
-        logger.warning("Error updating challenge progress on teachback.completed: %s", e)
-
-
 def register_challenge_handlers() -> None:
     """Register all daily challenge event handlers with the Event Bus."""
     from app.services.events import HANDLERS, register_handler
@@ -444,7 +426,6 @@ def register_challenge_handlers() -> None:
         "lesson.completed": on_lesson_completed_challenges,
         "quiz.submitted": on_quiz_submitted_challenges,
         "tutor.session": on_tutor_session_challenges,
-        "teachback.completed": on_teachback_completed_challenges,
     }
     for event_type, handler_func in handlers_map.items():
         if handler_func not in HANDLERS.get(event_type, []):

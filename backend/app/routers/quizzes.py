@@ -475,7 +475,7 @@ def _spend_generation(db: Session, user_uuid: uuid.UUID, kind: str, params: dict
     """Count this generation against the caller's daily allowance.
 
     The free tier is a per-day, per-model request quota shared with the tutor,
-    misconception capture and Teach-Back, so one enthusiastic student can spend
+    misconception capture, so one enthusiastic student can spend
     the whole app's budget. The job row is also the audit trail for what was
     generated and why.
     """

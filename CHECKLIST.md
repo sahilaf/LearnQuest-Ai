@@ -19,16 +19,21 @@
 > **A tutor that models your mind, not your score — with a real human face.**
 
 A wrong answer doesn't just score 0. The app names **the false belief** behind it,
-then the photoreal SyncTalk tutor is seeded with **your** misconception and you have
-to teach it out of the mistake. Its score on the retry is your grade.
-(*The protégé effect* — real education research.)
+and the photoreal SyncTalk tutor talks it through with you — out loud or in chat.
+Getting that topic right in later quizzes clears the belief.
 
 ---
 
 ## ⚠️ Read this after you pull — 2026-10-06 (everyone)
 
-Migration head is now **`0011`** (Teach-Back remembers which question revealed
-each misconception). Until it is applied, every page that reads mastery fails:
+**Teach-Back has been removed.** It graded the student by how an AI playing a
+confused classmate reacted, not by anything the student answered, so it was a
+weak measurement. The tutor page now has two tabs, Live conversation and Chat;
+"Teach Redwan" links on quiz results and the dashboard now say "Ask Redwan
+about it" and open Chat. Migration **`0012`** drops `teachback_sessions`.
+
+Migration head is now **`0012`**. Until it is applied, every page that reads
+mastery fails:
 
 ```bash
 cd backend && .venv/Scripts/python.exe -m alembic upgrade head
@@ -133,8 +138,6 @@ check these before you branch off them:
 
 - **The misconception engine fires.** A wrong quiz answer produces a named false
   belief. Verified against the live model.
-- **Teach-Back.** Redwan is seeded with that belief, argues from it, and re-takes
-  the question. Her score is the student's grade.
 - **The avatar speaks** (SyncTalk + Gemini TTS) — needs the GPU service running.
 - **Generated quizzes and courses**, aimed at what each student gets wrong.
 
@@ -161,7 +164,7 @@ forgets them.
 Plus 4 shared dry-run items in Days 26-28.
 
 **M1's backend work is done.** The misconception engine fires,
-Teach-Back runs end to end, the avatar speaks, and quizzes and courses are
+the avatar speaks, and quizzes and courses are
 generated per student. Slot 9 (free-response grading + the review queue),
 recommendations and the daily plan landed 2026-09-29.
 
@@ -175,7 +178,7 @@ on 2026-09-29. See [Open gaps](#open-gaps).
 
 **There is one avatar.** Tier A — the SVG avatar and its Web Speech voice — was
 removed on 2026-09-22. Without a GPU service the tutor page shows an "avatar
-offline" panel naming what is missing; chat and Teach-Back are unaffected, which
+offline" panel naming what is missing; chat is unaffected, which
 is what M2/M3/M4 will see on their own machines.
 
 ---
@@ -388,6 +391,7 @@ get one wrong → the app names your misconception.
       Verified live on the GPU: idle → speech → idle. 3 tests in
       `test_tts.py::TestAvatarSessionIdle` — @sahilaf, 2026-10-05
 - [x] **Tutor page rebuilt as three tabs: Live conversation, Teach Redwan, Chat.**
+      *(Teach Redwan removed 2026-10-06 — see the note at the top.)*
       Nothing connects or plays on page load; the avatar connects only on
       "Connect avatar", a call starts only on "Start conversation". **Live**
       is a spoken call through Gemini Live (`/api/live/ws`, ~1.2 s from the

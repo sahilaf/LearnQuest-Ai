@@ -29,7 +29,7 @@ from typing import Any, Awaitable, Callable
 logger = logging.getLogger("learnquest.jobs")
 
 # Generation is billed per call and the free tier is a per-day, per-model quota
-# shared with the tutor, misconception capture and Teach-Back. This cap is what
+# shared with the tutor, misconception capture. This cap is what
 # stops one enthusiastic student consuming the whole day's budget.
 DAILY_JOBS_PER_USER = 20
 

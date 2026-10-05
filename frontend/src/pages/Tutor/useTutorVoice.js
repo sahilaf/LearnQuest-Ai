@@ -4,10 +4,10 @@
  * One voice for the whole tutor page, whichever tab is talking. It goes
  * through the avatar when the student has connected it and can see it, and
  * straight to the speakers otherwise - same male voice either way, so the
- * tutor sounds like one person across Live, Teach and Chat.
+ * tutor sounds like one person across Live and Chat.
  *
  * Two kinds of speech:
- *   - text (Teach lines, "Listen" in Chat): synthesized by /api/avatar/speech
+ *   - text ("Listen" in Chat): synthesized by /api/avatar/speech
  *   - a live stream (the Live tab): PCM chunks from Gemini Live as they arrive
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -48,14 +48,8 @@ export default function useTutorVoice({ avatarRef, useAvatar, muted }) {
   }, [avatarRef]);
 
   /** Speak a line of text in the tutor's voice. */
-  /**
-   * `onlyWithVideo`: speak through the face or not at all. Used for lines the
-   * student did not ask to hear (Teach-Back), so opening a tab never starts a
-   * voice playing out of nowhere. An explicit "Listen" still plays voice-only.
-   */
-  const speakText = useCallback(async (text, { onlyWithVideo = false } = {}) => {
+  const speakText = useCallback(async (text) => {
     if (!text?.trim()) return;
-    if (onlyWithVideo && !viaAvatar()) return;
     stop();
     if (viaAvatar()) {
       setAvatarLine({ text, speaking: true });

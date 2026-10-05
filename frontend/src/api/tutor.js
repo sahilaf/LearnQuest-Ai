@@ -42,31 +42,3 @@ export function streamMessage(conversationId, query, { onToken, onDone, onError 
 
   return () => es.close();
 }
-
-/* --- Teach-Back: the student teaches Redwan out of their own misconception. --- */
-
-/** Misconceptions that are still standing, so still teachable. */
-export const teachBackAvailable = () => client.get('/api/tutor/teachback/available');
-
-/** Open a round. Omit topicTag to take the most recently captured belief. */
-export const startTeachBack = (topicTag) =>
-  client.post('/api/tutor/teachback/start', { topic_tag: topicTag ?? null });
-
-export const getTeachBack = (sessionId) =>
-  client.get(`/api/tutor/teachback/${sessionId}`);
-
-/** Send an explanation. Redwan pushes back or concedes. */
-export const teachNova = (sessionId, message) =>
-  client.post(`/api/tutor/teachback/${sessionId}/teach`, { message });
-
-/** Redwan re-takes the question. His score is the student's grade. */
-export const novaRetake = (sessionId) =>
-  client.post(`/api/tutor/teachback/${sessionId}/retake`);
-
-/** The next hint for the student - more specific each time, never the answer. */
-export const teachBackHint = (sessionId) =>
-  client.post(`/api/tutor/teachback/${sessionId}/hint`);
-
-/** The lessons that teach this session's topic, to study before teaching. */
-export const teachBackStudy = (sessionId) =>
-  client.get(`/api/tutor/teachback/${sessionId}/study`);

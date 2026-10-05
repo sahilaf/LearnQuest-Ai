@@ -14,7 +14,7 @@ HTTP/WebSocket via `AVATAR_SERVICE_URL`.
 > **This is the only avatar.** The placeholder SVG avatar was removed on 2026-09-22.
 > When `AVATAR_SERVICE_URL` is empty, or this service is down, or no speech provider is
 > configured, the app shows an "avatar offline" panel — the tutor still answers in text
-> and Teach-Back still runs, there is just no face.
+> there is just no face.
 
 ---
 
@@ -156,7 +156,7 @@ frames out of `/ws/video`, and play them against the audio clock in the browser.
    with a short crossfade both ways (`frontend/src/components/avatar/useSyncTalkStream.js`).
 
 Leave `AVATAR_SERVICE_URL` empty and the tutor page shows an "avatar offline" panel; chat
-and Teach-Back work normally. That is how Members 2, 3 and 4 should run it.
+works normally. That is how Members 2, 3 and 4 should run it.
 
 ---
 

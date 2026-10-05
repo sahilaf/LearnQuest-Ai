@@ -302,7 +302,7 @@ export default function Dashboard() {
                   What do you want to learn?
                 </h2>
                 <p className="text-sm text-body leading-relaxed">
-                  LearnQuest guides you through one continuous loop: learn a lesson, quiz your understanding, diagnose mistakes, and teach Redwan to make concepts stick.
+                  LearnQuest guides you through one continuous loop: learn a lesson, quiz your understanding, diagnose mistakes, and talk them through with Redwan.
                 </p>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2">
@@ -380,7 +380,7 @@ export default function Dashboard() {
                     <Sparkles className="h-4 w-4" />
                   </span>
                   <div>
-                    <span className="font-semibold text-ink">Meet Redwan:</span> Your personal AI tutor who explains tough concepts, captures false beliefs behind wrong answers, and lets you teach him to achieve true mastery.
+                    <span className="font-semibold text-ink">Meet Redwan:</span> Your personal AI tutor who explains tough concepts, captures the false beliefs behind wrong answers, and talks you through them.
                   </div>
                 </div>
 
@@ -562,7 +562,7 @@ export default function Dashboard() {
                 </div>
                 <h4 className="text-sm font-semibold text-ink">Mental Models are Clear</h4>
                 <p className="mx-auto max-w-sm text-xs text-muted leading-relaxed">
-                  You have no active false beliefs. When a quiz reveals a misconception, Redwan captures the exact belief here so you can teach him out of it.
+                  You have no active false beliefs. When a quiz reveals a misconception, Redwan captures the exact belief here so you can work through it.
                 </p>
               </div>
             ) : (
@@ -588,11 +588,11 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between border-t border-line/60 pt-2">
                       <span className="font-mono text-[10px] text-muted">{item.topic_tag}</span>
                       <Link
-                        to={`/tutor?topic=${encodeURIComponent(item.topic_tag)}&mode=teachback`}
+                        to="/tutor?tab=chat"
                       >
                         <Button variant="secondary" size="sm" className="text-xs">
                           <GraduationCap className="h-3.5 w-3.5 text-primary-400" />
-                          Teach Redwan to fix it →
+                          Ask Redwan about it →
                         </Button>
                       </Link>
                     </div>

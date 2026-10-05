@@ -217,7 +217,7 @@ LearnQuest/
 
 `avatar-service/` and `agent/` are both **optional**. Leave `AVATAR_SERVICE_URL` empty and
 the app runs the text tutor with no avatar — no GPU, no LiveKit, no realtime API. The
-tutor page shows an "avatar offline" panel and everything else, including Teach-Back,
+tutor page shows an "avatar offline" panel and everything else, including the chat tutor,
 works normally. That is how Members 2, 3 and 4 should run it.
 
 See [avatar-service/README.md](avatar-service/README.md) and [agent/README.md](agent/README.md).
@@ -248,7 +248,7 @@ Declared here so nobody has to ask.
 the Alapon lip-sync model and its training pipeline (`avatar-service/`, trained on
 the `redwan` recording), the avatar WebSocket server, and the design of the live
 voice agent (`agent/`, kept for reference). What was built here is the
-integration: the tutor page, Teach-Back, the live voice tutor
+integration: the tutor page, the live voice tutor
 (`backend/app/routers/live.py`), speech routing, and everything else in
 `backend/` and `frontend/`.
 

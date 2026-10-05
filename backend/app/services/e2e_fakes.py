@@ -6,7 +6,7 @@ Turned on with E2E_FAKE_AI=1, and refused in production whatever the
 environment says. With it on:
 
 - the LLM is a scripted client that recognises each prompt this app sends
-  (misconception, Teach-Back opening / reply / retake, grading, tutor chat)
+  (misconception, grading, tutor chat)
   and answers in exactly the shape that prompt asks for;
 - text-to-speech returns a short synthetic tone instead of calling Gemini;
 - the live tutor talks to a scripted session instead of Gemini Live.
@@ -80,36 +80,6 @@ class ScriptedLLMClient(MockLLMClient):
                 "confidence": 0.9,
             })
 
-        if "Open the conversation" in prompt:
-            return json.dumps({"opening": (
-                "I'm confident my answer was right - it seemed obvious to me. "
-                "Can you explain why it isn't?"
-            )})
-
-        if "First JUDGE everything the student has said" in prompt:
-            explanation = re.search(r'latest message[^"]*"(.*)"', prompt, re.S)
-            text = explanation.group(1) if explanation else ""
-            good = "because" in text.lower() and len(text) >= 60
-            return json.dumps({
-                "states_truth": good, "gives_reason": good, "repeats_belief": False,
-                "missing": "" if good else "Why is my belief wrong?",
-                "reply": ("Oh, I see now - that explains where my reasoning went wrong." if good
-                          else "I still don't follow. You told me I'm wrong, but not why. What does my belief miss?"),
-            })
-
-        if "re-taking a question you previously got wrong" in prompt:
-            if "did not explain why your belief is wrong" in prompt:
-                return json.dumps({"answer": "I still believe my original answer.",
-                                   "reasoning": "I was only told the answer."})
-            taught = re.findall(r"the answer is ([^.\n]+)", prompt, re.I)
-            answer = taught[-1].strip() if taught else "I am not sure."
-            return json.dumps({"answer": answer, "reasoning": "That is what the explanation showed."})
-
-        if "Grade one answer against the expected answer" in prompt:
-            correct = self._matches(prompt, "Given answer")
-            return json.dumps({"correct": correct, "score": 100 if correct else 0,
-                               "why": "Matches the expected answer." if correct else "Does not match."})
-
         if "Grade a student's typed answer" in prompt:
             correct = self._matches(prompt, "Student's answer")
             return json.dumps({
@@ -118,13 +88,6 @@ class ScriptedLLMClient(MockLLMClient):
                 "confidence": 0.95,
                 "feedback": "That matches the idea." if correct else "That misses the key idea.",
             })
-
-        if "is stuck." in prompt and "Give hint number" in prompt:
-            level = re.search(r"Give hint number (\d)", prompt).group(1)
-            return json.dumps({"hint": f"Hint {level}: think about what his belief predicts, and find where it breaks."})
-
-        if "Write one question that a person holding this false belief" in prompt:
-            return json.dumps({"prompt": "Which value is the correct one?", "correct_answer": "the correct one"})
 
         if json_mode:
             return await super().complete(messages, temperature=temperature,

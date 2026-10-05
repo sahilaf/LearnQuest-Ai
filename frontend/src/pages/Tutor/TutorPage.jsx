@@ -2,22 +2,21 @@
  * TutorPage - OWNER: Member 1 (AI Avatar Tutor & Intelligent Learning).
  * See plan.md §6.3, §6.6, §6.7.
  *
- * Three ways to work with one tutor, Redwan, one tab each:
+ * Two ways to work with one tutor, Redwan, one tab each:
  *   Live   - talk out loud, like a call (Gemini Live)
- *   Teach  - Teach-Back: explain a concept to Redwan, who holds your old mistake
  *   Chat   - a text chatbot with history
  *
  * Calm by default: opening the page connects nothing and plays nothing. The
  * avatar connects only when the student presses Connect; a live call starts
  * only when they press Start.
  *
- * One tutor, not three: Live and Chat share the selected conversation (live
- * turns are saved into it), all three use the same male voice, and the avatar
- * connection is shared by Live and Teach.
+ * One tutor, not two: Live and Chat share the selected conversation (live
+ * turns are saved into it), both use the same male voice, and the avatar
+ * connection stays up when switching tabs.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { BookOpen, GraduationCap, MessageSquare, Plus, Radio, Trash2 } from 'lucide-react';
+import { BookOpen, MessageSquare, Plus, Radio, Trash2 } from 'lucide-react';
 
 import ChatPanel from '../../components/tutor/ChatPanel';
 import { Button, Select } from '../../components/ui';
@@ -25,22 +24,18 @@ import { createConversation, deleteConversation, listConversations } from '../..
 import { getLesson } from '../../api/lessons';
 import LivePanel, { LiveControls } from './LivePanel';
 import { liveStateOf } from './LiveStatus';
-import { TeachChallenge, TeachConversation } from './TeachBackPanel';
 import TutorStage from './TutorStage';
 import useLiveConversation from './useLiveConversation';
-import useTeachBack, { TEACH_PHASE } from './useTeachBack';
 import useTutorVoice from './useTutorVoice';
 
 const TABS = [
   { id: 'live', label: 'Live conversation', short: 'Live', icon: Radio },
-  { id: 'teach', label: 'Teach Redwan', short: 'Teach', icon: GraduationCap },
   { id: 'chat', label: 'Chat', short: 'Chat', icon: MessageSquare },
 ];
 
 function initialTab(searchParams) {
   const tab = searchParams.get('tab');
   if (TABS.some((t) => t.id === tab)) return tab;
-  if (searchParams.get('mode') === 'teachback') return 'teach';
   return 'live';
 }
 
@@ -49,7 +44,6 @@ export default function TutorPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const lessonId = searchParams.get('lessonId') || searchParams.get('lesson_id');
-  const topicParam = searchParams.get('topic');
 
   const [tab, setTab] = useState(() => initialTab(searchParams));
   const [lesson, setLesson] = useState(null);
@@ -57,7 +51,7 @@ export default function TutorPage() {
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [selectedConvRef, setSelectedConvRef] = useState(routeConvRef || null);
 
-  // Avatar: opt-in, shared by Live and Teach.
+  // Avatar: opt-in, shared by both tabs.
   const [avatarConnected, setAvatarConnected] = useState(false);
   const [avatarLive, setAvatarLive] = useState(false);
   const avatarRef = useRef(null);
@@ -71,15 +65,6 @@ export default function TutorPage() {
     muted,
   });
   const live = useLiveConversation({ voice });
-  // Redwan speaks Teach lines only while the Teach tab is open, and only
-  // through the video face - without video he stays silent and you read.
-  // (A voice from nowhere on opening the tab was reported as a bug.)
-  const tabRef = useRef(tab);
-  tabRef.current = tab;
-  const teach = useTeachBack({
-    initialTopic: topicParam,
-    speak: (text) => { if (tabRef.current === 'teach') voice.speakText(text, { onlyWithVideo: true }); },
-  });
 
   // Is Redwan audible right now (face or voice-only)? Polled, because the
   // audio clock is not React state; drives the one status chip.
@@ -189,11 +174,6 @@ export default function TutorPage() {
   // One status for the tutor, whatever the tab - shown on the face only.
   let tutorState = speakingNow ? 'speaking' : 'idle';
   if (tab === 'live' && inCall) tutorState = liveStateOf(live);
-  if (tab === 'teach' && !speakingNow) {
-    if (teach.phase === TEACH_PHASE.RETAKING) tutorState = 'retaking';
-    else if (teach.busy) tutorState = 'thinking';
-    else if (teach.session && !teach.passed && !teach.failed) tutorState = 'explain';
-  }
 
   const stage = (
     <TutorStage
@@ -214,7 +194,7 @@ export default function TutorPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Title, context, then the three modes. */}
+      {/* Title, context, then the two modes. */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-ink">Tutor</h1>
@@ -257,7 +237,6 @@ export default function TutorPage() {
 
         <div className="flex min-h-0 flex-col gap-4">
           {tab === 'live' && inCall && <LiveControls live={live} bar />}
-          {tab === 'teach' && <TeachChallenge teach={teach} compact />}
           {tab === 'chat' && (
             <div className="flex items-end gap-2">
               <Select
@@ -300,7 +279,6 @@ export default function TutorPage() {
                 onStart={startLive}
               />
             )}
-            {tab === 'teach' && <TeachConversation teach={teach} />}
             {tab === 'chat' && (
               // Keyed by conversation so it reloads anything said in a live call.
               <ChatPanel

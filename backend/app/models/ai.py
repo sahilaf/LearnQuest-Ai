@@ -188,10 +188,8 @@ class TopicMastery(Base):
     misconception_cleared_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    # The question whose wrong answer revealed `misconception`. Teach-Back
-    # re-asks exactly this question. Without it, a quiz with several wrong
-    # answers on one topic paired the belief from one question with another
-    # question entirely (found by the end-to-end suite, 2026-10-06).
+    # The question whose wrong answer revealed `misconception`, so the belief
+    # and the question it came from are always stored as a pair.
     misconception_question_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), nullable=True
     )
@@ -334,121 +332,11 @@ class Recommendation(Base):
         }
 
 
-def _max_retakes() -> int:
-    from app.services.teachback import MAX_RETAKES  # lazy: services import models
-
-    return MAX_RETAKES
-
-
-def _max_hints() -> int:
-    from app.services.teachback import MAX_HINTS
-
-    return MAX_HINTS
-
-
-class TeachBackSession(Base):
-    """One Teach-Back round: the student teaches Redwan out of their own misconception.
-
-    The protege effect, made literal. Redwan is seeded with the false belief this
-    student actually holds, argues from it, and then re-takes the question they
-    got wrong. Redwan's score on that retry is the student's grade - you have only
-    taught something when the learner can use it without you.
-
-    State lives in one row rather than in the chat transcript because the grade
-    has to be reconstructible: `question_prompt` and `question_correct_answer`
-    are snapshotted at start so a later edit to the question cannot change a
-    grade that was already awarded.
-    """
-
-    __tablename__ = "teachback_sessions"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    topic_tag: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-
-    # Snapshot of the misconception as it read when the session opened. The
-    # TopicMastery row may be cleared or overwritten before this session ends.
-    misconception: Mapped[str] = mapped_column(Text, nullable=False)
-
-    # The question Redwan will re-take, snapshotted for the same reason.
-    question_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True), nullable=True
-    )
-    question_prompt: Mapped[str] = mapped_column(Text, nullable=False)
-    question_correct_answer: Mapped[str] = mapped_column(Text, nullable=False)
-    question_options: Mapped[list[str] | None] = mapped_column(
-        JSON_VARIANT, nullable=True
-    )
-
-    # teaching | passed | failed | abandoned
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="teaching", index=True
-    )
-
-    # [{"role": "nova" | "student", "content": "...", "at": "iso8601"}]
-    turns: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSON_VARIANT, nullable=False, default=list
-    )
-
-    # Result of the most recent retake.
-    nova_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
-    nova_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    nova_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
-    retakes: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-    def to_dict(self, include_answer: bool = False) -> dict[str, Any]:
-        data: dict[str, Any] = {
-            "id": str(self.id),
-            "topic_tag": self.topic_tag,
-            "misconception": self.misconception,
-            "question_prompt": self.question_prompt,
-            "question_options": self.question_options,
-            "status": self.status,
-            "turns": self.turns or [],
-            "nova_answer": self.nova_answer,
-            "nova_score": self.nova_score,
-            "nova_reasoning": self.nova_reasoning,
-            "retakes": self.retakes,
-            # Sent so the page can show "2 of 3 attempts" before the first retake.
-            "max_retakes": _max_retakes(),
-            "hints_used": sum(1 for t in (self.turns or []) if t.get("role") == "hint"),
-            "max_hints": _max_hints(),
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "completed_at": (
-                self.completed_at.isoformat() if self.completed_at else None
-            ),
-        }
-        # The correct answer is the thing the student is being asked to teach.
-        # Showing it mid-session turns teaching into copying, so it is released
-        # only once the session is over.
-        if include_answer or self.status in ("passed", "failed"):
-            data["question_correct_answer"] = self.question_correct_answer
-        return data
-
-
 class Topic(Base):
     """The controlled vocabulary of topic tags.
 
     `topic_tag` is the spine of this application: `topic_mastery`, every
-    misconception, Teach-Back and the roadmap all key on it. Until now the
+    misconception and the roadmap all key on it. Until now the
     vocabulary was a Python list in `seed/seed_data.py` and nothing enforced it
     at runtime, which was survivable only because every tag was written by hand.
 

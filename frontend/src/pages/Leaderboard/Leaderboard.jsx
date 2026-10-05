@@ -92,7 +92,7 @@ export default function Leaderboard({ embedded = false }) {
         <PageHeader
           eyebrow="Compete"
           title="Leaderboard"
-          subtitle="Ranked by XP. Every lesson, quiz and Teach-Back session counts."
+          subtitle="Ranked by XP. Every lesson and quiz counts."
           action={
             <div className="flex rounded-lg border border-line bg-surface p-1">
               {PERIODS.map((p) => (

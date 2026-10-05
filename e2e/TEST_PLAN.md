@@ -1,7 +1,7 @@
 # LearnQuest — End-to-End Test Plan and Report
 
 **Tool:** Playwright 1.x (Chromium) · **Suite:** `e2e/tests/` · **Last run:** 2026-10-06 —
-**17 / 17 passed**, stable across consecutive runs, ~65 s per run.
+**14 / 14 passed**, stable across consecutive runs, ~50 s per run.
 
 ## 1. What "end to end" means here
 
@@ -39,11 +39,8 @@ production** whatever the environment says.
 | 3 | Protected pages | `01-auth` | Open `/tutor` while signed out | Redirected to log in | ✅ |
 | 4 | Rejected session | `01-auth` | Backend answers 401 (expired / forged token) | Signed out, sent to the landing page with "Your session ended" | ✅ |
 | 5 | Find and read a lesson | `02-learning` | Catalogue → course → lesson 1 | Course curriculum and lesson content shown, "Quiz me" available | ✅ |
-| 6 | **Misconception engine** | `03-learning-loop` | Answer every question of quiz 1 wrong | Result page names the false belief ("You believe…") and offers "Teach Redwan to fix it" | ✅ |
-| 7 | **Teach-Back** | `03-learning-loop` | Start Teach-Back; send "You are wrong."; then a real explanation; ask Redwan to re-take | Redwan holds the belief *and the question it came from*; the vague reply is pushed back on; the explanation convinces him; on the retake he gives the taught answer and the attempt passes | ✅ |
-| 7b | Teach-Back fail | `03-learning-loop` | Three vague explanations, three retakes | Attempts count down 3 → 0; outcome says "Out of attempts" with the correct answer; never "fixed"; Try again opens a fresh session | ✅ |
-| 7c | Teach-Back resume | `03-learning-loop` | Teach, explain once, go back, press Teach again | The same session reopens with the explanation still there | ✅ |
-| 7d | Study first, hints | `03-learning-loop` | Start Teach-Back; open "Before you teach"; take 3 hints; follow the lesson link; come back | The lesson for the topic is linked; each hint is marked "only you can see this", the count drops 3 → 0 and the button disables; no hint contains the answer; the session resumes after reading | ✅ |
+| 6 | **Misconception engine** | `03-learning-loop` | Answer every question of quiz 1 wrong; click "Ask Redwan about it" | Result page names the false belief ("You believe…"); the link opens the tutor on the Chat tab | ✅ |
+| 7 | **Tutor modes** | `03-learning-loop` | Open /tutor, then an old `?mode=teachback` link | Exactly two tabs, Live and Chat; the old link opens Live | ✅ |
 | 8 | Calm tutor page | `04-tutor` | Open the tutor page and wait | No avatar session, no speech request and no socket is opened | ✅ |
 | 9 | Avatar unavailable | `04-tutor` | Press "Connect avatar" with no GPU service | "Avatar offline" with a plain reason and a Back button | ✅ |
 | 10 | Chat with memory | `04-tutor` | Ask a question; reload the page | Answer shown; still there after reload | ✅ |
@@ -99,7 +96,7 @@ Automated runs use scripted AI by design. Before a demo, run once by hand with
 the real services (`.\dev.ps1`, plugged in, Gemini key with quota):
 
 1. Quiz 1 → answer wrong → a *sensible* misconception appears.
-2. Teach Redwan → a real explanation convinces him → retake passes.
+2. Quiz result → Ask Redwan about it → Chat explains where the belief goes wrong.
 3. Tutor → Connect avatar → the face appears and idles.
 4. Live conversation → speak into the real microphone → Redwan answers aloud through
    the avatar, the transcript fills in, the face does not drop to idle mid-sentence.

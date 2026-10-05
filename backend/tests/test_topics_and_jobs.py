@@ -1,7 +1,7 @@
 """Foundations for generated content: the tag vocabulary and the job runner.
 
 The vocabulary tests matter more than they look. `topic_tag` is the join key
-between mastery, misconceptions, Teach-Back and the roadmap, so a generated tag
+between mastery, misconceptions and the roadmap, so a generated tag
 that slips through unvalidated does not cause an error - it causes a mastery row
 that nothing will ever look up again, and a misconception map that quietly
 fragments into singletons.

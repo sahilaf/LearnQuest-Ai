@@ -576,16 +576,6 @@ def on_tutor_session_check_badges(
     return check_badges(db, user_id, "tutor.session", payload)
 
 
-@register_handler("teachback.completed")
-def on_teachback_completed_check_badges(
-    db: Session | Any,
-    user_id: Any,
-    payload: dict[str, Any],
-) -> list[Badge]:
-    """Check badges on teachback completed."""
-    return check_badges(db, user_id, "teachback.completed", payload)
-
-
 @register_handler("daily.login")
 def on_daily_login_check_badges(
     db: Session | Any,
@@ -619,7 +609,6 @@ def register_badge_handlers() -> None:
         "quiz.submitted": on_quiz_submitted_check_badges,
         "course.completed": on_course_completed_check_badges,
         "tutor.session": on_tutor_session_check_badges,
-        "teachback.completed": on_teachback_completed_check_badges,
         "daily.login": on_daily_login_check_badges,
         "roadmap.node_completed": on_roadmap_node_completed_check_badges,
     }

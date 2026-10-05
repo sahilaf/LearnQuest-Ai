@@ -6,7 +6,7 @@
  *
  * It sells what is actually different about LearnQuest, in the order a
  * student meets it: a wrong answer is traced to the belief behind it, and you
- * fix that belief by teaching Redwan - a tutor with a real face and voice.
+ * fix that belief with Redwan - a tutor with a real face and voice.
  * Every claim on this page is something the product does today.
  *
  * The "courses" strip reads real published courses from GET /api/courses
@@ -55,8 +55,8 @@ const LOOP = [
   },
   {
     icon: GraduationCap,
-    title: 'Teach Redwan',
-    body: 'He holds your old belief. Explain until he gets it right - his score is your grade.',
+    title: 'Fix it',
+    body: 'Talk it through with Redwan. Getting that topic right in later quizzes clears the belief.',
   },
 ];
 
@@ -65,11 +65,6 @@ const MODES = [
     icon: Mic,
     title: 'Live conversation',
     body: 'Talk out loud, like a call. Redwan answers in a second or two, with the transcript on screen.',
-  },
-  {
-    icon: GraduationCap,
-    title: 'Teach Redwan',
-    body: 'Explaining is how understanding sticks. He pushes back until your explanation really works.',
   },
   {
     icon: MessageSquare,
@@ -179,7 +174,7 @@ function DiagnosisCard() {
       </p>
       <div className="mt-4 flex items-center gap-2 rounded border border-line bg-raised px-3 py-2.5 text-sm text-body">
         <GraduationCap className="h-4 w-4 shrink-0 text-primary-300" />
-        Teach Redwan why this is wrong - his score is your grade.
+        Ask Redwan where this belief goes wrong.
       </div>
     </div>
   );
@@ -321,7 +316,7 @@ export default function Landing() {
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
               LearnQuest traces every wrong answer to the belief behind it. Then Redwan, your tutor,
-              takes that belief on - and you teach him out of it. Talk to him out loud, or type.
+              helps you see where it breaks. Talk to him out loud, or type.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -355,7 +350,7 @@ export default function Landing() {
         <div className="mx-auto max-w-6xl px-4">
           <SectionIntro
             label="How it works"
-            title="Every mistake becomes something you teach"
+            title="Every mistake becomes something you fix"
             body="Most apps tell you an answer was wrong. LearnQuest finds out what you were thinking, and makes fixing it the lesson."
           />
 
@@ -379,16 +374,16 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ---------- Three ways to learn with the tutor ---------- */}
+      {/* ---------- Two ways to learn with the tutor ---------- */}
       <section id="tutor" className="scroll-mt-20 py-20">
         <div className="mx-auto max-w-6xl px-4">
           <SectionIntro
             label="The tutor"
-            title="Three ways to learn with Redwan"
+            title="Two ways to learn with Redwan"
             body="One tutor who remembers you, whichever way you choose to work."
             center
           />
-          <div className="mt-12 grid gap-5 md:grid-cols-3">
+          <div className="mt-12 grid gap-5 md:grid-cols-2">
             {MODES.map(({ icon: Icon, title, body }) => (
               <div key={title} className="card p-6">
                 <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary-500/30 bg-primary-500/10 text-primary-300">

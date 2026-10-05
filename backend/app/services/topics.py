@@ -3,9 +3,9 @@
 Why this is a hard constraint and not a suggestion
 --------------------------------------------------
 `topic_tag` is the join key for everything that makes this project more than a
-quiz app: `topic_mastery`, the misconception behind a wrong answer, the
-Teach-Back session that argues it out, and the roadmap that sequences what to
-study next. All four find each other by tag and nothing else.
+quiz app: `topic_mastery`, the misconception behind a wrong answer, and the
+roadmap that sequences what to study next. All three find each other by tag
+and nothing else.
 
 While every tag was typed by a human that was safe. It stops being safe the
 moment a model is tagging generated content: asked to label a lesson about

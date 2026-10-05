@@ -2,7 +2,7 @@
 
 Separate from analytics.py (Member 4) so ownership stays clean: that router
 serves aggregate dashboards, this one serves the misconception model that the
-tutor and Teach-Back mode read from.
+tutor reads from.
 """
 
 from __future__ import annotations
