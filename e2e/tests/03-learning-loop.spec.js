@@ -95,3 +95,32 @@ test('pressing Teach again resumes the session instead of starting over', async 
   await page.getByRole('button', { name: 'Teach', exact: true }).first().click();
   await expect(page.getByText('Here is my first explanation, which should still be here afterwards.')).toBeVisible();
 });
+
+test('before teaching: study the lesson first, and take hints when stuck', async ({ page }) => {
+  await signUp(page);
+  await failQuiz1(page);
+  await page.goto('/tutor?mode=teachback');
+  await page.getByRole('button', { name: 'Teach', exact: true }).first().click();
+
+  // Learn first: the lesson that teaches this topic is one click away.
+  await expect(page.getByText('Before you teach')).toBeVisible();
+  const lessonLink = page.getByRole('link', { name: /The Relational Model, Entities & Keys/ });
+  await expect(lessonLink).toBeVisible();
+
+  // Hints: each is shown only to the student, and they run out.
+  for (let n = 1; n <= 3; n += 1) {
+    await page.getByRole('button', { name: /^Hint \(/ }).click();
+    await expect(page.getByText(`Hint ${n} · only you can see this`)).toBeVisible();
+    await expect(page.getByRole('button', { name: `Hint (${3 - n} left)` })).toBeVisible();
+  }
+  await expect(page.getByRole('button', { name: 'Hint (0 left)' })).toBeDisabled();
+  // A hint never gives the answer to this question away.
+  await expect(page.getByText(/CASCADE/)).toHaveCount(0);
+
+  // The study link opens the lesson; coming back resumes the same session.
+  await lessonLink.click();
+  await expect(page).toHaveURL(/\/lessons\//);
+  await page.goto('/tutor?tab=teach');
+  await page.getByRole('button', { name: 'Teach', exact: true }).first().click();
+  await expect(page.getByText('Hint 3 · only you can see this')).toBeVisible();
+});

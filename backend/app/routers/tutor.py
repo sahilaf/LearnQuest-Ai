@@ -581,6 +581,43 @@ async def teachback_teach(
     return result
 
 
+@router.post("/teachback/{session_id}/hint")
+async def teachback_hint(
+    session_id: uuid.UUID,
+    user: CurrentUser,
+    db: Session | None = Depends(get_db),
+) -> dict[str, Any]:
+    """A hint for the student - more specific each time, never the answer."""
+    from app.services.teachback import give_hint
+
+    database = _teachback_db(db)
+    session = _load_teachback(database, session_id, uuid.UUID(user["id"]))
+    result = await give_hint(database, session)
+    if result.get("error") == "no_hints_left":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No hints left in this session.")
+    if result.get("error") == "session_closed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"This session is already {result.get('status')}.",
+        )
+    result["session"] = session.to_dict()
+    return result
+
+
+@router.get("/teachback/{session_id}/study")
+def teachback_study(
+    session_id: uuid.UUID,
+    user: CurrentUser,
+    db: Session | None = Depends(get_db),
+) -> dict[str, Any]:
+    """What to read before teaching: the lessons that cover this topic."""
+    from app.services.teachback import study_lessons
+
+    database = _teachback_db(db)
+    session = _load_teachback(database, session_id, uuid.UUID(user["id"]))
+    return {"lessons": study_lessons(database, session)}
+
+
 @router.post("/teachback/{session_id}/retake")
 async def teachback_retake(
     session_id: uuid.UUID,

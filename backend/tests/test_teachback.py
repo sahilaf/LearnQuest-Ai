@@ -653,3 +653,68 @@ class TestDemoIntegrity(TeachBackTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHintsAndStudy(TeachBackTestBase):
+    """Help while teaching: hints that guide without giving the answer away,
+    and the lesson to study first."""
+
+    def _session(self):
+        from app.services import teachback
+
+        self._seed_misconception()
+        opening = _FakeLLM([json.dumps({"opening": "Every join keeps the rows that do not match, so why not here?"})])
+        with patch("app.services.llm_client.get_llm", return_value=opening):
+            session, _ = _run(teachback.start_session(self.db, self.user_id))
+        return session
+
+    def test_a_hint_that_gives_the_answer_away_is_replaced(self) -> None:
+        from app.services import teachback
+
+        session = self._session()
+        leaky = _FakeLLM([json.dumps({"hint": "Tell him the answer is INNER JOIN and move on."})])
+        with patch("app.services.llm_client.get_llm", return_value=leaky):
+            result = _run(teachback.give_hint(self.db, session))
+
+        self.assertNotIn("INNER JOIN", result["hint"].upper())
+        self.assertEqual(result["hint"], teachback.FALLBACK_HINTS[0])
+        self.assertEqual((result["level"], result["hints_left"]), (1, 2))
+
+    def test_redwan_never_hears_a_hint(self) -> None:
+        from app.services import teachback
+
+        session = self._session()
+        hint_llm = _FakeLLM([json.dumps({"hint": "Think about which rows survive a join with no match."})])
+        with patch("app.services.llm_client.get_llm", return_value=hint_llm):
+            _run(teachback.give_hint(self.db, session))
+
+        self.assertNotIn("which rows survive", teachback._transcript(session))
+        self.assertEqual(session.to_dict()["hints_used"], 1)
+
+    def test_hints_stop_at_the_limit(self) -> None:
+        from app.services import teachback
+
+        session = self._session()
+        with patch("app.services.llm_client.get_llm", return_value=_ExplodingLLM()):
+            for _ in range(teachback.MAX_HINTS):
+                self.assertIn("hint", _run(teachback.give_hint(self.db, session)))
+            self.assertEqual(_run(teachback.give_hint(self.db, session)), {"error": "no_hints_left"})
+
+    def test_study_points_at_the_lesson_that_teaches_the_topic(self) -> None:
+        from app.models.course import Course, Lesson
+        from app.services import teachback
+
+        session = self._session()
+        course = Course(id=uuid.uuid4(), slug=f"c-{uuid.uuid4().hex[:6]}", title="Databases")
+        lesson = Lesson(id=uuid.uuid4(), course_id=course.id, title="SQL Joins", topic_tags=["dbms.sql_joins"])
+        other = Lesson(id=uuid.uuid4(), course_id=course.id, title="Indexes", topic_tags=["dbms.indexing"])
+        self.db.add_all([course, lesson, other])
+        self.db.commit()
+        try:
+            found = teachback.study_lessons(self.db, session)
+            self.assertEqual([l["title"] for l in found], ["SQL Joins"])
+            self.assertEqual(found[0]["course_title"], "Databases")
+        finally:
+            self.db.query(Lesson).delete()
+            self.db.query(Course).delete()
+            self.db.commit()

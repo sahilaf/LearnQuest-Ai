@@ -14,13 +14,16 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { novaRetake, startTeachBack, teachBackAvailable, teachNova } from '../../api/tutor';
+import {
+  novaRetake, startTeachBack, teachBackAvailable, teachBackHint, teachBackStudy, teachNova,
+} from '../../api/tutor';
 
 export const TEACH_PHASE = {
   IDLE: null,
   STARTING: 'starting',
   REPLYING: 'replying',
   RETAKING: 'retaking',
+  HINTING: 'hinting',
 };
 
 export default function useTeachBack({ initialTopic = null, speak = null }) {
@@ -31,6 +34,8 @@ export default function useTeachBack({ initialTopic = null, speak = null }) {
   const [phase, setPhase] = useState(TEACH_PHASE.IDLE);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  // Lessons that teach this topic - what to study before teaching.
+  const [study, setStudy] = useState({ loading: false, lessons: [] });
 
   const speakRef = useRef(speak);
   speakRef.current = speak;
@@ -117,6 +122,29 @@ export default function useTeachBack({ initialTopic = null, speak = null }) {
       .finally(() => setPhase(TEACH_PHASE.IDLE));
   }, [session, phase, refresh, speakNewLines]);
 
+  // Fetch what to study whenever a different session opens.
+  const sessionId = session?.id;
+  useEffect(() => {
+    if (!sessionId) { setStudy({ loading: false, lessons: [] }); return undefined; }
+    let cancelled = false;
+    setStudy({ loading: true, lessons: [] });
+    teachBackStudy(sessionId)
+      .then((data) => { if (!cancelled) setStudy({ loading: false, lessons: data.lessons || [] }); })
+      .catch(() => { if (!cancelled) setStudy({ loading: false, lessons: [] }); });
+    return () => { cancelled = true; };
+  }, [sessionId]);
+
+  /** A hint for the student. Redwan never sees it, and it never gives the answer. */
+  const askHint = useCallback(() => {
+    if (!session || phase) return;
+    setPhase(TEACH_PHASE.HINTING);
+    setError(null);
+    teachBackHint(session.id)
+      .then((data) => setSession(data.session))
+      .catch((err) => setError(err?.detail || 'Could not get a hint. Try again.'))
+      .finally(() => setPhase(TEACH_PHASE.IDLE));
+  }, [session, phase]);
+
   /** Back to the list of things to teach. */
   const leave = useCallback(() => {
     setSession(null);
@@ -134,6 +162,8 @@ export default function useTeachBack({ initialTopic = null, speak = null }) {
 
   const turns = session?.turns || [];
   const maxRetakes = session?.max_retakes ?? 3;
+  const maxHints = session?.max_hints ?? 3;
+  const hintsUsed = session?.hints_used ?? turns.filter((t) => t.role === 'hint').length;
   return {
     available,
     loading,
@@ -149,6 +179,10 @@ export default function useTeachBack({ initialTopic = null, speak = null }) {
     failed: session?.status === 'failed',
     attemptsUsed: session?.retakes ?? 0,
     maxRetakes,
+    study,
+    hintsUsed,
+    hintsLeft: Math.max(0, maxHints - hintsUsed),
+    askHint,
     refresh,
     begin,
     send,

@@ -398,6 +398,13 @@ get one wrong → the app names your misconception.
       recent turns). One male voice (Charon) everywhere. Also fixed: Chat never
       loaded conversation history (it read `messages`, the API sends `items`).
       Verified live in the browser; 5 tests in `test_live_tutor.py` — @sahilaf, 2026-10-06
+- [x] **Teach-Back: study first, and hints.** A new session opens with "Before
+      you teach": the lesson(s) that cover the belief's topic, one click away,
+      then "explain why, in your own words". Up to 3 hints per session, each
+      more specific (concept, then an example, then the mechanism); Redwan never
+      sees them, and a hint that contains the answer is replaced by a safe
+      generic one. `POST /teachback/{id}/hint`, `GET /teachback/{id}/study`.
+      4 backend tests, 1 E2E — @sahilaf, 2026-10-06
 - [x] **Tutor page rebuilt on one layout, Teach-Back fixed.** Every tab: the
       tutor on the left with what belongs beside him (call controls in Live;
       the belief, the question with its options and the attempts in Teach;

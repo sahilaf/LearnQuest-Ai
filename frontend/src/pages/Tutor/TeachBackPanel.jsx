@@ -17,7 +17,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Lightbulb, RotateCcw, Send, Trophy, XCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Lightbulb, RotateCcw, Send, Trophy, XCircle } from 'lucide-react';
 
 import { Badge, Button, EmptyState, Spinner, buttonClasses } from '../../components/ui';
 import { ThinkingDots } from './LiveStatus';
@@ -161,6 +161,67 @@ function Bubble({ role, children }) {
   );
 }
 
+/** A hint: shown only to the student, never to Redwan. */
+function HintCard({ index, children }) {
+  return (
+    <div className="flex gap-3 rounded-lg border border-medium/40 bg-medium-bg px-3.5 py-3">
+      <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-medium-fg" />
+      <div className="min-w-0">
+        <p className="text-2xs font-medium text-medium-fg">Hint {index} · only you can see this</p>
+        <p className="mt-0.5 text-sm leading-relaxed text-body">{children}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * How to learn before teaching: read the lesson that covers this idea, then
+ * explain it in your own words. Shown until the student starts teaching.
+ */
+function BeforeYouTeach({ teach }) {
+  const { study } = teach;
+  return (
+    <div className="rounded-lg border border-line bg-raised/60 p-4">
+      <p className="text-sm font-semibold text-ink">Before you teach</p>
+      <ol className="mt-2.5 space-y-3 text-sm text-body">
+        <li className="flex gap-2.5">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-pill bg-line text-2xs font-semibold">1</span>
+          <div className="min-w-0 flex-1">
+            <p>Learn the idea first - read the lesson that covers it.</p>
+            {study.loading && <p className="mt-1 text-xs text-muted">Finding the lesson...</p>}
+            {!study.loading && study.lessons.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {study.lessons.map((lesson) => (
+                  <Link
+                    key={lesson.id}
+                    to={`/lessons/${lesson.id}`}
+                    className={buttonClasses('secondary', 'sm')}
+                    title={`${lesson.course_title} · about ${lesson.minutes} min`}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    {lesson.title}
+                  </Link>
+                ))}
+              </div>
+            )}
+            {!study.loading && study.lessons.length === 0 && (
+              <p className="mt-1 text-xs text-muted">No lesson covers this topic yet - ask Redwan in Chat to explain it.</p>
+            )}
+          </div>
+        </li>
+        <li className="flex gap-2.5">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-pill bg-line text-2xs font-semibold">2</span>
+          <p>Explain <em>why</em> his belief fails, in your own words - an example helps. Just stating the answer does not count.</p>
+        </li>
+        <li className="flex gap-2.5">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-pill bg-line text-2xs font-semibold">3</span>
+          <p>Stuck? Take a hint. Each one is more specific, and Redwan never sees them.</p>
+        </li>
+      </ol>
+    </div>
+  );
+}
+
 /** One retake, drawn where it happened in the conversation. */
 function RetakeResult({ result }) {
   return (
@@ -198,6 +259,7 @@ function Outcome({ teach }) {
             <p className="font-semibold text-easy-fg">You taught him - misconception fixed</p>
             <p className="mt-0.5 text-sm text-body">
               It moves to fading, and comes back for review so it stays fixed.
+              {teach.hintsUsed > 0 && ` You used ${teach.hintsUsed} hint${teach.hintsUsed === 1 ? '' : 's'}.`}
             </p>
           </div>
         </div>
@@ -320,9 +382,20 @@ export function TeachConversation({ teach }) {
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4" aria-live="polite">
-        {turns.map((turn, index) => (
-          <Bubble key={`${turn.at}-${index}`} role={turn.role}>{turn.content}</Bubble>
-        ))}
+        {!hasTaught && !closed && <BeforeYouTeach teach={teach} />}
+        {(() => {
+          let hintNo = 0;
+          return turns.map((turn, index) => {
+            if (turn.role === 'hint') {
+              hintNo += 1;
+              return <HintCard key={`${turn.at}-${index}`} index={hintNo}>{turn.content}</HintCard>;
+            }
+            return <Bubble key={`${turn.at}-${index}`} role={turn.role}>{turn.content}</Bubble>;
+          });
+        })()}
+        {phase === TEACH_PHASE.HINTING && (
+          <div className="flex items-center gap-2 text-sm text-muted"><ThinkingDots className="bg-medium" /> Finding a hint</div>
+        )}
         {phase === TEACH_PHASE.REPLYING && (
           <Bubble role="nova"><span className="flex items-center gap-2 text-muted"><ThinkingDots /> thinking</span></Bubble>
         )}
@@ -368,14 +441,26 @@ export function TeachConversation({ teach }) {
                   ? 'When you think he understands, ask him to re-take the question.'
                   : 'Teach him something first - his score is your grade.'}
               </p>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={teach.retake}
-                disabled={teach.busy || !hasTaught}
-              >
-                Ask Redwan to re-take the question
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={teach.askHint}
+                  disabled={teach.busy || teach.hintsLeft === 0}
+                  title={teach.hintsLeft ? 'A nudge for you - Redwan will not see it' : 'No hints left'}
+                >
+                  <Lightbulb className="h-4 w-4" />
+                  Hint ({teach.hintsLeft} left)
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={teach.retake}
+                  disabled={teach.busy || !hasTaught}
+                >
+                  Ask Redwan to re-take the question
+                </Button>
+              </div>
             </div>
           </div>
         )}

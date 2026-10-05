@@ -119,6 +119,10 @@ class ScriptedLLMClient(MockLLMClient):
                 "feedback": "That matches the idea." if correct else "That misses the key idea.",
             })
 
+        if "is stuck." in prompt and "Give hint number" in prompt:
+            level = re.search(r"Give hint number (\d)", prompt).group(1)
+            return json.dumps({"hint": f"Hint {level}: think about what his belief predicts, and find where it breaks."})
+
         if "Write one question that a person holding this false belief" in prompt:
             return json.dumps({"prompt": "Which value is the correct one?", "correct_answer": "the correct one"})
 

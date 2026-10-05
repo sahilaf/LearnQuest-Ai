@@ -62,3 +62,11 @@ export const teachNova = (sessionId, message) =>
 /** Redwan re-takes the question. His score is the student's grade. */
 export const novaRetake = (sessionId) =>
   client.post(`/api/tutor/teachback/${sessionId}/retake`);
+
+/** The next hint for the student - more specific each time, never the answer. */
+export const teachBackHint = (sessionId) =>
+  client.post(`/api/tutor/teachback/${sessionId}/hint`);
+
+/** The lessons that teach this session's topic, to study before teaching. */
+export const teachBackStudy = (sessionId) =>
+  client.get(`/api/tutor/teachback/${sessionId}/study`);

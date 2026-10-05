@@ -340,6 +340,12 @@ def _max_retakes() -> int:
     return MAX_RETAKES
 
 
+def _max_hints() -> int:
+    from app.services.teachback import MAX_HINTS
+
+    return MAX_HINTS
+
+
 class TeachBackSession(Base):
     """One Teach-Back round: the student teaches Redwan out of their own misconception.
 
@@ -423,6 +429,8 @@ class TeachBackSession(Base):
             "retakes": self.retakes,
             # Sent so the page can show "2 of 3 attempts" before the first retake.
             "max_retakes": _max_retakes(),
+            "hints_used": sum(1 for t in (self.turns or []) if t.get("role") == "hint"),
+            "max_hints": _max_hints(),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "completed_at": (
                 self.completed_at.isoformat() if self.completed_at else None

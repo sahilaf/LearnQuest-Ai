@@ -46,6 +46,9 @@ PASS_SCORE = 70
 # let a student brute-force the phrasing instead of explaining the idea.
 MAX_RETAKES = 3
 
+# Hints a student can ask for in one session, each more specific than the last.
+MAX_HINTS = 3
+
 # A message shorter than this cannot be an explanation. Checked before the LLM
 # so "idk" costs nothing and still gets a push-back.
 MIN_EXPLANATION_CHARS = 25
@@ -183,6 +186,38 @@ Judge the meaning only.
 Return ONLY JSON:
 {{"correct": true or false, "score": 0 to 100, "why": "one short sentence"}}"""
 
+HINT_PROMPT = """A student is trying to teach a classmate out of a false belief, and is stuck.
+
+The classmate's false belief: "{misconception}"
+The question the classmate will re-take: {question}
+The correct answer (NEVER state, quote or paraphrase it): {answer}
+
+What the student has said so far:
+{teaching}
+
+Give hint number {level} of 3. Hints get more specific:
+1 = point to the concept they should explain (which idea is the belief getting wrong).
+2 = suggest a concrete example or case that shows where the belief breaks.
+3 = name the mechanism they still need to explain, as a question to answer.
+
+Rules:
+- Never give the correct answer, an option letter, or a sentence that contains it.
+- Speak to the student ("Try explaining..."), in one or two sentences, under 45 words.
+- Build on what they already said; do not repeat an earlier hint.
+
+Return ONLY JSON:
+{{"hint": "..."}}"""
+
+# Used when the model is unavailable or its hint gives the answer away.
+FALLBACK_HINTS = (
+    "Start from his belief: what does it predict for this exact question, and where does "
+    "that prediction go wrong?",
+    "Try a small, concrete example - a couple of rows, a few values - and walk him through "
+    "what really happens step by step.",
+    "Explain the rule behind it, not just the result: why does it work that way? Say the "
+    "'because' out loud.",
+)
+
 GENERATE_QUESTION_PROMPT = """Write one question that a person holding this false belief would get wrong:
 
 "{misconception}"
@@ -297,7 +332,8 @@ async def _invent_question(misconception: str, topic_tag: str) -> dict[str, Any]
 
 
 def _transcript(session, limit: int = 8) -> str:
-    turns = (session.turns or [])[-limit:]
+    # Hints are for the student only - Redwan must never "hear" them.
+    turns = [t for t in (session.turns or []) if t.get("role") in ("nova", "student")][-limit:]
     if not turns:
         return "(nothing yet)"
     speaker = {"nova": "Redwan", "student": "Student"}
@@ -721,3 +757,92 @@ def _on_teachback_completed(db, user_id, payload: dict[str, Any]) -> dict[str, A
             "retakes": payload.get("retakes"),
         },
     )
+
+
+# --------------------------------------------------------------------------- #
+# Help while teaching: hints, and what to study first
+# --------------------------------------------------------------------------- #
+
+
+def hints_used(session) -> int:
+    return sum(1 for t in (session.turns or []) if t.get("role") == "hint")
+
+
+def _gives_answer_away(hint: str, answer: str) -> bool:
+    """True when a hint contains the answer itself.
+
+    Short generic answers (True / False / a single letter) are skipped: the
+    word "false" in a sentence is not the answer being handed over.
+    """
+    a = _normalise(answer)
+    if len(a) < 4 or a in ("true", "false"):
+        return False
+    return a in _normalise(hint)
+
+
+async def give_hint(db, session) -> dict[str, Any]:
+    """The next hint for the student. Never shown to Redwan, never the answer.
+
+    Returns {"hint", "level", "hints_left"} or {"error": ...}.
+    """
+    if session.status in ("passed", "failed"):
+        return {"error": "session_closed", "status": session.status}
+    level = hints_used(session) + 1
+    if level > MAX_HINTS:
+        return {"error": "no_hints_left"}
+
+    teaching = "\n".join(
+        f"- {t.get('content', '')}" for t in (session.turns or []) if t.get("role") == "student"
+    ) or "(nothing yet)"
+    release_connection(db)
+    hint = ""
+    try:
+        raw = await _ask_llm(
+            HINT_PROMPT.format(
+                misconception=session.misconception[:300],
+                question=session.question_prompt[:500],
+                answer=session.question_correct_answer[:200],
+                teaching=teaching[:1500],
+                level=level,
+            ),
+            max_tokens=200,
+            temperature=0.4,
+        )
+        hint = str((_extract_json(raw) or {}).get("hint") or "").strip()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Hint generation failed: %s", exc)
+    if len(hint) < 15 or _gives_answer_away(hint, session.question_correct_answer):
+        hint = FALLBACK_HINTS[level - 1]
+
+    _append_turn(session, "hint", hint[:400])
+    db.commit()
+    db.refresh(session)
+    return {"hint": hint[:400], "level": level, "hints_left": MAX_HINTS - level}
+
+
+def study_lessons(db, session, limit: int = 2) -> list[dict[str, Any]]:
+    """Lessons that teach this topic, so the student can learn before teaching."""
+    from app.models.course import Course, Lesson
+
+    try:
+        rows = (
+            db.query(Lesson, Course)
+            .join(Course, Course.id == Lesson.course_id)
+            .order_by(Lesson.order_index)
+            .all()
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not look up study lessons: %s", exc)
+        return []
+    found = []
+    for lesson, course in rows:
+        if session.topic_tag in (lesson.topic_tags or []):
+            found.append({
+                "id": str(lesson.id),
+                "title": lesson.title,
+                "course_title": course.title,
+                "minutes": lesson.estimated_minutes,
+            })
+        if len(found) >= limit:
+            break
+    return found

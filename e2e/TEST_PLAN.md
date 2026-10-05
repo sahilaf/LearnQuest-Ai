@@ -1,7 +1,7 @@
 # LearnQuest — End-to-End Test Plan and Report
 
 **Tool:** Playwright 1.x (Chromium) · **Suite:** `e2e/tests/` · **Last run:** 2026-10-06 —
-**16 / 16 passed**, stable across consecutive runs, ~48 s per run.
+**17 / 17 passed**, stable across consecutive runs, ~65 s per run.
 
 ## 1. What "end to end" means here
 
@@ -43,6 +43,7 @@ production** whatever the environment says.
 | 7 | **Teach-Back** | `03-learning-loop` | Start Teach-Back; send "You are wrong."; then a real explanation; ask Redwan to re-take | Redwan holds the belief *and the question it came from*; the vague reply is pushed back on; the explanation convinces him; on the retake he gives the taught answer and the attempt passes | ✅ |
 | 7b | Teach-Back fail | `03-learning-loop` | Three vague explanations, three retakes | Attempts count down 3 → 0; outcome says "Out of attempts" with the correct answer; never "fixed"; Try again opens a fresh session | ✅ |
 | 7c | Teach-Back resume | `03-learning-loop` | Teach, explain once, go back, press Teach again | The same session reopens with the explanation still there | ✅ |
+| 7d | Study first, hints | `03-learning-loop` | Start Teach-Back; open "Before you teach"; take 3 hints; follow the lesson link; come back | The lesson for the topic is linked; each hint is marked "only you can see this", the count drops 3 → 0 and the button disables; no hint contains the answer; the session resumes after reading | ✅ |
 | 8 | Calm tutor page | `04-tutor` | Open the tutor page and wait | No avatar session, no speech request and no socket is opened | ✅ |
 | 9 | Avatar unavailable | `04-tutor` | Press "Connect avatar" with no GPU service | "Avatar offline" with a plain reason and a Back button | ✅ |
 | 10 | Chat with memory | `04-tutor` | Ask a question; reload the page | Answer shown; still there after reload | ✅ |
