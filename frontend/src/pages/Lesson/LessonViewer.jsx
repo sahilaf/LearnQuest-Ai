@@ -749,14 +749,16 @@ export default function LessonViewer() {
               </div>
             </Card>
 
-            {/* Tutor Shortcut Card */}
-            <Card className="bg-primary-50 p-5">
+            {/* Tutor Shortcut Card. A violet tint on the dark surface - the
+                old bg-primary-50 is near-white in the dark theme, which put
+                near-white text on near-white and hid the whole card. */}
+            <Card className="border-primary-500/30 bg-primary-500/10 p-5">
               <div className="space-y-2">
-                <span className="label text-primary-700">
+                <span className="label text-primary-300">
                   Personal AI tutor
                 </span>
-                <h4 className="text-base font-semibold">Need clarification?</h4>
-                <p className="text-xs font-semibold leading-relaxed text-muted">
+                <h4 className="text-base font-semibold text-ink">Need clarification?</h4>
+                <p className="text-sm leading-relaxed text-body">
                   Highlight any text on the page, then ask Redwan to break it down for you.
                 </p>
                 <Button size="sm" onClick={handleOpenTutor} className="mt-2 w-full">
@@ -780,7 +782,7 @@ export default function LessonViewer() {
                         to={`/lessons/${sibling.id}`}
                         className={`flex items-center justify-between rounded-lg px-2.5 py-2 transition-colors ${
                           isCurrent
-                            ? 'bg-primary-50 font-semibold text-primary-700'
+                            ? 'bg-primary-500/15 font-semibold text-ink'
                             : 'text-body hover:bg-raised'
                         }`}
                       >
@@ -868,11 +870,11 @@ export default function LessonViewer() {
           </form>
 
           {tutorResponse && (
-            <div className="animate-fade-in rounded-lg border-2 border-primary-200 bg-primary-50 p-4">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary-700">
+            <div className="animate-fade-in rounded-lg border border-primary-500/30 bg-primary-500/10 p-4">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary-300">
                 Redwan explains
               </p>
-              <p className="text-sm font-semibold leading-relaxed text-body">
+              <p className="text-sm leading-relaxed text-body">
                 {tutorResponse}
               </p>
             </div>
