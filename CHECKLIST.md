@@ -25,7 +25,22 @@ to teach it out of the mistake. Its score on the retry is your grade.
 
 ---
 
-## ⚠️ Read this after you pull — 2026-09-29
+## ⚠️ Read this after you pull — 2026-10-05 (avatar owner only)
+
+The avatar now runs **Alapon**, the production lip-sync model from `Fydp_v2`, on
+Alapon's own server. The weights did not change (same `59.pth`), only the folder
+name, so on the GPU machine:
+
+```bash
+mv avatar-service/checkpoint/final_v2 avatar-service/checkpoint/alapon
+```
+
+If you have an `avatar-service/.env`, point `SYNCTALK_CHECKPOINT` at
+`./checkpoint/alapon/59.pth` and set `SYNCTALK_OUT_SIZE=720`. Run it **plugged
+in** — on battery the GPU throttles and the mouth drops to a few frames a second.
+Nobody without a GPU needs to do anything.
+
+## Earlier pull notes — 2026-09-29
 
 Migration head is now **`0010`** (review items + practice problems), and the
 practice problems need seeding once:
@@ -106,7 +121,7 @@ check these before you branch off them:
 
 - **The misconception engine fires.** A wrong quiz answer produces a named false
   belief. Verified against the live model.
-- **Teach-Back.** Nova is seeded with that belief, argues from it, and re-takes
+- **Teach-Back.** Redwan is seeded with that belief, argues from it, and re-takes
   the question. Her score is the student's grade.
 - **The avatar speaks** (SyncTalk + Gemini TTS) — needs the GPU service running.
 - **Generated quizzes and courses**, aimed at what each student gets wrong.
@@ -120,15 +135,16 @@ slot owner (M4's earlier total of 28 was a miscount; it owns 23 items).
 
 | Member | Done | In progress | Open | Total |
 |---|---|---|---|---|
-| **M1** (AI) | 36 | 0 | 8 | 44 |
+| **M1** (AI) | 41 | 0 | 7 | 48 |
 | **M2** (Learning) | 29 | 0 | 6 | 35 |
 | **M3** (Users) | 15 | 1 | 6 | 22 |
 | **M4** (Game) | 23 | 0 | 0 | 23 |
-| **Total** | **103** | **1** | **20** | **124** |
+| **Total** | **108** | **1** | **19** | **128** |
 
-M1's 8 open items: 5 are Week 4 hardening (Slot 13, two of them avatar/TTS
-latency), and 3 are standing ⚠️ risks on generated content — no reviewer,
-the daily quota, and 503s from the model — kept open so nobody forgets them.
+M1's 7 open items: 3 are Week 4 hardening (Slot 13; avatar and TTS latency are
+done), the TTS daily quota, and 3 standing ⚠️ risks on generated content —
+no reviewer, the daily quota, and 503s from the model — kept open so nobody
+forgets them.
 
 Plus 4 shared dry-run items in Days 26-28.
 
@@ -329,13 +345,14 @@ get one wrong → the app names your misconception.
 - [x] PCM segments drive the clock: each segment's audio is scheduled on the
       `AudioContext` and the render loop draws the frame belonging at
       `ctx.currentTime`, so the mouth cannot drift from the voice — @sahilaf, 2026-09-22
-- [x] Falls back to the SVG avatar when `AVATAR_SERVICE_URL` is unset, the health
-      probe fails, or the socket drops mid-session — @sahilaf, 2026-09-22
-- [x] **Teach-Back:** Nova is seeded with the student's own misconception and the
+- [x] Shows an "avatar offline" panel naming the reason when `AVATAR_SERVICE_URL`
+      is unset, the health probe fails, or the socket drops mid-session (the SVG
+      fallback this line once described was removed with Tier A) — @sahilaf, 2026-09-22
+- [x] **Teach-Back:** Redwan is seeded with the student's own misconception and the
       question they actually got wrong (`services/teachback.py`) — @sahilaf, 2026-09-22
-- [x] Nova argues from the false belief and pushes back on vague answers; a
+- [x] Redwan argues from the false belief and pushes back on vague answers; a
       non-explanation is rejected before an LLM call is spent — @sahilaf, 2026-09-22
-- [x] **Nova re-takes the question — her score is the student's grade.** Graded
+- [x] **Redwan re-takes the question — his score is the student's grade.** Graded
       deterministically first, LLM judge only when that is inconclusive, and it
       abstains to a fail rather than a pass — @sahilaf, 2026-09-22
 - [x] On a pass the misconception moves `active → fading` and XP is awarded via
@@ -346,9 +363,51 @@ get one wrong → the app names your misconception.
 - [x] **Tier A removed** — the SVG avatar, its Web Speech voice and the whole
       viseme pipeline are deleted. One avatar, one voice; when it cannot run the
       UI says why instead of quietly substituting a cartoon — @sahilaf, 2026-09-22
+- [x] **Runs the Alapon model on Alapon's production server** — synced from
+      `Fydp_v2`: idle pinned to Redwan's recorded closed-mouth ending (clear of the
+      glitch at frame 7638 that snapped the head), separate talking footage under
+      the generated mouth, GPU/CPU overlapped per frame, GPU warmed at startup,
+      edge feathering that removes the bright dot beside the nose. Checkpoint
+      renamed `final_v2` → `alapon` (same file) — @sahilaf, 2026-10-05
+- [x] **The face is alive between replies** — the session now carries Alapon's
+      idle clip and the browser plays it back and forth, instead of a blank canvas
+      before the first reply and a mouth frozen mid-word after every one. `align`
+      before each reply, resume at `utterance_end`, 3-frame crossfades both ways.
+      Verified live on the GPU: idle → speech → idle. 3 tests in
+      `test_tts.py::TestAvatarSessionIdle` — @sahilaf, 2026-10-05
+- [x] **Tutor page rebuilt as three tabs: Live conversation, Teach Redwan, Chat.**
+      Nothing connects or plays on page load; the avatar connects only on
+      "Connect avatar", a call starts only on "Start conversation". **Live**
+      is a spoken call through Gemini Live (`/api/live/ws`, ~1.2 s from the
+      student stopping to the tutor answering), through the avatar when
+      connected, voice-only otherwise. Live turns are saved into the chat
+      conversation, so Chat and Live share history; the live tutor gets the
+      same context as chat (level, weak topics, misconceptions, lesson, summary,
+      recent turns). One male voice (Charon) everywhere. Also fixed: Chat never
+      loaded conversation history (it read `messages`, the API sends `items`).
+      Verified live in the browser; 5 tests in `test_live_tutor.py` — @sahilaf, 2026-10-06
+- [x] **Review fixes (supervisor-style audit).** Avatar service listens on
+      127.0.0.1 by default (it has no login), closes sessions nobody connects
+      to within 30 s, and refuses more than 4 at once. Live calls: one per
+      student, 15 minutes max. No personal paths in tracked files. ESLint
+      migrated to the v9 flat config - `npm run lint` had never run; now 0
+      errors after removing 57 dead imports and 9 unused locals. First frontend
+      tests (`npm test`, Vitest, 11). Live WebSocket bridge tests (6). Privacy
+      notice and screen-reader transcript on the Live tab. Test conversations
+      removed from the database — @sahilaf, 2026-10-06
+- [x] **Live call polish.** (1) The face no longer drops to idle mid-sentence:
+      on a laptop GPU (~45 ms/frame vs 40) audio batches arrived after the last
+      one finished; playback now starts 0.6 s ahead (browser and service agree,
+      `PREBUFFER_SECONDS` / `CLIENT_GATE_S`) and a gap inside a reply holds the
+      last frame. Verified: one 24.5 s reply stayed "Speaking" end to end.
+      (2) The mic stays shut until the service confirms the reply ended - it
+      used to reopen early, hear Redwan on the speakers, and cut him off (the
+      missing reply text). (3) Clear turn states everywhere: Your turn /
+      Listening / Thinking / Redwan is speaking, on the face, a voice-only orb
+      and the transcript, plus labelled bubbles and a thinking bubble — @sahilaf, 2026-10-06
 
 **✅ Hand off when:** the full loop runs — wrong answer → misconception → teach
-Nova → Nova passes. *(Verified 2026-09-22: 15 tests in
+Redwan → Redwan passes. *(Verified 2026-09-22: 15 tests in
 `backend/tests/test_teachback.py`, including an end-to-end HTTP round trip.)*
 **→ Push, then tell M2.**
 
@@ -384,7 +443,7 @@ Nova → Nova passes. *(Verified 2026-09-22: 15 tests in
 - [x] `AdminCourses.jsx` — create / edit / publish a course — @member3, 2026-09-21
 - [x] `AdminUsers.jsx` — list + role/status edit — @member3, 2026-09-21
 - [x] `GET /api/admin/overview` — real numbers (14 admin routes live) — @member3, 2026-09-21
-- [~] Make `DEV_ALLOW_ANONYMOUS` fail closed — **see [G5]** — @member3, 2026-09-21
+- [x] Make `DEV_ALLOW_ANONYMOUS` fail closed — **see [G5] and [G7]** — @member3, 2026-09-28; dev-token hole closed @sahilaf, 2026-10-06
 
 **→ Push, then tell M4.**
 
@@ -534,7 +593,7 @@ needs no changes at all — take the `id` from the response and route to
       `GET /api/jobs/quota` returns `{used, limit, remaining}` so the button can
       say so before it is pressed — @skredwanulislam, 2026-09-28
 - [x] After a wrong answer, a **"Learn this"** link from `QuizResult` to the
-      lesson, then **"Teach Nova"** to `/tutor`. Both ends already exist — this
+      lesson, then **"Teach Redwan"** to `/tutor`. Both ends already exist — this
       is wiring, not new features — @skredwanulislam, 2026-09-28
 
 - [x] **"Build me a course"** — a goal box on the dashboard →
@@ -688,12 +747,29 @@ is when you will see it again, and here is the proof you fixed it."*
 
 ## 🔵 Slot 13 · Member 1 · Days 21–22
 
-- [ ] SyncTalk latency pass; measure and state the real number — @, 2026-__-__
+- [x] SyncTalk latency pass, measured live on the tutor page 2026-10-05 (RTX 3050
+      laptop). **Plugged in: 44–61 ms/frame**, 80–90% of frames rendered, the rest
+      repeated (budget 40 ms; the mouth stays in sync, it is just not every frame).
+      **On battery: 83–136 ms/frame**, 30–40% rendered — choppy. Demo plugged in.
+      Audio reaching the service → first frame: ~1 s — @sahilaf, 2026-10-05
 - [ ] Every AI call has a fallback path and a timeout — @, 2026-__-__
 - [ ] Rate-limit AI endpoints (they cost money per call) — @, 2026-__-__
 - [ ] Cache repeat roadmap/misconception calls where safe — @, 2026-__-__
-- [ ] Measure TTS latency end to end; it is now on the critical path for every
-      spoken reply (`services/tts.py` caches repeats, nothing else) — @, 2026-__-__
+- [x] **TTS latency measured and cut.** Gemini TTS costs ~4.5 s before any audio
+      plus 15–25 ms per character, so a 500-char reply took **17–30 s** to start
+      speaking. Now: TTS defaults to `gemini-3.8-flash-lite-tts` (1.6× faster on
+      long text; it answers WAV, now unwrapped), and the stage speaks the first
+      sentence while the rest synthesizes. Measured: **question → reply in chat
+      2.9 s → Alapon speaking 9.3 s**, second half joined with no gap, back to idle
+      after. A new question now silences the old answer at once. Replay of a
+      cached line starts in ~1 s — @sahilaf, 2026-10-05
+- [ ] ⚠️ **The voice runs out daily on a free key.** Gemini's free tier allows
+      **10 TTS requests a day per model**, and each spoken reply costs 2. The
+      backend falls back across 4 TTS models (`TTS_FALLBACK_MODELS`, a 429'd model
+      is parked until its reset), so ~40 requests ≈ 20 replies a day. Three demo
+      rehearsals plus the demo will not fit — enable billing on the key, or keep a
+      second key for demo day. When it runs out the tutor still answers in text;
+      the face just stays idle — @, 2026-__-__
 
 ## 🟢 Slot 14 · Member 2 · Days 22–23
 
@@ -799,6 +875,18 @@ service runs `soundfile.read()` on every one).
 
 The backend refuses any sample rate other than the stream's rather than shipping
 one that would desynchronise the mouth silently.
+
+### ~~[G7] — unsigned tokens accepted~~ · **found and closed 2026-10-06**
+
+G5 closed anonymous access, but two token paths in `deps.py` still bypassed
+signing. (1) `Bearer dev:<id>:<email>` was accepted even with dev mode off, and
+naming `admin@learnquest.ai` made the caller administrator - proven against an
+admin route before the fix. (2) In dev mode, a token that failed verification
+was read *unverified*, so a hand-made JWT could name any user. Now dev tokens
+work only in dev mode, and an unverifiable token is refused whenever a JWT
+secret or Supabase URL is configured. 7 regression tests in
+`tests/test_auth_hardening.py`, including the original attack. A 401 now signs
+the user out and returns them to the landing page.
 
 ### ~~[G5] — `DEV_ALLOW_ANONYMOUS` does not fail closed~~ · **closed 2026-09-28**
 

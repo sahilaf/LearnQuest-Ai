@@ -265,7 +265,7 @@ tracked over time, and decays through **active → fading → cleared** as the
 student answers correctly. If the model cannot identify a belief with confidence,
 nothing is stored - inventing a misconception is worse than recording none.
 
-### 6.10.2 Teach-Back ("Teach Nova")
+### 6.10.2 Teach-Back ("Teach Redwan")
 
 The tutoring relationship is then inverted. The avatar is seeded with the
 student's *own* misconception and presents it as its own confusion. It asks naive

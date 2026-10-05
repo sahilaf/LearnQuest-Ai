@@ -160,7 +160,7 @@ LearnQuest/
 │   ├── README.md              # setup, API, where the dataset lives
 │   ├── avatar_server_ws.py    # entrypoint: FastAPI + uvicorn WebSocket server
 │   ├── run.ps1                # reads .env, validates paths, launches
-│   ├── checkpoint/final_v2/   # trained weights - GITIGNORED
+│   ├── checkpoint/alapon/     # Alapon weights - GITIGNORED
 │   └── model/, data_utils/    # audio encoder + preprocessing
 │
 └── frontend/
@@ -745,7 +745,7 @@ GET  /api/analytics/mastery/me         -> [{topic_tag, mastery_score, attempts}]
 
 **Tier B — SyncTalk (already trained, wire it up in Week 3).**
 
-The model exists: the **`redwan`** dataset and the **`final_v2`** checkpoint (epoch 59),
+The model exists: the **`redwan`** dataset and the **Alapon** checkpoint (`alapon/59.pth`, epoch 60),
 brought over from the `Fydp_v2` project into [`avatar-service/`](avatar-service/README.md).
 That removes the biggest unknown — there is no model to train during these four weeks,
 only integration work.
@@ -1217,7 +1217,7 @@ That "the recommendation changed because I got it wrong" beat is the strongest t
 
 | # | Risk | Owner | Mitigation |
 | --- | --- | --- | --- |
-| 1 | **SyncTalk needs a GPU and will not run on ordinary free hosting** | M1 | Model already trained (`redwan` + `final_v2`), so only integration remains; Tier A browser avatar still ships first and always works; SyncTalk is an upgrade behind the same API, never demo-critical |
+| 1 | **SyncTalk needs a GPU and will not run on ordinary free hosting** | M1 | Model already trained (Alapon: `redwan` + `alapon/59.pth`), so only integration remains; Tier A browser avatar still ships first and always works; SyncTalk is an upgrade behind the same API, never demo-critical |
 | 2 | LLM rate limits or an exhausted key mid-demo | M1 | Two providers configured; response cache for repeated prompts; `MockLLMClient`; a pre-generated quiz in the seed data |
 | 3 | Lessons shipped without `topic_tags` → recommender dead | M3 | Server-side validation plus an admin form requirement; seed data fully tagged |
 | 4 | Merge conflicts in shared files | All | Shared files finalised on day 1; one line each; small PRs |

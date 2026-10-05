@@ -108,6 +108,37 @@ npm run dev
 
 App: <http://localhost:5173>
 
+### 4. Run everything with one command
+
+Once steps 2 and 3 are set up, start the avatar service, backend and frontend
+together from the repo root (PowerShell):
+
+```powershell
+.\dev.ps1
+```
+
+It waits until each service answers its health check, opens the tutor page, and
+**Ctrl+C stops all three**. Logs go to `.logs\<service>.log`.
+
+No GPU? Skip the avatar; the tutor page shows "avatar offline" and everything
+else works:
+
+```powershell
+.\dev.ps1 -NoAvatar
+```
+
+The avatar needs the `synctalk` conda env (found automatically; set
+`SYNCTALK_PYTHON` if it lives elsewhere), `AVATAR_SERVICE_URL=http://localhost:5001`
+and a Gemini key in `backend/.env`. It takes 40 s to 2 min to load. Run plugged
+in. On battery the GPU throttles and the mouth gets choppy. See
+[avatar-service/README.md](avatar-service/README.md).
+
+If PowerShell refuses to run scripts, allow local ones once:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
 ---
 
 ## Environment variables
@@ -192,6 +223,30 @@ works normally. That is how Members 2, 3 and 4 should run it.
 See [avatar-service/README.md](avatar-service/README.md) and [agent/README.md](agent/README.md).
 
 Detailed folder-by-folder ownership is in [plan.md](plan.md) §1.
+
+---
+
+## Provenance and consent
+
+Declared here so nobody has to ask.
+
+**Brought in from the team's FYDP project (`Fydp_v2`), not built for this course:**
+the Alapon lip-sync model and its training pipeline (`avatar-service/`, trained on
+the `redwan` recording), the avatar WebSocket server, and the design of the live
+voice agent (`agent/`, kept for reference). What was built here is the
+integration: the tutor page, Teach-Back, the live voice tutor
+(`backend/app/routers/live.py`), speech routing, and everything else in
+`backend/` and `frontend/`.
+
+**The avatar is a real person.** The face, and the tutor's name, are those of
+Redwan, the person recorded for the training data.
+
+- [ ] Written consent from Redwan to use his likeness and name in LearnQuest is on
+      file with the team (link it here before submission).
+
+**Student data.** In a live call the student's voice is sent to Google Gemini;
+the transcript is stored in that conversation; LearnQuest does not keep audio.
+The Live tab says this before a call starts.
 
 ---
 
