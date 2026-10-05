@@ -269,12 +269,14 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-line/80 bg-surface/95 shadow-sm backdrop-blur-sm">
+    // No frame of its own: the tutor page already draws the panel, and a
+    // border inside a border read as two nested boxes.
+    <div className="flex h-full flex-col overflow-hidden">
       {/* Context banner if tied to a lesson */}
       {lessonTitle && (
-        <div className="flex items-center gap-2 border-b border-line bg-primary-50/50 px-4 py-2 text-xs font-medium text-primary-700">
-          <Sparkles className="h-3.5 w-3.5" />
-          <span>Active Context: {lessonTitle}</span>
+        <div className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-sm text-muted">
+          <Sparkles className="h-3.5 w-3.5 text-primary-300" />
+          <span>About this lesson: <span className="text-body">{lessonTitle}</span></span>
         </div>
       )}
 
@@ -289,15 +291,13 @@ export default function ChatPanel({
 
         {!loading && messages.length === 0 && (
           <div className="my-auto flex flex-col items-center justify-center py-8 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-gradient-to-tr from-primary-500 to-primary-600 text-white shadow-md shadow-primary-500/20">
-              <Bot className="h-7 w-7" />
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-primary-500/30 bg-primary-500/10 text-primary-300">
+              <Bot className="h-6 w-6" />
             </div>
-            <h3 className="text-lg font-semibold text-ink">
-              Meet Your AI Socratic Tutor
-            </h3>
+            <h3 className="text-lg font-semibold text-ink">Ask Redwan anything</h3>
             <p className="mt-1.5 max-w-sm text-sm text-muted">
-              Ask anything about your courses, request step-by-step breakdowns, or
-              test your conceptual mastery with interactive guidance.
+              Type a question about what you are learning. Press Listen on any reply to
+              hear it.
             </p>
 
             {/* Quick Prompt Chips */}
@@ -532,8 +532,7 @@ export default function ChatPanel({
         </form>
 
         <div className="mt-1.5 flex items-center justify-between px-1 text-[11px] text-muted">
-          <span>Shift + Enter for new line</span>
-          <span>Socratic AI Mode · Active</span>
+          <span>Enter to send · Shift + Enter for a new line</span>
         </div>
       </div>
     </div>

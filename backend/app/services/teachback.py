@@ -327,6 +327,24 @@ async def start_session(db, user_id, topic_tag: str | None = None):
     if row is None:
         return None, "no_misconception"
 
+    # Pressing "Teach" again on a topic already being taught resumes that
+    # session. Each press used to open a fresh one (and spend a model call on a
+    # new opening), so a student who navigated away lost their progress and
+    # piled up abandoned sessions.
+    open_session = (
+        db.query(TeachBackSession)
+        .filter(
+            TeachBackSession.user_id == _as_uuid(user_id),
+            TeachBackSession.topic_tag == row.topic_tag,
+            TeachBackSession.misconception == row.misconception,
+            TeachBackSession.status == "teaching",
+        )
+        .order_by(TeachBackSession.created_at.desc())
+        .first()
+    )
+    if open_session is not None:
+        return open_session, None
+
     question = _find_wrong_answer(
         db, user_id, row.topic_tag, getattr(row, "misconception_question_id", None)
     )

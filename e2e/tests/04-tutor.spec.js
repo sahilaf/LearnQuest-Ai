@@ -14,7 +14,7 @@ test('opening the tutor page connects nothing and plays nothing', async ({ page 
     if (/:8100|:5001/.test(ws.url())) avatarCalls.push(ws.url());
   });
   await page.goto('/tutor');
-  await expect(page.getByRole('button', { name: 'Connect avatar' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Connect video' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Start conversation' })).toBeVisible();
   await page.waitForTimeout(2000);
   expect(avatarCalls).toEqual([]);
@@ -23,11 +23,11 @@ test('opening the tutor page connects nothing and plays nothing', async ({ page 
 test('with no GPU service, Connect says the avatar is offline and offers a way back', async ({ page }) => {
   await signUp(page);
   await page.goto('/tutor');
-  await page.getByRole('button', { name: 'Connect avatar' }).click();
+  await page.getByRole('button', { name: 'Connect video' }).click();
   await expect(page.getByText('Avatar offline')).toBeVisible();
   await expect(page.getByText('The avatar service is not configured on this machine.')).toBeVisible();
   await page.getByRole('button', { name: 'Back' }).click();
-  await expect(page.getByRole('button', { name: 'Connect avatar' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Connect video' })).toBeVisible();
 });
 
 test('chat: a question gets an answer, and the conversation survives a reload', async ({ page }) => {

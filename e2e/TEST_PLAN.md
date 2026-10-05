@@ -1,7 +1,7 @@
 # LearnQuest — End-to-End Test Plan and Report
 
 **Tool:** Playwright 1.x (Chromium) · **Suite:** `e2e/tests/` · **Last run:** 2026-10-06 —
-**14 / 14 passed**, stable across 4 consecutive runs (56 / 56), ~40 s per run.
+**16 / 16 passed**, stable across consecutive runs, ~48 s per run.
 
 ## 1. What "end to end" means here
 
@@ -41,6 +41,8 @@ production** whatever the environment says.
 | 5 | Find and read a lesson | `02-learning` | Catalogue → course → lesson 1 | Course curriculum and lesson content shown, "Quiz me" available | ✅ |
 | 6 | **Misconception engine** | `03-learning-loop` | Answer every question of quiz 1 wrong | Result page names the false belief ("You believe…") and offers "Teach Redwan to fix it" | ✅ |
 | 7 | **Teach-Back** | `03-learning-loop` | Start Teach-Back; send "You are wrong."; then a real explanation; ask Redwan to re-take | Redwan holds the belief *and the question it came from*; the vague reply is pushed back on; the explanation convinces him; on the retake he gives the taught answer and the attempt passes | ✅ |
+| 7b | Teach-Back fail | `03-learning-loop` | Three vague explanations, three retakes | Attempts count down 3 → 0; outcome says "Out of attempts" with the correct answer; never "fixed"; Try again opens a fresh session | ✅ |
+| 7c | Teach-Back resume | `03-learning-loop` | Teach, explain once, go back, press Teach again | The same session reopens with the explanation still there | ✅ |
 | 8 | Calm tutor page | `04-tutor` | Open the tutor page and wait | No avatar session, no speech request and no socket is opened | ✅ |
 | 9 | Avatar unavailable | `04-tutor` | Press "Connect avatar" with no GPU service | "Avatar offline" with a plain reason and a Back button | ✅ |
 | 10 | Chat with memory | `04-tutor` | Ask a question; reload the page | Answer shown; still there after reload | ✅ |
@@ -51,7 +53,7 @@ production** whatever the environment says.
 
 ## 4. Defects found by this suite (all fixed)
 
-Writing and running the suite found four real bugs that the 320 backend unit
+Writing and running the suite found real bugs that the 320 backend unit
 tests and 11 frontend unit tests did not:
 
 | # | Defect | Severity | Fix |
@@ -60,6 +62,11 @@ tests and 11 frontend unit tests did not:
 | D2 | **Teach-Back paired the wrong belief with the wrong question.** Misconceptions are stored per topic; with several wrong answers on one topic, Redwan held the belief from question 3 but was asked question 1. | High | Store the source question with the belief (`topic_mastery.misconception_question_id`, migration `0011`) and re-ask exactly that question |
 | D3 | **Signing out right after signing up could sign the student straight back in.** A profile sync still in flight restored the user it was merging into. | Medium | Merge into the signed-in user only — never recreate one (`AuthContext.jsx`) |
 | D4 | **Login and sign-up pages redirected during render**, a React error in the console on every visit. | Low | Redirect from an effect (`Login.jsx`, `Register.jsx`) |
+| D5 | **A failed Teach-Back showed "Misconception Addressed"** directly under "Redwan still got it wrong". | High | Separate pass / fail outcomes; fail shows the answer and Try again |
+| D6 | **Redwan repeated his previous line after every retake** (the retake adds no new line, but the speech hook fired on any session change). | Medium | Each line is spoken once, keyed by its timestamp |
+| D7 | **Every "Teach" press opened a new session**, losing the student's explanations. | Medium | Resume the open session for that belief (backend) |
+| D8 | **"Connect avatar" opened two GPU sessions** in development (StrictMode). | Medium | Defer session creation one tick |
+| D9 | **Database one migration behind the code** made Teach-Back show "Network Error" and silently dropped misconceptions. | High | Migration applied; documented in the pull note |
 
 ## 5. How to run
 

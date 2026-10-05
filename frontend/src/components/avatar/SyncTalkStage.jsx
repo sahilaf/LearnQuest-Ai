@@ -97,6 +97,8 @@ export default function SyncTalkStage({
   onDisconnect = null,
   // Laid over the bottom of the video, e.g. the live call's turn indicator.
   overlay = null,
+  // 4:3 instead of square, where the page needs the room more than the face.
+  compact = false,
 }) {
   // Identity-stable so the hook does not tear the socket down on every render.
   const createSession = useCallback(() => avatarSession(), []);
@@ -229,14 +231,14 @@ export default function SyncTalkStage({
       </div>
 
       <div
-        className="relative aspect-square w-full bg-canvas"
+        className={`relative w-full bg-canvas ${compact ? 'aspect-[4/3]' : 'aspect-square'}`}
         // Browsers hold an AudioContext suspended until a user gesture; without
         // this the very first utterance can arrive with the clock still paused.
         onClick={resume}
         onKeyDown={resume}
         role="presentation"
       >
-        <canvas ref={canvasRef} className="h-full w-full object-cover" />
+        <canvas ref={canvasRef} className="h-full w-full object-cover object-top" />
 
         {overlay && !connecting && (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-start">{overlay}</div>

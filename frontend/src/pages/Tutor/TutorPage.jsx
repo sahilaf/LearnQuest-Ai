@@ -19,15 +19,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { BookOpen, GraduationCap, MessageSquare, Plus, Radio, Trash2 } from 'lucide-react';
 
-import AvatarStage from '../../components/avatar/AvatarStage';
 import ChatPanel from '../../components/tutor/ChatPanel';
 import { Spinner } from '../../components/ui';
 import { createConversation, deleteConversation, listConversations } from '../../api/tutor';
 import { getLesson } from '../../api/lessons';
-import LivePanel from './LivePanel';
-import { LiveStatusChip, VoiceOrb, liveStateOf } from './LiveStatus';
-import TeachBackPanel from './TeachBackPanel';
+import LivePanel, { LiveControls } from './LivePanel';
+import { liveStateOf } from './LiveStatus';
+import { TeachChallenge, TeachConversation } from './TeachBackPanel';
+import TutorStage from './TutorStage';
 import useLiveConversation from './useLiveConversation';
+import useTeachBack, { TEACH_PHASE } from './useTeachBack';
 import useTutorVoice from './useTutorVoice';
 
 const TABS = [
@@ -69,6 +70,26 @@ export default function TutorPage() {
     muted,
   });
   const live = useLiveConversation({ voice });
+  // Redwan speaks Teach lines only while the Teach tab is open.
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  const teach = useTeachBack({
+    initialTopic: topicParam,
+    speak: (text) => { if (tabRef.current === 'teach') voice.speakText(text); },
+  });
+
+  // Is Redwan audible right now (face or voice-only)? Polled, because the
+  // audio clock is not React state; drives the one status chip.
+  const [speakingNow, setSpeakingNow] = useState(false);
+  const voiceRef = useRef(voice);
+  voiceRef.current = voice;
+  useEffect(() => {
+    const id = setInterval(() => {
+      const v = voiceRef.current;
+      setSpeakingNow(v.isAudible() || v.synthesizing);
+    }, 200);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => { if (routeConvRef) setSelectedConvRef(routeConvRef); }, [routeConvRef]);
 
@@ -160,14 +181,39 @@ export default function TutorPage() {
     setAvatarLive(false);
   }, []);
 
-  const showAvatar = tab !== 'chat';
-  const inCall = tab === 'live' && (live.status === 'live' || live.status === 'connecting');
-  const liveState = inCall ? liveStateOf(live) : null;
+  const inCall = live.status === 'live' || live.status === 'connecting';
+
+  // One status for the tutor, whatever the tab - shown on the face only.
+  let tutorState = speakingNow ? 'speaking' : 'idle';
+  if (tab === 'live' && inCall) tutorState = liveStateOf(live);
+  if (tab === 'teach' && !speakingNow) {
+    if (teach.phase === TEACH_PHASE.RETAKING) tutorState = 'retaking';
+    else if (teach.busy) tutorState = 'thinking';
+    else if (teach.session && !teach.passed && !teach.failed) tutorState = 'explain';
+  }
+
+  const stage = (
+    <TutorStage
+      state={tutorState}
+      level={live.level}
+      connected={avatarConnected}
+      onConnect={() => setAvatarConnected(true)}
+      onDisconnect={disconnectAvatar}
+      onAvailabilityChange={setAvatarLive}
+      controllerRef={avatarRef}
+      avatarLine={voice.avatarLine}
+      onAvatarLineEnd={voice.onAvatarLineEnd}
+      muted={muted}
+      onToggleMute={() => setMuted((m) => !m)}
+      // In Teach the question matters more than the face.
+      compact={tab === 'teach'}
+    />
+  );
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Title, context and the three tabs - nothing else up here. */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="flex flex-col gap-5">
+      {/* Title, context, then the three modes. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-ink">Tutor</h1>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-sm text-muted">
@@ -181,7 +227,7 @@ export default function TutorPage() {
           </p>
         </div>
 
-        <div role="tablist" className="flex w-full rounded-lg border border-line bg-surface p-1 sm:w-auto">
+        <div role="tablist" aria-label="Ways to learn with Redwan" className="flex w-full rounded-lg border border-line bg-surface p-1 lg:w-auto">
           {TABS.map(({ id, label, short, icon: Icon }) => (
             <button
               key={id}
@@ -189,8 +235,8 @@ export default function TutorPage() {
               role="tab"
               aria-selected={tab === id}
               onClick={() => switchTab(id)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-3.5 py-1.5 text-sm font-medium transition-colors sm:flex-none ${
-                tab === id ? 'bg-primary-600 text-white' : 'text-muted hover:text-body'
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-3.5 py-2 text-sm font-medium transition-colors lg:flex-none ${
+                tab === id ? 'bg-primary-600 text-white' : 'text-muted hover:bg-raised hover:text-body'
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -201,86 +247,67 @@ export default function TutorPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:h-[calc(100vh-13rem)] lg:min-h-[560px] lg:grid-cols-12">
-        {/* The face. Mounted on every tab so a connection survives switching,
-            hidden on Chat where it is not used. */}
-        <div className={`${showAvatar ? 'flex' : 'hidden'} flex-col items-center gap-3 lg:col-span-5`}>
-          <div className="w-full max-w-[440px]">
-            {/* A voice-only call still gets a presence that shows whose turn it is. */}
-            {inCall && !avatarConnected && (
-              <VoiceOrb state={liveState} level={live.level} onConnectAvatar={() => setAvatarConnected(true)} />
-            )}
-            <div className={inCall && !avatarConnected ? 'hidden' : ''}>
-            <AvatarStage
-              connected={avatarConnected}
-              onConnect={() => setAvatarConnected(true)}
-              onDisconnect={disconnectAvatar}
-              onAvailabilityChange={setAvatarLive}
-              controllerRef={avatarRef}
-              spokenText={voice.avatarLine.text}
-              isSpeaking={voice.avatarLine.speaking}
-              onSpeechEnd={voice.onAvatarLineEnd}
-              audioMuted={muted}
-              onToggleMute={() => setMuted((m) => !m)}
-              overlay={liveState ? <LiveStatusChip state={liveState} level={live.level} /> : null}
-            />
-            </div>
-          </div>
-        </div>
+      {/* Same frame for every mode: the tutor and what belongs beside him on
+          the left, the conversation on the right. */}
+      <div className="grid grid-cols-1 gap-5 lg:h-[calc(100vh-12.5rem)] lg:min-h-[600px] lg:grid-cols-[minmax(300px,380px)_1fr]">
+        <aside className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto">
+          {/* The stage stays mounted in every tab, so a video connection is
+              never torn down by switching tabs. */}
+          <div className={tab === 'chat' ? 'hidden' : ''}>{stage}</div>
 
-        {/* Chat: conversation list beside the chat. */}
-        {tab === 'chat' && (
-          <aside className="flex min-h-[200px] flex-col rounded-lg border border-line bg-surface p-3 lg:col-span-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-semibold text-ink">Conversations</span>
-              <button
-                type="button"
-                onClick={() => newConversation().catch(() => {})}
-                className="rounded p-1.5 text-muted transition-colors hover:bg-raised hover:text-ink"
-                title="New conversation"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
-              {loadingConversations && <div className="flex justify-center py-6"><Spinner size="sm" /></div>}
-              {!loadingConversations && conversations.length === 0 && (
-                <p className="py-6 text-center text-xs text-muted">No conversations yet.</p>
-              )}
-              {conversations.map((conv) => {
-                const active = String(conv.number) === String(selectedConvRef);
-                return (
-                  <div
-                    key={conv.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => selectConversation(conv.number)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') selectConversation(conv.number); }}
-                    className={`group flex cursor-pointer items-center justify-between rounded px-2.5 py-2 text-sm transition-colors ${
-                      active ? 'bg-primary-500/15 text-ink' : 'text-body hover:bg-raised'
-                    }`}
-                  >
-                    <span className="truncate pr-2">{conv.title || 'Untitled'}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => removeConversation(e, conv.number)}
-                      className="p-1 text-faint opacity-0 transition-opacity hover:text-hard-fg group-hover:opacity-100"
-                      title="Delete conversation"
+          {tab === 'live' && inCall && <LiveControls live={live} />}
+          {tab === 'teach' && <TeachChallenge teach={teach} />}
+          {tab === 'chat' && (
+            <div className="card flex min-h-[220px] flex-1 flex-col p-3">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="label">Conversations</span>
+                <button
+                  type="button"
+                  onClick={() => newConversation().catch(() => {})}
+                  className="rounded p-1.5 text-muted transition-colors hover:bg-raised hover:text-ink"
+                  title="New conversation"
+                  aria-label="New conversation"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+                {loadingConversations && <div className="flex justify-center py-6"><Spinner size="sm" /></div>}
+                {!loadingConversations && conversations.length === 0 && (
+                  <p className="py-6 text-center text-sm text-muted">No conversations yet.</p>
+                )}
+                {conversations.map((conv) => {
+                  const active = String(conv.number) === String(selectedConvRef);
+                  return (
+                    <div
+                      key={conv.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => selectConversation(conv.number)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') selectConversation(conv.number); }}
+                      className={`group flex cursor-pointer items-center justify-between rounded px-2.5 py-2 text-sm transition-colors ${
+                        active ? 'bg-primary-500/15 text-ink' : 'text-body hover:bg-raised'
+                      }`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
+                      <span className="truncate pr-2">{conv.title || 'Untitled'}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => removeConversation(e, conv.number)}
+                        className="p-1 text-faint opacity-0 transition-opacity hover:text-hard-fg focus:opacity-100 group-hover:opacity-100"
+                        title="Delete conversation"
+                        aria-label="Delete conversation"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </aside>
-        )}
+          )}
+        </aside>
 
-        <div
-          className={`flex min-h-[520px] flex-col overflow-hidden rounded-lg border border-line bg-surface ${
-            tab === 'chat' ? 'lg:col-span-9' : 'lg:col-span-7'
-          }`}
-        >
+        <section className="flex min-h-[520px] flex-col overflow-hidden rounded-lg border border-line bg-surface">
           {tab === 'live' && (
             <LivePanel
               live={live}
@@ -290,12 +317,7 @@ export default function TutorPage() {
               onStart={startLive}
             />
           )}
-
-          {/* Kept mounted: switching tabs must not throw away a session. */}
-          <div className={`${tab === 'teach' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
-            <TeachBackPanel onNovaSpeak={tab === 'teach' ? voice.speakText : null} initialTopic={topicParam} />
-          </div>
-
+          {tab === 'teach' && <TeachConversation teach={teach} />}
           {tab === 'chat' && (
             // Remounted per visit so it reloads anything said in a live call.
             <ChatPanel
@@ -310,7 +332,7 @@ export default function TutorPage() {
               lessonTitle={lesson?.title}
             />
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

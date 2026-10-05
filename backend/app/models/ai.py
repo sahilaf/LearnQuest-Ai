@@ -334,6 +334,12 @@ class Recommendation(Base):
         }
 
 
+def _max_retakes() -> int:
+    from app.services.teachback import MAX_RETAKES  # lazy: services import models
+
+    return MAX_RETAKES
+
+
 class TeachBackSession(Base):
     """One Teach-Back round: the student teaches Redwan out of their own misconception.
 
@@ -415,6 +421,8 @@ class TeachBackSession(Base):
             "nova_score": self.nova_score,
             "nova_reasoning": self.nova_reasoning,
             "retakes": self.retakes,
+            # Sent so the page can show "2 of 3 attempts" before the first retake.
+            "max_retakes": _max_retakes(),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "completed_at": (
                 self.completed_at.isoformat() if self.completed_at else None

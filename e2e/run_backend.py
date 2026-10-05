@@ -39,7 +39,9 @@ env = {
     "SUPABASE_URL": "",
     "SUPABASE_JWT_SECRET": "",
     "SUPABASE_SERVICE_ROLE_KEY": "",
-    "AVATAR_SERVICE_URL": "",
+    # Empty = no avatar (what the suite tests). Set E2E_AVATAR_SERVICE_URL to a
+    # running avatar service to click through the real face by hand.
+    "AVATAR_SERVICE_URL": os.environ.get("E2E_AVATAR_SERVICE_URL", ""),
     "CORS_ORIGINS": f"{FRONTEND_ORIGIN},http://127.0.0.1:{FRONTEND_ORIGIN.rsplit(':', 1)[-1]}",
     "PYTHONIOENCODING": "utf-8",
 }

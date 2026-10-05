@@ -1,339 +1,343 @@
 /**
- * TeachBackPanel - OWNER: Member 1. See plan.md §6.10 and services/teachback.py.
+ * Teach-Back on screen - OWNER: Member 1. See plan.md §6.10, services/teachback.py.
  *
- * The protege effect, on screen. Redwan is seeded with a false belief this student
- * actually holds, argues from it, and then re-takes the question they got wrong.
- * His score is their grade.
+ * The protege effect: Redwan holds a false belief this student actually had,
+ * argues from it, then re-takes the question they got wrong. His score is
+ * their grade. State lives in useTeachBack; this file draws it in two parts:
  *
- * Two deliberate interaction choices:
+ *   TeachChallenge     beside the tutor - what he believes, the question he
+ *                      will re-take (with its options), attempts left
+ *   TeachConversation  the main panel - choosing a belief, the conversation,
+ *                      the retake result and the outcome
  *
- * - The correct answer is never shown while the session is winnable. The backend
- *   withholds it too; this component only renders what it is given. Showing it
- *   would turn teaching into copying.
- * - "Ask Redwan to try again" stays enabled even when he is not convinced. Being
- *   convinced is his opinion; the retake is the measurement, and a student is
- *   allowed to disagree with him and be proved right.
+ * The correct answer is never shown while the session is winnable (the
+ * backend withholds it too). Asking for a retake stays available even when
+ * Redwan is not convinced: being convinced is his opinion, the retake is the
+ * measurement.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, Lightbulb, RotateCcw, Send, Trophy, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Lightbulb, RotateCcw, Send, Trophy, XCircle } from 'lucide-react';
 
-import { Badge, Button, EmptyState, Spinner } from '../../components/ui';
-import {
-  novaRetake,
-  startTeachBack,
-  teachBackAvailable,
-  teachNova,
-} from '../../api/tutor';
+import { Badge, Button, EmptyState, Spinner, buttonClasses } from '../../components/ui';
+import { ThinkingDots } from './LiveStatus';
+import { TEACH_PHASE } from './useTeachBack';
 
 const STATUS_TONE = { active: 'hard', fading: 'medium', cleared: 'success' };
 
-function TurnBubble({ turn }) {
-  const isNova = turn.role === 'nova';
+/** "You believe X" reads as Redwan's belief once he has taken it on. */
+const asHisBelief = (text = '') => text.replace(/^You believe\b/i, 'He believes');
+
+/* ------------------------------------------------------------------------ */
+/* Beside the tutor                                                          */
+/* ------------------------------------------------------------------------ */
+
+export function TeachChallenge({ teach }) {
+  const { session, attemptsUsed, maxRetakes, passed, failed } = teach;
+
+  if (!session) {
+    return (
+      <div className="card p-4">
+        <span className="label">How it works</span>
+        <ol className="mt-3 space-y-2.5 text-sm text-body">
+          {[
+            'Redwan takes on a belief behind one of your wrong answers.',
+            'Explain why it is wrong - he pushes back on vague answers.',
+            'He re-takes your question. His score is your grade.',
+          ].map((line, i) => (
+            <li key={line} className="flex gap-2.5">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-pill bg-raised text-2xs font-semibold text-muted">
+                {i + 1}
+              </span>
+              {line}
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
+
+  const options = Array.isArray(session.question_options) ? session.question_options : [];
+  const left = Math.max(0, maxRetakes - attemptsUsed);
   return (
-    <div className={`flex ${isNova ? 'justify-start' : 'justify-end'}`}>
-      <div
-        className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-          isNova
-            ? 'bg-canvas text-body'
-            : 'bg-primary-600 text-white'
-        }`}
-      >
-        {isNova && (
-          <span className="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">
-            Redwan
-          </span>
+    <div className="card divide-y divide-line">
+      <div className="p-4">
+        <span className="label">What he believes</span>
+        <p className="mt-1.5 text-base font-medium leading-snug text-ink">
+          {asHisBelief(session.misconception)}
+        </p>
+        <p className="mt-1 text-2xs text-faint">{session.topic_tag}</p>
+      </div>
+      <div className="p-4">
+        <span className="label">The question he will re-take</span>
+        <p className="mt-1.5 text-sm leading-relaxed text-body">{session.question_prompt}</p>
+        {options.length > 0 && (
+          <ul className="mt-2.5 space-y-1.5">
+            {options.map((option) => (
+              <li key={option} className="rounded border border-line bg-raised px-2.5 py-1.5 text-sm text-body">
+                {option}
+              </li>
+            ))}
+          </ul>
         )}
-        {turn.content}
+      </div>
+      <div className="flex items-center justify-between gap-3 p-4">
+        <span className="label">Attempts</span>
+        <span className="flex items-center gap-2 text-sm text-muted">
+          <span className="flex gap-1" aria-hidden>
+            {Array.from({ length: maxRetakes }, (_, i) => (
+              <span
+                key={i}
+                className={`h-2 w-5 rounded-pill ${i < attemptsUsed ? 'bg-muted' : 'bg-line-strong'}`}
+              />
+            ))}
+          </span>
+          {passed && 'Passed'}
+          {failed && 'None left'}
+          {!passed && !failed && `${left} of ${maxRetakes} left`}
+        </span>
       </div>
     </div>
   );
 }
 
-export default function TeachBackPanel({ onNovaSpeak = null, initialTopic = null }) {
-  const [available, setAvailable] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState(null);
-  const [draft, setDraft] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+/* ------------------------------------------------------------------------ */
+/* The main panel                                                            */
+/* ------------------------------------------------------------------------ */
 
-  const turnsEndRef = useRef(null);
-  // Held in a ref so a new callback identity from the parent cannot retrigger
-  // the speak effect and make Redwan repeat his last line.
-  const onNovaSpeakRef = useRef(onNovaSpeak);
-  useEffect(() => {
-    onNovaSpeakRef.current = onNovaSpeak;
-  }, [onNovaSpeak]);
+function Bubble({ role, children }) {
+  const mine = role === 'student';
+  return (
+    <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+      <span className="mb-1 px-1 text-2xs font-medium text-faint">{mine ? 'You' : 'Redwan'}</span>
+      <div
+        className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3.5 py-2.5 text-sm leading-relaxed ${
+          mine ? 'rounded-tr-sm bg-primary-600 text-white' : 'rounded-tl-sm border border-line bg-raised text-body'
+        }`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
-  const loadAvailable = useCallback(() => {
-    setLoading(true);
-    teachBackAvailable()
-      .then((data) => setAvailable(data.items || []))
-      .catch((err) => setError(err?.detail || 'Could not load your misconceptions.'))
-      .finally(() => setLoading(false));
-  }, []);
+/** One retake, drawn where it happened in the conversation. */
+function RetakeResult({ result }) {
+  return (
+    <div
+      className={`rounded-lg border p-4 ${
+        result.passed ? 'border-easy/40 bg-easy-bg' : 'border-hard/40 bg-hard-bg'
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {result.passed ? <CheckCircle2 className="h-4 w-4 text-easy-fg" /> : <XCircle className="h-4 w-4 text-hard-fg" />}
+        <span className={`text-sm font-semibold ${result.passed ? 'text-easy-fg' : 'text-hard-fg'}`}>
+          {result.passed ? 'Redwan got it right' : 'Redwan still got it wrong'}
+        </span>
+        <Badge tone={result.passed ? 'success' : 'hard'}>{result.score}/100</Badge>
+        {result.xp_awarded > 0 && <Badge tone="primary">+{result.xp_awarded} XP</Badge>}
+      </div>
+      <p className="mt-2 text-sm text-body">
+        <span className="text-muted">He answered: </span>{result.nova_answer || 'nothing'}
+      </p>
+      {result.why && <p className="mt-0.5 text-sm text-muted">{result.why}</p>}
+    </div>
+  );
+}
 
-  useEffect(loadAvailable, [loadAvailable]);
+function Outcome({ teach }) {
+  const { passed, result, session } = teach;
+  const correct = result?.correct_answer || session?.question_correct_answer;
 
-  useEffect(() => {
-    turnsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [session?.turns?.length]);
-
-  // Speak whatever Redwan said last, so the avatar says it too.
-  useEffect(() => {
-    const turns = session?.turns || [];
-    const last = turns[turns.length - 1];
-    if (last?.role === 'nova') onNovaSpeakRef.current?.(last.content);
-  }, [session]);
-
-  const begin = useCallback((topicTag) => {
-    setBusy(true);
-    setError(null);
-    setResult(null);
-    startTeachBack(topicTag)
-      .then(setSession)
-      .catch((err) => setError(err?.detail || 'Could not start a Teach-Back session.'))
-      .finally(() => setBusy(false));
-  }, []);
-
-  useEffect(() => {
-    if (initialTopic && !session && !busy && available.length > 0) {
-      begin(initialTopic);
-    }
-  }, [initialTopic, begin, session, busy, available]);
-
-  const send = useCallback(() => {
-    const message = draft.trim();
-    if (!message || !session || busy) return;
-    setBusy(true);
-    setError(null);
-    setDraft('');
-    teachNova(session.id, message)
-      .then((data) => setSession(data.session))
-      .catch((err) => {
-        setError(err?.detail || 'Redwan could not reply.');
-        setDraft(message); // never silently eat what they typed
-      })
-      .finally(() => setBusy(false));
-  }, [draft, session, busy]);
-
-  const retake = useCallback(() => {
-    if (!session || busy) return;
-    setBusy(true);
-    setError(null);
-    novaRetake(session.id)
-      .then((data) => {
-        setResult(data);
-        setSession(data.session);
-        if (data.passed) loadAvailable();
-      })
-      .catch((err) => setError(err?.detail || 'Redwan could not take the question.'))
-      .finally(() => setBusy(false));
-  }, [session, busy, loadAvailable]);
-
-  const reset = useCallback(() => {
-    setSession(null);
-    setResult(null);
-    setError(null);
-    setDraft('');
-    loadAvailable();
-  }, [loadAvailable]);
-
-  if (loading) {
+  if (passed) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner />
+      <div className="space-y-3 p-4">
+        <div className="flex items-start gap-3 rounded-lg border border-easy/40 bg-easy-bg p-4">
+          <Trophy className="mt-0.5 h-5 w-5 shrink-0 text-easy-fg" />
+          <div>
+            <p className="font-semibold text-easy-fg">You taught him - misconception fixed</p>
+            <p className="mt-0.5 text-sm text-body">
+              It moves to fading, and comes back for review so it stays fixed.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="secondary" className="flex-1" onClick={teach.leave}>Teach something else</Button>
+          <Link to="/dashboard" className={buttonClasses('primary', 'md', 'flex-1')}>Continue learning</Link>
+        </div>
       </div>
     );
   }
 
-  /* ---- Nothing to teach yet ---- */
-  if (!session && available.length === 0) {
+  return (
+    <div className="space-y-3 p-4">
+      <div className="flex items-start gap-3 rounded-lg border border-hard/40 bg-hard-bg p-4">
+        <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-hard-fg" />
+        <div>
+          <p className="font-semibold text-hard-fg">Out of attempts - the belief is still there</p>
+          {correct && (
+            <p className="mt-1 text-sm text-body">
+              <span className="text-muted">The correct answer: </span>{correct}
+            </p>
+          )}
+          <p className="mt-1 text-sm text-muted">
+            Explain the mechanism - why his belief leads to the wrong answer - not just what the
+            right answer is.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button variant="secondary" className="flex-1" onClick={teach.leave}>Teach something else</Button>
+        <Button className="flex-1" onClick={teach.tryAgain} loading={teach.phase === TEACH_PHASE.STARTING}>
+          <RotateCcw className="h-4 w-4" />
+          Try again
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ChooseBelief({ teach }) {
+  const { available, loading, error, busy } = teach;
+
+  if (loading) {
+    return <div className="flex h-full items-center justify-center"><Spinner /></div>;
+  }
+  if (available.length === 0) {
     return (
-      <div className="p-4">
+      <div className="flex h-full items-center justify-center p-6">
         <EmptyState
           icon={<Lightbulb className="h-5 w-5" />}
           title="Nothing to teach yet"
-          description={
-            'Teach-Back starts from a misconception. Take a quiz and get something '
-            + 'wrong, and the tutor will name the belief behind it - then you can '
-            + 'teach Redwan out of it.'
-          }
-          action={
-            <Button variant="secondary" size="sm" onClick={loadAvailable}>
-              Check again
-            </Button>
-          }
+          description="Teach-Back starts from a mistake. Take a quiz - when you get something wrong, the belief behind it shows up here."
+          action={<Button variant="secondary" size="sm" onClick={teach.refresh}>Check again</Button>}
         />
-        {error && <p className="mt-3 text-center text-sm text-hard">{error}</p>}
+        {error && <p className="mt-3 text-center text-sm text-hard-fg">{error}</p>}
       </div>
     );
   }
-
-  /* ---- Pick something to teach ---- */
-  if (!session) {
-    return (
-      <div className="space-y-3 p-4">
-        <div>
-          <h3 className="text-sm font-semibold">Teach Redwan</h3>
-          <p className="mt-0.5 text-sm text-muted">
-            He believes what you believed. Talk him out of it, then watch him
-            re-take the question you got wrong.
-          </p>
-        </div>
-
-        <ul className="space-y-2">
-          {available.map((item) => (
-            <li key={item.topic_tag} className="card p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-muted">{item.topic_tag}</span>
-                    <Badge tone={STATUS_TONE[item.status] || 'default'}>{item.status}</Badge>
-                  </div>
-                  <p className="mt-1 text-sm">{item.misconception}</p>
-                </div>
-                <Button size="sm" onClick={() => begin(item.topic_tag)} disabled={busy}>
-                  Teach
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {error && <p className="text-sm text-hard">{error}</p>}
-      </div>
-    );
-  }
-
-  /* ---- In session ---- */
-  const closed = session.status === 'passed' || session.status === 'failed';
-  const hasTaught = (session.turns || []).some((t) => t.role === 'student');
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-line px-4 py-3">
-        <div className="flex items-center gap-2">
-          <GraduationCap className="h-4 w-4 text-primary-600" />
-          <span className="text-sm font-semibold">Teaching Redwan</span>
-          <span className="font-mono text-xs text-muted">{session.topic_tag}</span>
-        </div>
-        <p className="mt-1.5 text-sm text-muted">
-          <span className="font-medium text-body">He believes:</span>{' '}
-          {session.misconception}
-        </p>
-        <p className="mt-1 text-sm text-muted">
-          <span className="font-medium text-body">His question:</span>{' '}
-          {session.question_prompt}
-        </p>
+      <div className="border-b border-line px-5 py-4">
+        <h2 className="text-base font-semibold text-ink">Choose a belief to teach</h2>
+        <p className="mt-0.5 text-sm text-muted">Each one came from a wrong answer of yours.</p>
       </div>
-
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
-        {(session.turns || []).map((turn, index) => (
-          <TurnBubble key={`${turn.at}-${index}`} turn={turn} />
-        ))}
-        <div ref={turnsEndRef} />
-      </div>
-
-      {result && (
-        <div
-          className={`border-t px-4 py-3 text-sm ${
-            result.passed
-              ? 'border-easy/30 bg-easy-bg'
-              : 'border-hard/30 bg-hard-bg'
-          }`}
-        >
-          <div className="flex items-center gap-2 font-semibold">
-            {result.passed ? <Trophy className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
-            {result.passed ? 'Redwan got it right' : 'Redwan still got it wrong'}
-            <Badge tone={result.passed ? 'success' : 'hard'}>{result.score}/100</Badge>
-            {result.xp_awarded > 0 && <Badge tone="primary">+{result.xp_awarded} XP</Badge>}
-          </div>
-          <p className="mt-1.5">
-            <span className="text-muted">He answered:</span> {result.nova_answer}
-          </p>
-          {result.why && <p className="mt-0.5 text-muted">{result.why}</p>}
-          {result.correct_answer && (
-            <p className="mt-0.5">
-              <span className="text-muted">Correct answer:</span> {result.correct_answer}
-            </p>
-          )}
-          {!result.passed && !closed && (
-            <p className="mt-1 text-muted">
-              {result.retakes_left} attempt{result.retakes_left === 1 ? '' : 's'} left - explain
-              the part he is still missing.
-            </p>
-          )}
-        </div>
-      )}
-
-      {error && <p className="px-4 pb-2 text-sm text-hard">{error}</p>}
-
-      <div className="border-t border-line p-3">
-        {closed ? (
-          <div className="space-y-3 pt-1">
-            <div className="rounded-lg border border-easy/40 bg-easy-bg/30 p-3 text-center">
-              <span className="text-xs font-semibold text-easy-fg flex items-center justify-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4" /> Misconception Addressed
-              </span>
-              <p className="mt-1 text-xs text-muted">
-                This will come back for review in 2 days.
-              </p>
+      <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+        {available.map((item) => (
+          <li key={item.topic_tag} className="card flex items-start justify-between gap-4 p-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-2xs text-faint">{item.topic_tag}</span>
+                <Badge tone={STATUS_TONE[item.status] || 'default'}>{item.status}</Badge>
+              </div>
+              <p className="mt-1.5 text-sm text-body">{item.misconception}</p>
             </div>
+            <Button size="sm" onClick={() => teach.begin(item.topic_tag)} disabled={busy}>
+              Teach
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="px-5 pb-3 text-sm text-hard-fg">{error}</p>}
+    </div>
+  );
+}
 
-            <Link to="/dashboard" className="block">
-              <Button variant="primary" size="md" className="w-full font-semibold">
-                Continue your course →
-              </Button>
-            </Link>
+export function TeachConversation({ teach }) {
+  const endRef = useRef(null);
+  const { session, phase, result, error, hasTaught, draft } = teach;
+  const turns = session?.turns || [];
 
-            <button
-              type="button"
-              onClick={reset}
-              className="block w-full text-center text-xs text-muted hover:text-ink transition-colors pt-0.5"
-            >
-              Teach something else
-            </button>
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [turns.length, phase, result]);
+
+  if (!session) {
+    if (phase === TEACH_PHASE.STARTING) {
+      return (
+        <div className="flex h-full items-center justify-center gap-2 text-sm text-muted">
+          <ThinkingDots /> Redwan is getting ready
+        </div>
+      );
+    }
+    return <ChooseBelief teach={teach} />;
+  }
+
+  const closed = teach.passed || teach.failed;
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <button
+          type="button"
+          onClick={teach.leave}
+          className="inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-ink"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          All beliefs
+        </button>
+        <span className="text-sm font-medium text-ink">Teaching Redwan</span>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4" aria-live="polite">
+        {turns.map((turn, index) => (
+          <Bubble key={`${turn.at}-${index}`} role={turn.role}>{turn.content}</Bubble>
+        ))}
+        {phase === TEACH_PHASE.REPLYING && (
+          <Bubble role="nova"><span className="flex items-center gap-2 text-muted"><ThinkingDots /> thinking</span></Bubble>
+        )}
+        {phase === TEACH_PHASE.RETAKING && (
+          <div className="flex items-center justify-center gap-2 py-2 text-sm text-muted">
+            <ThinkingDots /> Redwan is re-taking the question
           </div>
+        )}
+        {result && <RetakeResult result={result} />}
+        <div ref={endRef} />
+      </div>
+
+      {error && <p className="px-4 pb-2 text-sm text-hard-fg">{error}</p>}
+
+      <div className="border-t border-line">
+        {closed ? (
+          <Outcome teach={teach} />
         ) : (
-          <>
+          <div className="space-y-2.5 p-4">
             <div className="flex items-end gap-2">
               <textarea
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault();
-                    send();
+                onChange={(e) => teach.setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    teach.send();
                   }
                 }}
                 rows={2}
-                disabled={busy}
+                disabled={teach.busy}
                 placeholder="Explain why what he believes is wrong..."
-                className="field min-h-[56px] flex-1 resize-none"
+                className="field min-h-[60px] flex-1 resize-none"
+                aria-label="Your explanation"
               />
-              <Button size="sm" onClick={send} disabled={busy || !draft.trim()}>
-                <Send className="h-3.5 w-3.5" />
+              <Button onClick={teach.send} disabled={teach.busy || !draft.trim()} aria-label="Send explanation">
+                <Send className="h-4 w-4" />
               </Button>
             </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={retake}
-              disabled={busy || !hasTaught}
-              loading={busy}
-              className="mt-2 w-full"
-            >
-              Ask Redwan to re-take the question
-            </Button>
-            {!hasTaught && (
-              <p className="mt-1.5 text-center text-xs text-muted">
-                Teach him something first - his score is your grade.
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted">
+                {hasTaught
+                  ? 'When you think he understands, ask him to re-take the question.'
+                  : 'Teach him something first - his score is your grade.'}
               </p>
-            )}
-          </>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={teach.retake}
+                disabled={teach.busy || !hasTaught}
+              >
+                Ask Redwan to re-take the question
+              </Button>
+            </div>
+          </div>
         )}
       </div>
     </div>

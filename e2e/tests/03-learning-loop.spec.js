@@ -23,12 +23,12 @@ test('teaching Redwan: vague is refused, a real explanation passes the retake', 
   await page.getByRole('button', { name: 'Teach', exact: true }).first().click();
 
   // Redwan holds the belief and opens the conversation.
-  await expect(page.getByText('He believes:')).toBeVisible();
+  await expect(page.getByText('What he believes')).toBeVisible();
   await expect(page.getByText(/I'm confident my answer was right/)).toBeVisible();
 
   // The question he must re-take is the one that produced his belief.
-  const belief = await page.getByText('He believes:').locator('..').innerText();
-  const question = await page.getByText('His question:').locator('..').innerText();
+  const belief = await page.getByText('What he believes').locator('..').innerText();
+  const question = await page.getByText('The question he will re-take').locator('..').innerText();
   const wrongAnswer = /"([^"]+)"/.exec(belief)[1];
   expect(wrongAnswer).toBe('SET NULL');
   expect(question).toContain('ON DELETE');
@@ -53,4 +53,45 @@ test('teaching Redwan: vague is refused, a real explanation passes the retake', 
   await page.getByRole('button', { name: 'Ask Redwan to re-take the question' }).click();
   await expect(page.getByText(new RegExp(`He answered:.*${correct}`))).toBeVisible();
   await expect(page.getByText(/still got it wrong/)).toHaveCount(0);
+  await expect(page.getByText('You taught him - misconception fixed')).toBeVisible();
+});
+
+test('running out of attempts is reported as a fail, never as fixed', async ({ page }) => {
+  // Regression: the page used to show "Misconception Addressed" after the
+  // third failed retake, directly under "Redwan still got it wrong".
+  await signUp(page);
+  await failQuiz1(page);
+  await page.goto('/tutor?mode=teachback');
+  await page.getByRole('button', { name: 'Teach', exact: true }).first().click();
+  const box = page.getByPlaceholder('Explain why what he believes is wrong...');
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await box.fill(`Attempt ${attempt}: no, that is not right at all, think again about it please.`);
+    await box.press('Enter');
+    await expect(page.getByText(`Attempt ${attempt}:`, { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Ask Redwan to re-take the question' }).click();
+    await expect(page.getByText('Redwan still got it wrong')).toBeVisible();
+    await expect(page.getByText(attempt < 3 ? `${3 - attempt} of 3 left` : 'None left')).toBeVisible();
+  }
+  await expect(page.getByText('Out of attempts - the belief is still there')).toBeVisible();
+  await expect(page.getByText(/misconception fixed|Misconception Addressed/i)).toHaveCount(0);
+  await expect(page.getByText('None left')).toBeVisible();
+
+  // Try again opens a fresh session on the same belief.
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByText('3 of 3 left')).toBeVisible();
+});
+
+test('pressing Teach again resumes the session instead of starting over', async ({ page }) => {
+  await signUp(page);
+  await failQuiz1(page);
+  await page.goto('/tutor?mode=teachback');
+  await page.getByRole('button', { name: 'Teach', exact: true }).first().click();
+  const box = page.getByPlaceholder('Explain why what he believes is wrong...');
+  await box.fill('Here is my first explanation, which should still be here afterwards.');
+  await box.press('Enter');
+  await expect(page.getByText(/still don't follow|walk me through/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'All beliefs' }).click();
+  await page.getByRole('button', { name: 'Teach', exact: true }).first().click();
+  await expect(page.getByText('Here is my first explanation, which should still be here afterwards.')).toBeVisible();
 });

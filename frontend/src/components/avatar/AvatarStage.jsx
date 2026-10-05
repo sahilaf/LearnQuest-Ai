@@ -21,6 +21,10 @@ import SyncTalkStage from './SyncTalkStage';
 import { STREAM_STATUS } from './useSyncTalkStream';
 import { avatarStatus } from '../../api/avatar';
 
+/** Retry for ~2 minutes while the avatar service may still be starting. */
+const STARTUP_RETRY_MS = 5000;
+const STARTUP_RETRIES = 24;
+
 /** What the student sees before connecting: a still and one clear action. */
 function AvatarConnect({ onConnect }) {
   return (
@@ -76,6 +80,7 @@ export default function AvatarStage({
   onAvailabilityChange = null,
   controllerRef = null,
   overlay = null,
+  compact = false,
 }) {
   const [availability, setAvailability] = useState(null);
   const [streamFailed, setStreamFailed] = useState(false);
@@ -87,19 +92,32 @@ export default function AvatarStage({
       return undefined;
     }
     let cancelled = false;
+    let timer = null;
+    let tries = 0;
 
-    avatarStatus()
-      .then((data) => {
-        if (!cancelled) setAvailability(data);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAvailability({ online: false, reason: 'Could not reach the backend.' });
-        }
-      });
+    // The service takes 40 s - 2 min to load and only opens its port at the
+    // end, so "not reachable" right after starting it usually means "not yet".
+    // Keep asking for a while instead of declaring it dead on the first try.
+    const check = () => {
+      avatarStatus()
+        .then((data) => {
+          if (cancelled) return;
+          setAvailability(data);
+          const starting = !data.online && /not reachable|still loading/i.test(data.reason || '');
+          if (starting && tries < STARTUP_RETRIES) {
+            tries += 1;
+            timer = setTimeout(check, STARTUP_RETRY_MS);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setAvailability({ online: false, reason: 'Could not reach the backend.' });
+        });
+    };
+    check();
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [preview, connected]);
 
@@ -151,6 +169,7 @@ export default function AvatarStage({
       controllerRef={controllerRef}
       onDisconnect={onDisconnect}
       overlay={overlay}
+      compact={compact}
     />
   );
 }

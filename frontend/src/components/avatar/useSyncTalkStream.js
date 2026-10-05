@@ -486,7 +486,11 @@ export default function useSyncTalkStream({
       teardown();
     };
 
-    (async () => {
+    // Deferred one tick: React StrictMode (every dev run) mounts, unmounts and
+    // remounts at once, and starting immediately opened two GPU sessions per
+    // "Connect avatar" - the first abandoned. The throwaway mount's timer is
+    // cleared before it fires.
+    const startTimer = setTimeout(() => (async () => {
       setStatus(STREAM_STATUS.CONNECTING);
       setError(null);
 
@@ -557,10 +561,11 @@ export default function useSyncTalkStream({
           audioSocketRef.current = null;
         }
       }
-    })();
+    })(), 0);
 
     return () => {
       cancelled = true;
+      clearTimeout(startTimer);
       if (timeoutId) clearTimeout(timeoutId);
       teardown();
     };

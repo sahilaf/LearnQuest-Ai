@@ -18,7 +18,7 @@ import { Sparkles, VideoOff } from 'lucide-react';
 /** Backend `reason` strings are diagnostics. Say something a human can act on. */
 const FRIENDLY = {
   'AVATAR_SERVICE_URL is not set': 'The avatar service is not configured on this machine.',
-  'Avatar service is not reachable': 'The avatar service is not running.',
+  'Avatar service is not reachable': 'The avatar service is not running yet. If it was just started, it can take up to two minutes - this checks again by itself.',
   'Avatar service is still loading': 'The avatar service is still starting up.',
 };
 

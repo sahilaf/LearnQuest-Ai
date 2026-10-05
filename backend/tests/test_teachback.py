@@ -224,6 +224,22 @@ class TestTeachBackLoop(TeachBackTestBase):
         # Redwan was told the student's belief verbatim.
         self.assertIn("unmatched rows", fake.prompts[0])
 
+    def test_pressing_teach_again_resumes_the_open_session(self) -> None:
+        """Each press used to open a new session and lose the student's turns."""
+        from app.services import teachback
+
+        self._seed_misconception()
+        fake = _FakeLLM([json.dumps({"opening": "An INNER JOIN keeps every row from both tables, so why would this one drop any?"})])
+
+        with patch("app.services.llm_client.get_llm", return_value=fake):
+            first, _ = _run(teachback.start_session(self.db, self.user_id))
+            again, error = _run(teachback.start_session(self.db, self.user_id))
+
+        self.assertIsNone(error)
+        self.assertEqual(again.id, first.id)
+        self.assertEqual(len(fake.prompts), 1)  # no second opening was generated
+        self.assertEqual(again.to_dict()["max_retakes"], teachback.MAX_RETAKES)
+
     def test_start_without_a_misconception_is_refused(self) -> None:
         from app.services import teachback
 

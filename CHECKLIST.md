@@ -398,6 +398,15 @@ get one wrong → the app names your misconception.
       recent turns). One male voice (Charon) everywhere. Also fixed: Chat never
       loaded conversation history (it read `messages`, the API sends `items`).
       Verified live in the browser; 5 tests in `test_live_tutor.py` — @sahilaf, 2026-10-06
+- [x] **Tutor page rebuilt on one layout, Teach-Back fixed.** Every tab: the
+      tutor on the left with what belongs beside him (call controls in Live;
+      the belief, the question with its options and the attempts in Teach;
+      conversations in Chat), the conversation on the right, one status chip
+      on the face. Teach-Back: a fail no longer shows "Misconception
+      Addressed"; Redwan speaks each line once (no repeats after a retake);
+      pressing Teach resumes the open session; "Connect video" opens one GPU
+      session, not two; it retries while the avatar service is starting. 16/16
+      E2E, including fail and resume regressions — @sahilaf, 2026-10-06
 - [x] **End-to-end test suite** (`e2e/`, Playwright): 14 student journeys in a
       real browser against the real frontend, backend and a fresh seeded
       database, with AI scripted (`E2E_FAKE_AI=1`, refused in production).

@@ -15,6 +15,9 @@ import { Mic } from 'lucide-react';
 import { LIVE_STATUS } from './useLiveConversation';
 
 export const LIVE_STATES = {
+  idle: { label: 'Ready', hint: 'Waiting for you', tone: 'neutral' },
+  explain: { label: 'Your turn', hint: 'Explain why his belief is wrong', tone: 'go' },
+  retaking: { label: 'Re-taking the question', hint: 'Redwan is answering your question', tone: 'wait' },
   connecting: { label: 'Connecting...', hint: 'Opening the line', tone: 'neutral' },
   turn: { label: 'Your turn', hint: 'Go ahead and speak', tone: 'go' },
   hearing: { label: 'Listening', hint: 'Keep going - Redwan is listening', tone: 'go' },
@@ -75,10 +78,10 @@ export function TalkBars({ level = null, className = 'bg-primary-300', count = 5
 
 function StateIcon({ state, level }) {
   const tone = TONE[LIVE_STATES[state].tone];
-  if (state === 'thinking') return <ThinkingDots />;
+  if (state === 'thinking' || state === 'retaking') return <ThinkingDots />;
   if (state === 'speaking') return <TalkBars />;
   if (state === 'hearing') return <TalkBars level={level} className="bg-easy" />;
-  if (state === 'turn') return <Mic className={`h-4 w-4 ${tone.text}`} />;
+  if (state === 'turn' || state === 'explain') return <Mic className={`h-4 w-4 ${tone.text}`} />;
   return <span className={`h-2 w-2 rounded-full ${tone.dot}`} />;
 }
 

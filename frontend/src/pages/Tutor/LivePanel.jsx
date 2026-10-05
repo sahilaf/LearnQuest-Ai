@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Hand, Mic, MicOff, PhoneOff, Radio, Send } from 'lucide-react';
 
 import { LIVE_STATUS } from './useLiveConversation';
-import { LiveStatusChip, TalkBars, ThinkingDots, liveStateOf } from './LiveStatus';
+import { LIVE_STATES, TalkBars, ThinkingDots, liveStateOf } from './LiveStatus';
 
 function Bubble({ role, children }) {
   const mine = role === 'user';
@@ -110,9 +110,11 @@ export default function LivePanel({ live, conversationTitle, lessonTitle, avatar
   /* ---- In a call ---- */
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3" role="status">
-        <LiveStatusChip state={state} level={live.level} withHint />
-        <span className="min-w-0 truncate text-2xs text-faint">{conversationTitle}</span>
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <span className="text-sm font-medium text-ink">Live conversation</span>
+        {conversationTitle && conversationTitle !== 'Live conversation' && (
+          <span className="min-w-0 truncate text-2xs text-faint">{conversationTitle}</span>
+        )}
       </div>
 
       {/* aria-live: a screen reader announces each new line as it arrives,
@@ -147,7 +149,7 @@ export default function LivePanel({ live, conversationTitle, lessonTitle, avatar
         <div ref={endRef} />
       </div>
 
-      <div className="space-y-2.5 border-t border-line p-3">
+      <div className="border-t border-line p-3">
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -173,12 +175,32 @@ export default function LivePanel({ live, conversationTitle, lessonTitle, avatar
           </button>
         </form>
 
-        <div className="flex flex-wrap items-center gap-2">
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Call controls, shown beside the tutor while a call is on: the state in
+ * words, then mute / stop talking / end. Kept next to the face they control,
+ * not under the transcript.
+ */
+export function LiveControls({ live }) {
+  const state = liveStateOf(live);
+  const inCall = live.status === LIVE_STATUS.LIVE;
+  return (
+    <div className="card space-y-3 p-4" role="status">
+      <div>
+        <span className="label">On the call</span>
+        <p className="mt-1 text-sm font-medium text-ink">{LIVE_STATES[state].label}</p>
+        <p className="mt-0.5 text-sm text-muted">{LIVE_STATES[state].hint}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => live.setMicMuted(!live.micMuted)}
             disabled={!inCall}
-            className={`inline-flex items-center gap-1.5 rounded border px-3 py-2 text-sm transition-colors disabled:opacity-40 ${
+            className={`inline-flex items-center justify-center gap-1.5 rounded border px-3 py-2 text-sm transition-colors disabled:opacity-40 ${
               live.micMuted ? 'border-hard/50 text-hard-fg' : 'border-line text-body hover:text-ink'
             }`}
           >
@@ -189,22 +211,21 @@ export default function LivePanel({ live, conversationTitle, lessonTitle, avatar
             type="button"
             onClick={live.interrupt}
             disabled={state !== 'speaking'}
-            className="inline-flex items-center gap-1.5 rounded border border-line px-3 py-2 text-sm text-body transition-colors hover:text-ink disabled:opacity-40"
+            className="inline-flex items-center justify-center gap-1.5 rounded border border-line px-3 py-2 text-sm text-body transition-colors hover:text-ink disabled:opacity-40"
             title="Stop Redwan and take your turn"
           >
             <Hand className="h-4 w-4" />
             Stop talking
           </button>
-          <button
-            type="button"
-            onClick={live.stop}
-            className="ml-auto inline-flex items-center gap-1.5 rounded bg-hard/90 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-hard"
-          >
-            <PhoneOff className="h-4 w-4" />
-            End call
-          </button>
         </div>
-      </div>
+      <button
+        type="button"
+        onClick={live.stop}
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded bg-hard/90 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-hard"
+      >
+        <PhoneOff className="h-4 w-4" />
+        End call
+      </button>
     </div>
   );
 }
