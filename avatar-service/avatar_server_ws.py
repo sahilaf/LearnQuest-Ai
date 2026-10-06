@@ -1579,9 +1579,14 @@ async def ws_audio(ws: WebSocket, sid: str):
     except Exception as e:
         log(f"[Session {sid}] Audio WebSocket error: {e}")
     finally:
+        # The page opens and closes both sockets together, so either one
+        # dropping means the page is gone. Waiting for the video socket as
+        # well leaked sessions: it only sends, so it never noticed a page
+        # that closed while the face was idle - four such zombies filled
+        # MAX_SESSIONS and every new visitor was refused video.
         sess.audio_connected = False
-        if sess and not sess.video_connected:
-            log(f"[Session {sid}] All WS disconnected, stopping worker")
+        if not sess.closed.is_set():
+            log(f"[Session {sid}] Audio WS gone, closing session")
             sess.closed.set()
 
 
@@ -1603,6 +1608,22 @@ async def ws_video(ws: WebSocket, sid: str):
 
     sess.video_connected = True
     log(f"[Session {sid}] Video WebSocket connected (segment protocol)")
+
+    # This socket only sends, so a page that closes while nothing is being
+    # sent would go unnoticed until the next frame. Listen for the close.
+    async def _watch_disconnect() -> None:
+        try:
+            while True:
+                msg = await ws.receive()
+                if msg.get("type") == "websocket.disconnect":
+                    break
+        except Exception:  # noqa: BLE001 - any failure means the page is gone
+            pass
+        if not sess.closed.is_set():
+            log(f"[Session {sid}] Video WS gone, closing session")
+            sess.closed.set()
+
+    watcher = asyncio.create_task(_watch_disconnect())
     packet_count = 0
     segment_count = 0
     start_time = time.time()
@@ -1648,10 +1669,11 @@ async def ws_video(ws: WebSocket, sid: str):
     except Exception as e:
         log(f"[Session {sid}] Video WebSocket error: {e}")
     finally:
+        watcher.cancel()
         sess.video_connected = False
-        if sess and not sess.audio_connected:
-             log(f"[Session {sid}] All WS disconnected, stopping worker")
-             sess.closed.set()
+        if not sess.closed.is_set():
+            log(f"[Session {sid}] Video WS gone, closing session")
+            sess.closed.set()
         log(f"[Session {sid}] Video WS closed. Total: {packet_count} packets, {segment_count} segments, {bytes_sent / 1_000_000:.2f} MB")
 
 
