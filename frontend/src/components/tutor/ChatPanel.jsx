@@ -90,13 +90,15 @@ export default function ChatPanel({
   const [isRecording, setIsRecording] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
 
-  const messagesEndRef = useRef(null);
+  const listRef = useRef(null);
   const textareaRef = useRef(null);
   const recognitionRef = useRef(null);
 
   // Auto-scroll to bottom whenever messages update or loading changes
+  // The message box only - scrollIntoView would scroll the window too.
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const list = listRef.current;
+    list?.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -281,7 +283,7 @@ export default function ChatPanel({
       )}
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
+      <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
         {loading && (
           <div className="flex h-40 flex-col items-center justify-center gap-2 text-muted">
             <Spinner size="md" />
@@ -481,7 +483,6 @@ export default function ChatPanel({
           </div>
         )}
 
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input Bar */}

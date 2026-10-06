@@ -32,7 +32,7 @@ function Bubble({ role, children }) {
 
 export default function LivePanel({ live, conversationTitle, lessonTitle, avatarLive, onStart }) {
   const [draft, setDraft] = useState('');
-  const endRef = useRef(null);
+  const listRef = useRef(null);
   const state = liveStateOf(live);
 
   const last = live.turns[live.turns.length - 1];
@@ -41,7 +41,11 @@ export default function LivePanel({ live, conversationTitle, lessonTitle, avatar
   const showVoicePlaceholder = state === 'speaking' && last?.role !== 'tutor';
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    // Scroll the transcript box only. scrollIntoView also scrolls every
+    // scrollable ancestor - the whole window - so the page jumped up and
+    // down with each word Redwan said.
+    const list = listRef.current;
+    list?.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   }, [live.turns, showThinking, showVoicePlaceholder]);
 
   const inCall = live.status === LIVE_STATUS.LIVE;
@@ -119,7 +123,7 @@ export default function LivePanel({ live, conversationTitle, lessonTitle, avatar
 
       {/* aria-live: a screen reader announces each new line as it arrives,
           so the conversation is followable without seeing it. */}
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4" aria-live="polite" aria-label="Conversation transcript">
+      <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4" aria-live="polite" aria-label="Conversation transcript">
         {live.turns.length === 0 && !connecting && !showThinking && (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <p className="text-sm font-medium text-ink">Redwan is listening.</p>
@@ -146,7 +150,6 @@ export default function LivePanel({ live, conversationTitle, lessonTitle, avatar
             <span className="flex items-center gap-2 text-muted"><TalkBars /> speaking</span>
           </Bubble>
         )}
-        <div ref={endRef} />
       </div>
 
       <div className="border-t border-line p-3">

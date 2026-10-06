@@ -22,19 +22,38 @@ import TutorStage from '../Tutor/TutorStage';
 import { LIVE_STATUS } from '../Tutor/useLiveConversation';
 import { NARRATION } from './useLessonNarration';
 
-/** The sentence being said, with the current word lit. */
+/** Words shown around the spoken one - always fits the caption's three lines. */
+const CAPTION_WORDS = 20;
+
+/**
+ * The sentence being said, with the current word lit. A fixed-height box
+ * showing a window of words that moves with the voice: a caption that grew
+ * and shrank with each sentence resized the video above it, and the page
+ * jumped up and down while Redwan read.
+ */
 function Caption({ caption }) {
-  if (!caption) return null;
+  let words = [];
+  let start = 0;
+  if (caption) {
+    start = Math.max(0, Math.min(caption.active - 6, caption.words.length - CAPTION_WORDS));
+    words = caption.words.slice(start, start + CAPTION_WORDS);
+  }
+  const more = caption && start + CAPTION_WORDS < caption.words.length;
   return (
-    <p className="rounded border border-line bg-canvas px-3 py-2.5 text-sm leading-relaxed text-muted" aria-hidden>
-      {caption.words.map((word, i) => (
-        <span
-          key={i}
-          className={i === caption.active ? 'rounded-sm bg-primary-500/30 text-ink' : i < caption.active ? 'text-body' : ''}
-        >
-          {word}{' '}
-        </span>
-      ))}
+    <p className="h-[5.25rem] overflow-hidden rounded border border-line bg-canvas px-3 py-2.5 text-sm leading-relaxed text-muted" aria-hidden>
+      {start > 0 && '... '}
+      {words.map((word, i) => {
+        const index = start + i;
+        return (
+          <span
+            key={index}
+            className={index === caption.active ? 'rounded-sm bg-primary-500/30 text-ink' : index < caption.active ? 'text-body' : ''}
+          >
+            {word}{' '}
+          </span>
+        );
+      })}
+      {more && '...'}
     </p>
   );
 }
@@ -121,10 +140,10 @@ export default function LessonNarrator({
     card = <HowItWorks onStart={onStart} canRead={canRead} preparing={preparing} />;
   } else if (inCall) {
     card = (
-      <div className="space-y-3">
+      <div className="flex h-full min-h-0 flex-col gap-3">
         <div>
           <p className="text-base font-semibold text-ink">{line.label}</p>
-          <p className="mt-0.5 text-sm text-muted">{line.hint}</p>
+          <p className="mt-0.5 truncate text-sm text-muted">{line.hint}</p>
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={onContinue} className={`${PRIMARY} flex-1`}>
@@ -142,6 +161,9 @@ export default function LessonNarrator({
             {live.micMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </button>
         </div>
+        <div className="-mx-4 -mb-4 flex min-h-0 flex-1 flex-col border-t border-line">
+          <LivePanel live={live} />
+        </div>
       </div>
     );
   } else {
@@ -157,7 +179,12 @@ export default function LessonNarrator({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-base font-semibold text-ink">{line.label}</p>
-            <p className={`mt-0.5 text-sm ${status === NARRATION.ERROR ? 'text-hard-fg' : 'text-muted'}`}>{line.hint}</p>
+            <p
+              className={`mt-0.5 text-sm ${status === NARRATION.ERROR ? 'text-hard-fg line-clamp-2' : 'truncate text-muted'}`}
+              title={line.hint}
+            >
+              {line.hint}
+            </p>
           </div>
           <span className="shrink-0 font-mono text-xs text-muted">{percent}%</span>
         </div>
@@ -184,8 +211,9 @@ export default function LessonNarrator({
           </button>
         </div>
 
-        {live.error && <p className="text-xs text-hard-fg">{live.error}</p>}
-        <p className="hidden text-xs text-faint lg:block">Tip: click any paragraph to read from there.</p>
+        <p className={`hidden truncate text-xs lg:block ${live.error ? 'text-hard-fg' : 'text-faint'}`}>
+          {live.error || 'Tip: click any paragraph to read from there.'}
+        </p>
       </div>
     );
   }
@@ -211,13 +239,16 @@ export default function LessonNarrator({
         />
       </div>
 
-      <div className="card shrink-0 p-4" role="status" aria-live="polite">{card}</div>
-
-      {inCall && (
-        <div className="card flex h-56 shrink-0 flex-col overflow-hidden lg:h-[34%]">
-          <LivePanel live={live} />
-        </div>
-      )}
+      {/* One fixed size on wide screens, whatever the card shows, so the
+          face above never resizes - not between sentences, not when a call
+          starts. On phones only a call makes it taller (for its transcript). */}
+      <div
+        className={`card flex shrink-0 flex-col overflow-hidden p-4 lg:h-80 ${inCall ? 'h-80' : ''}`}
+        role="status"
+        aria-live="polite"
+      >
+        {card}
+      </div>
     </div>
   );
 }

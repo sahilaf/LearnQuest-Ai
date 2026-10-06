@@ -62,6 +62,10 @@ test('live call: speak, see both sides of the conversation, then find it in Chat
   await page.getByPlaceholder(/Prefer typing/).press('Enter');
   await expect(page.getByText('[e2e tutor] You said: What is normalization?')).toBeVisible();
 
+  // New lines scroll the transcript, never the page (it used to jump with
+  // every word Redwan said).
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
   await page.getByRole('button', { name: 'End call' }).click();
   await expect(page.getByRole('button', { name: 'Start conversation' })).toBeVisible();
 

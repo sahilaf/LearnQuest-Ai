@@ -465,7 +465,13 @@ export default function LessonViewer() {
 
   const scrollToHeading = (idToScroll) => {
     setContentsOpen(false);
-    document.getElementById(idToScroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Within the lesson pane only, so the page around it never moves.
+    const pane = scrollRef.current;
+    const heading = document.getElementById(idToScroll);
+    if (pane && heading) {
+      const top = heading.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop - 16;
+      pane.scrollTo({ top, behavior: 'smooth' });
+    }
   };
 
   // 5. "Ask the tutor about this" handler

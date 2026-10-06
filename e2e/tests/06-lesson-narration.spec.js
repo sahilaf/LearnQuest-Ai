@@ -6,6 +6,19 @@ import { expect, test, API, LESSON_1, signUp } from './helpers';
 /** The narration panel beside the lesson (the phone bar is hidden at this width). */
 const narrator = (page) => page.getByRole('status').filter({ hasText: /Listen with Redwan|Reading|Paused|Getting ready|Loading|Finished|Stopped/ });
 
+/** Where Redwan's face and the lesson pane are, and whether the page scrolled. */
+const layout = (page) => page.evaluate(() => {
+  const box = (sel) => {
+    const r = document.querySelector(sel).getBoundingClientRect();
+    return [Math.round(r.top), Math.round(r.height)];
+  };
+  return {
+    page: window.scrollY,
+    face: box('[aria-label="Redwan, your tutor"] .panel'),
+    lesson: box('[aria-label="Lesson"]'),
+  };
+});
+
 /** The text of the word highlighted right now (CSS Custom Highlight API). */
 const highlightedWord = (page) => page.evaluate(() => {
   const h = CSS.highlights.get('narration-word');
@@ -32,6 +45,7 @@ test('the lesson is read aloud with the spoken word highlighted; pause, ask, con
   await page.waitForTimeout(1000);
   expect(speech).toEqual([]);
 
+  const still = await layout(page);
   await page.getByRole('button', { name: 'Start listening' }).click();
 
   // Reading: one block marked, and the highlighted word moves on.
@@ -40,6 +54,11 @@ test('the lesson is read aloud with the spoken word highlighted; pause, ask, con
   await expect.poll(() => highlightedWord(page)).not.toBeNull();
   const first = await highlightedWord(page);
   await expect.poll(() => highlightedWord(page), { timeout: 10_000 }).not.toBe(first);
+  // Nothing on screen moves or resizes while he reads, sentence after sentence.
+  for (let i = 0; i < 6; i += 1) {
+    expect(await layout(page)).toEqual(still);
+    await page.waitForTimeout(300);
+  }
 
   // Lesson audio is asked for as lesson narration, which the backend caches on disk.
   expect(speech[0].purpose).toBe('lesson');
@@ -60,6 +79,7 @@ test('the lesson is read aloud with the spoken word highlighted; pause, ask, con
   expect(liveStarts[0].reading).toBeTruthy();
   expect(liveStarts[0].reading).toContain(pausedOn);
   expect(liveStarts[0].conversation).toBeTruthy(); // saved with the lesson
+  expect(await layout(page)).toEqual(still); // asking does not move the face either
 
   // Continue: the call ends and reading carries on, with no part downloaded twice.
   await page.getByRole('button', { name: 'Continue the lesson' }).click();
